@@ -22,16 +22,7 @@ function Hero({ tweaks }) {
       <PlusMark bottom={40} right={120} />
 
       <div className="container" style={{ position: "relative" }}>
-        <FadeUp className="row center" style={{ justifyContent: "center", marginBottom: 22 }}>
-          <div className="row center gap-8" style={{ padding: "5px 5px 5px 14px", border: "1px solid var(--line-2)", borderRadius: 999, background: "color-mix(in oklab, var(--paper) 70%, transparent)", fontSize: 12.5, color: "var(--ink-3)" }}>
-            <span className="mono" style={{ color: "var(--ink-4)", fontSize: 11 }}>NEW</span>
-            <span style={{ width: 1, height: 14, background: "var(--line-2)" }} />
-            <span>Source-traceable answers across your entire library</span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", background: "var(--ink)", color: "var(--paper)", borderRadius: 999, fontSize: 11 }}>
-              Read more <I.arrow />
-            </span>
-          </div>
-        </FadeUp>
+
 
         <FadeUp delay={80}>
           <h1 className="display" style={{ textAlign: "center", maxWidth: 1000, margin: "0 auto" }}>
@@ -47,18 +38,20 @@ function Hero({ tweaks }) {
           </p>
         </FadeUp>
 
-        <FadeUp delay={220} className="row center gap-12" style={{ justifyContent: "center", marginTop: 28 }}>
+        <FadeUp delay={220} className="row center gap-16" style={{ justifyContent: "center", marginTop: 28 }}>
           <a href="#/register" className="btn btn-primary">Start your research <I.arrow /></a>
           <a href="#" className="btn btn-ghost"><I.play /> Watch demo · 1 min</a>
         </FadeUp>
 
-        <div className="row center gap-12 mono" style={{ justifyContent: "center", marginTop: 18, fontSize: 11, color: "var(--ink-4)" }}>
-          <span><I.check /> No credit card</span>
-          <span style={{ width: 3, height: 3, borderRadius: 2, background: "var(--line-2)" }} />
-          <span>Free 50 queries / mo</span>
-          <span style={{ width: 3, height: 3, borderRadius: 2, background: "var(--line-2)" }} />
-          <span>SOC2-ready</span>
-        </div>
+        <FadeUp delay={280}>
+          <div className="row center gap-16 mono" style={{ justifyContent: "center", marginTop: 20, fontSize: 11, color: "var(--ink-4)", opacity: 0.8 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><I.check size={14} style={{ color: "var(--verify)" }} /> No credit card</span>
+            <span style={{ width: 1, height: 12, background: "var(--line-2)" }} />
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><I.check size={14} style={{ color: "var(--verify)" }} /> Free 50 queries / mo</span>
+            <span style={{ width: 1, height: 12, background: "var(--line-2)" }} />
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><I.check size={14} style={{ color: "var(--verify)" }} /> SOC2-ready</span>
+          </div>
+        </FadeUp>
 
         {/* Product window */}
         <FadeUp delay={320} style={{ marginTop: 64, position: "relative" }}>
@@ -68,14 +61,11 @@ function Hero({ tweaks }) {
     </section>
   );
 }
-
 function ProductWindow({ step, accent }) {
+  const [hovered, setHovered] = useState(null);
+
   return (
     <div style={{ position: "relative", maxWidth: 1080, margin: "0 auto" }}>
-      <div style={{ position: "absolute", bottom: -24, right: -10, zIndex: 4, animation: "float-y 6s ease-in-out infinite reverse" }}>
-        <div className="src-chip"><span className="num">[3]</span> Methodology · p. 12</div>
-      </div>
-
       <Window title="aid.app/library/cognitive-bias-review">
         <div className="row" style={{ minHeight: 460 }}>
           {/* Sidebar */}
@@ -117,29 +107,35 @@ function ProductWindow({ step, accent }) {
               3.2 Methodology
             </div>
             <div className="col gap-8" style={{ fontSize: 13, color: "var(--ink-3)", lineHeight: 1.7 }}>
-              <p>The researchers employed a randomized controlled trial with 500 participants over 6 months. Data was collected via daily self-reporting metrics and verified against clinical outcomes.</p>
               <p>
-                {step >= 3 ? (
-                  <>
-                    Participants were stratified by age and assigned to{" "}
-                    <span className="src-mark" style={{ background: step >= 3 ? undefined : "transparent", borderColor: step >= 3 ? undefined : "transparent" }}>
-                      one of three intervention arms; cross-referencing improved accuracy by 28%
-                    </span>{" "}
-                    relative to baseline self-report. Sensitivity analysis confirmed robustness against the chosen prior.
-                  </>
-                ) : (
-                  <>Participants were stratified by age and assigned to one of three intervention arms; cross-referencing improved accuracy by 28% relative to baseline self-report. Sensitivity analysis confirmed robustness against the chosen prior.</>
-                )}
+                <span className="src-mark" style={{ 
+                  background: hovered === 1 ? undefined : "transparent", 
+                  borderColor: hovered === 1 ? undefined : "transparent",
+                  transition: "all .3s ease"
+                }}>
+                  The researchers employed a randomized controlled trial with 500 participants over 6 months.
+                </span> Data was collected via daily self-reporting metrics and verified against clinical outcomes.
+              </p>
+              <p>
+                Participants were stratified by age and assigned to{" "}
+                <span className="src-mark" style={{ 
+                  background: hovered === 2 ? undefined : "transparent", 
+                  borderColor: hovered === 2 ? undefined : "transparent",
+                  transition: "all .3s ease"
+                }}>
+                  one of three intervention arms; cross-referencing improved accuracy by 28%
+                </span>{" "}
+                relative to baseline self-report. Sensitivity analysis confirmed robustness against the chosen prior.
               </p>
               <p>The methodology section concludes with limitations: small geographic spread and a homogeneous demographic profile. Future replication is recommended.</p>
             </div>
 
             {/* Document handle dots */}
-            <div style={{ position: "absolute", left: 6, top: 80, bottom: 40, width: 2, borderRadius: 2, background: "color-mix(in oklab, var(--accent) 40%, transparent)", opacity: step >= 3 ? 1 : 0, transition: "opacity .4s ease" }} />
+            <div style={{ position: "absolute", left: 6, top: 80, bottom: 40, width: 2, borderRadius: 2, background: "color-mix(in oklab, var(--accent) 40%, transparent)", opacity: hovered ? 1 : 0, transition: "opacity .4s ease" }} />
           </div>
 
           {/* Chat pane */}
-          <div style={{ width: 320, padding: "18px 18px", display: "flex", flexDirection: "column" }}>
+          <div style={{ width: 320, padding: "18px 18px", display: "flex", flexDirection: "column", position: "relative" }}>
             <div className="mono" style={{ fontSize: 10, color: "var(--ink-4)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>Conversation</div>
 
             <div style={{ alignSelf: "flex-end", background: "var(--ink)", color: "#f5efde", padding: "8px 12px", borderRadius: "12px 12px 4px 12px", fontSize: 12.5, maxWidth: 240 }}>
@@ -147,27 +143,37 @@ function ProductWindow({ step, accent }) {
             </div>
 
             {step >= 1 && (
-              <div className="col gap-8" style={{ marginTop: 14, fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.55, opacity: step >= 1 ? 1 : 0, transition: "opacity .4s ease" }}>
+              <div className="col gap-8" style={{ marginTop: 14, fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.55, opacity: 1, transition: "opacity .4s ease" }}>
                 <p>
-                  The study indicates that source verification by independent reviewers <span className="src-chip" style={{ verticalAlign: "middle" }}><span className="num">1</span></span> reduced false-positive claims by <strong>40%</strong>.
+                  The study indicates that source verification by independent reviewers{" "}
+                  <span 
+                    onMouseEnter={() => setHovered(1)} 
+                    onMouseLeave={() => setHovered(null)}
+                    className="src-chip" 
+                    style={{ verticalAlign: "middle", cursor: "pointer", transition: "transform .2s ease", transform: hovered === 1 ? "scale(1.1)" : "none" }}
+                  >
+                    <span className="num">1</span>
+                  </span>{" "}
+                  reduced false-positive claims by <strong>40%</strong>.
                 </p>
                 {step >= 2 && (
                   <p>
-                    The authors note that <span className="src-mark">cross-referencing improves accuracy by 28%</span> <span className="src-chip" style={{ verticalAlign: "middle" }}><span className="num">3</span></span> when applied across multiple sources.
+                    The authors note that cross-referencing improves accuracy by 28%{" "}
+                    <span 
+                      onMouseEnter={() => setHovered(2)} 
+                      onMouseLeave={() => setHovered(null)}
+                      className="src-chip" 
+                      style={{ verticalAlign: "middle", cursor: "pointer", transition: "transform .2s ease", transform: hovered === 2 ? "scale(1.1)" : "none", display: "inline-flex" }}
+                    >
+                      <span className="num">2</span>
+                    </span>{" "}
+                    when applied across multiple sources.
                   </p>
                 )}
               </div>
             )}
 
             <div style={{ flex: 1 }} />
-
-            {/* SVG link from chip [3] in chat to highlight in doc */}
-            {step >= 3 && (
-              <svg style={{ position: "absolute", left: -340, top: 220, width: 360, height: 60, overflow: "visible", pointerEvents: "none" }}>
-                <path d="M0 30 C 80 0, 180 60, 340 30" stroke={accent || "var(--accent)"} strokeWidth="1.4" fill="none" strokeDasharray="320" strokeDashoffset={step >= 3 ? 0 : 320} style={{ transition: "stroke-dashoffset 1s ease" }} />
-                <circle cx="340" cy="30" r="3.5" fill={accent || "var(--accent)"} />
-              </svg>
-            )}
 
             <div style={{ marginTop: 10, padding: "8px 10px", borderRadius: 999, border: "1px solid var(--line-2)", background: "var(--bg-soft)", display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--ink-4)" }}>
               <I.sparkle />

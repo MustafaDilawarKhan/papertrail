@@ -1,8 +1,8 @@
 // Shared shell components: Sidebar, TopNav, AvatarMenu, etc.
-import React, { useState, useEffect, useRef } from 'react';
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
 // ---- Router (hash-based) ----
-export function useRoute() {
+function useRoute() {
   const [route, setRoute] = useState(() => window.location.hash.replace(/^#/, "") || "/");
   useEffect(() => {
     const onHash = () => setRoute(window.location.hash.replace(/^#/, "") || "/");
@@ -11,13 +11,11 @@ export function useRoute() {
   }, []);
   return route;
 }
-
-export function navigate(path) {
+function navigate(path) {
   window.location.hash = path;
   window.scrollTo(0, 0);
 }
-
-export function Link({ to, children, className, onClick, ...rest }) {
+function Link({ to, children, className, onClick, ...rest }) {
   return (
     <a href={`#${to}`} className={className} onClick={(e) => {
       if (onClick) onClick(e);
@@ -26,14 +24,14 @@ export function Link({ to, children, className, onClick, ...rest }) {
 }
 
 // ---- Icon shorthand ----
-export function Icon({ name, className = "", filled = false, size }) {
+function Icon({ name, className = "", filled = false, size }) {
   const style = filled ? { fontVariationSettings: "'FILL' 1" } : undefined;
   const sizeStyle = size ? { fontSize: size + "px", ...style } : style;
   return <span className={`material-symbols-outlined ${className}`} style={sizeStyle}>{name}</span>;
 }
 
 // ---- Brand / Logo ----
-export function Brand({ small }) {
+function Brand({ small }) {
   return (
     <Link to="/dashboard" className="flex items-center gap-2 group">
       <span className={`font-hero-headline font-extrabold text-primary tracking-tight ${small ? "text-lg" : "text-xl"}`}>Aid</span>
@@ -43,7 +41,7 @@ export function Brand({ small }) {
 }
 
 // ---- Sidebar (user app) ----
-export function Sidebar({ active }) {
+function Sidebar({ active }) {
   const items = [
     { id: "home", label: "Home", icon: "home", to: "/dashboard" },
     { id: "library", label: "Library", icon: "library_books", to: "/library" },
@@ -88,7 +86,7 @@ export function Sidebar({ active }) {
 }
 
 // ---- Top Nav (user app) ----
-export function TopNav({ breadcrumbs = [], onSearchOpen }) {
+function TopNav({ breadcrumbs = [], onSearchOpen }) {
   return (
     <header className="fixed top-0 right-0 w-[calc(100%-240px)] h-16 bg-background-primary/80 backdrop-blur-md border-b border-border-subtle flex justify-between items-center px-container-padding z-30">
       <nav className="flex items-center gap-2 font-breadcrumb text-breadcrumb">
@@ -124,7 +122,7 @@ export function TopNav({ breadcrumbs = [], onSearchOpen }) {
 }
 
 // ---- Page shell for user app ----
-export function AppShell({ active, breadcrumbs, children, onSearchOpen }) {
+function AppShell({ active, breadcrumbs, children, onSearchOpen }) {
   return (
     <div className="min-h-screen bg-background-primary">
       <Sidebar active={active} />
@@ -137,7 +135,7 @@ export function AppShell({ active, breadcrumbs, children, onSearchOpen }) {
 }
 
 // ---- Command Palette ----
-export function CommandPalette({ open, onClose }) {
+function CommandPalette({ open, onClose }) {
   const [q, setQ] = useState("");
   const inputRef = useRef(null);
   useEffect(() => {
@@ -146,6 +144,7 @@ export function CommandPalette({ open, onClose }) {
       if (e.key === "Escape" && open) onClose();
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
+        if (!open) { /* parent owns state */ }
       }
     };
     window.addEventListener("keydown", onKey);
@@ -206,7 +205,7 @@ export function CommandPalette({ open, onClose }) {
 }
 
 // ---- Empty State ----
-export function EmptyState({ icon, title, text, action }) {
+function EmptyState({ icon, title, text, action }) {
   return (
     <div className="flex flex-col items-center justify-center text-center py-16 px-8">
       <div className="w-14 h-14 rounded-full bg-surface-container-low flex items-center justify-center mb-4">
@@ -219,12 +218,7 @@ export function EmptyState({ icon, title, text, action }) {
   );
 }
 
-// ---- Toggle ----
-export function Toggle({ defaultOn = false }) {
-  const [on, setOn] = useState(defaultOn);
-  return (
-    <button onClick={() => setOn(o => !o)} className={`relative w-11 h-6 rounded-full transition-colors ${on ? "bg-primary" : "bg-surface-container-high"}`}>
-      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-all ${on ? "left-[22px]" : "left-0.5"}`}></span>
-    </button>
-  );
-}
+// Export to window for cross-script usage
+Object.assign(window, {
+  useRoute, navigate, Link, Icon, Brand, Sidebar, TopNav, AppShell, CommandPalette, EmptyState,
+});

@@ -620,4 +620,46 @@ function WorkspaceDetailPage({ params }) {
   );
 }
 
-export { DashboardPage, LibraryPage, DocViewerPage, WorkspacesPage, WorkspaceDetailPage };
+function IntegrationsPage() {
+  const integrations = [
+    { id: "zotero", name: "Zotero", desc: "Sync your research library and sync collections.", icon: "menu_book", status: "connected" },
+    { id: "mendeley", name: "Mendeley", desc: "Import papers and citations from your Mendeley account.", icon: "school", status: "disconnected" },
+    { id: "googlescholar", name: "Google Scholar", desc: "Automate citation tracking and PDF capture.", icon: "search", status: "disconnected" },
+    { id: "notion", name: "Notion", desc: "Export summaries and citations directly to your workspace.", icon: "description", status: "disconnected" },
+    { id: "drive", name: "Google Drive", desc: "Watch folders for new papers and sync PDFs.", icon: "cloud", status: "disconnected" },
+    { id: "overleaf", name: "Overleaf", desc: "Directly push BibTeX and citations to your projects.", icon: "article", status: "connected" },
+  ];
+
+  return (
+    <AppShell active="integrations" breadcrumbs={[{ label: "Integrations" }]}>
+      <div className="max-w-5xl mx-auto">
+        <div className="mb-8">
+          <h1 className="font-section-heading text-section-heading text-primary mb-2">Integrations</h1>
+          <p className="text-on-surface-variant">Connect Aid to your existing research tools and workflows.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {integrations.map(int => (
+            <div key={int.id} className="bg-white border border-border-subtle rounded-2xl p-5 hover:shadow-md transition-shadow group">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                  <Icon name={int.icon} size={24} />
+                </div>
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${int.status === "connected" ? "bg-green-100 text-green-700" : "bg-surface-container text-on-surface-variant"}`}>
+                  {int.status}
+                </span>
+              </div>
+              <h3 className="font-bold mb-1">{int.name}</h3>
+              <p className="text-xs text-on-surface-variant mb-6 leading-relaxed">{int.desc}</p>
+              <button className={`w-full py-2 rounded-lg text-xs font-bold transition-all ${int.status === "connected" ? "border border-border-subtle hover:bg-surface-container-low" : "bg-primary text-on-primary hover:opacity-90"}`}>
+                {int.status === "connected" ? "Configure" : "Connect"}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
+export { DashboardPage, LibraryPage, DocViewerPage, WorkspacesPage, WorkspaceDetailPage, IntegrationsPage };

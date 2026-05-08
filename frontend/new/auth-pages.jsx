@@ -1,9 +1,5 @@
 // Auth, Upload, Upgrade, Settings pages
-import React, { useState, useRef } from 'react';
-import { Link, Icon, Brand, AppShell, navigate } from '../shared/components';
-
-const useStateAux = useState;
-const useRefP1 = useRef;
+const { useState: useStateAux } = React;
 
 // =================== AUTH SHELL ===================
 function AuthShell({ children, side = "right" }) {
@@ -42,56 +38,24 @@ function AuthVisual() {
 }
 
 // =================== LOGIN ===================
-// Hardcoded credentials:
-//   User:  user@aid.com  / user123   → /dashboard
-//   Admin: admin@aid.com / admin123  → /admin
 function LoginPage() {
-  const [email, setEmail] = useStateAux("user@aid.com");
   const [pw, setPw] = useStateAux("");
   const [show, setShow] = useStateAux(false);
-  const [error, setError] = useStateAux("");
-  const [loading, setLoading] = useStateAux(false);
-
-  const handleLogin = (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-
-    setTimeout(() => {
-      setLoading(false);
-      if (email === "user@aid.com" && pw === "user123") {
-        navigate("/dashboard");
-      } else if (email === "admin@aid.com" && pw === "admin123") {
-        navigate("/admin");
-      } else {
-        setError("Invalid email or password. Please check the credentials below.");
-      }
-    }, 600);
-  };
-
   return (
     <AuthShell>
       <h1 className="font-section-heading text-section-heading text-primary mb-2">Welcome back.</h1>
       <p className="text-on-surface-variant mb-10">Sign in to continue your research.</p>
-      <form onSubmit={handleLogin} className="space-y-5">
-        <button type="button" className="w-full flex items-center justify-center gap-3 border border-border-subtle py-3 rounded-lg font-bold text-sm hover:bg-surface-container-low">
+      <div className="space-y-5">
+        <button className="w-full flex items-center justify-center gap-3 border border-border-subtle py-3 rounded-lg font-bold text-sm hover:bg-surface-container-low">
           <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
           Continue with Google
         </button>
         <div className="flex items-center gap-3 text-xs text-on-surface-variant">
           <div className="flex-1 h-px bg-border-subtle"></div><span>or</span><div className="flex-1 h-px bg-border-subtle"></div>
         </div>
-
-        {error && (
-          <div className="flex items-center gap-2 p-3 bg-error-container text-on-error-container rounded-lg text-xs">
-            <Icon name="error" size={16} />
-            <span>{error}</span>
-          </div>
-        )}
-
         <div>
           <label className="text-xs font-bold mb-1.5 block">Email</label>
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full border border-border-subtle bg-white px-3.5 py-2.5 rounded-lg text-body-main outline-none focus:border-primary" />
+          <input type="email" defaultValue="mustafa@example.com" className="w-full border border-border-subtle bg-white px-3.5 py-2.5 rounded-lg text-body-main outline-none focus:border-primary" />
         </div>
         <div>
           <div className="flex justify-between mb-1.5">
@@ -100,37 +64,11 @@ function LoginPage() {
           </div>
           <div className="relative">
             <input type={show ? "text" : "password"} value={pw} onChange={e => setPw(e.target.value)} placeholder="••••••••" className="w-full border border-border-subtle bg-white px-3.5 py-2.5 pr-10 rounded-lg text-body-main outline-none focus:border-primary" />
-            <button type="button" onClick={() => setShow(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant"><Icon name={show ? "visibility_off" : "visibility"} size={18} /></button>
+            <button onClick={() => setShow(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant"><Icon name={show ? "visibility_off" : "visibility"} size={18} /></button>
           </div>
         </div>
-        <button type="submit" disabled={loading} className="block w-full bg-primary text-on-primary py-3 rounded-lg text-sm font-bold text-center hover:opacity-90 disabled:opacity-60 transition-opacity">
-          {loading ? (
-            <span className="flex items-center justify-center gap-2">
-              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-              Signing in...
-            </span>
-          ) : "Sign In"}
-        </button>
+        <Link to="/dashboard" className="block w-full bg-primary text-on-primary py-3 rounded-lg text-sm font-bold text-center hover:opacity-90">Sign In</Link>
         <p className="text-center text-xs text-on-surface-variant">No account? <Link to="/register" className="text-primary font-bold hover:underline">Create one</Link></p>
-      </form>
-
-      {/* Credential hint */}
-      <div className="mt-8 p-4 bg-surface-container-low rounded-xl border border-border-subtle">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant mb-2">Demo Credentials</p>
-        <div className="space-y-2">
-          <div className="flex items-center gap-3">
-            <span className="w-14 text-[10px] font-bold bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded text-center">USER</span>
-            <code className="text-xs font-mono text-on-surface">user@aid.com</code>
-            <span className="text-[10px] text-on-surface-variant">/</span>
-            <code className="text-xs font-mono text-on-surface">user123</code>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="w-14 text-[10px] font-bold bg-primary text-on-primary px-2 py-0.5 rounded text-center">ADMIN</span>
-            <code className="text-xs font-mono text-on-surface">admin@aid.com</code>
-            <span className="text-[10px] text-on-surface-variant">/</span>
-            <code className="text-xs font-mono text-on-surface">admin123</code>
-          </div>
-        </div>
       </div>
     </AuthShell>
   );
@@ -512,4 +450,4 @@ function Toggle({ defaultOn = false }) {
   );
 }
 
-export { LoginPage, RegisterPage, VerifyPage, UploadPage, UpgradePage, SettingsPage, Toggle };
+Object.assign(window, { LoginPage, RegisterPage, VerifyPage, UploadPage, UpgradePage, SettingsPage });

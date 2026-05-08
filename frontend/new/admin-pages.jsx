@@ -1,9 +1,5 @@
 // Admin console pages
-import React, { useState } from 'react';
-import { Link, Icon, navigate } from '../shared/components';
-import { Toggle } from './authPages';
-
-const useStateAdmin = useState;
+const { useState: useStateAdmin } = React;
 
 // ---- Admin Sidebar ----
 function AdminSidebar({ active }) {
@@ -473,4 +469,4 @@ function AdminHealthPage() {
   );
 }
 
-export { AdminOverviewPage, AdminUsersPage, AdminModelsPage, AdminFlagsPage, AdminLogsPage, AdminHealthPage };
+Object.assign(window, { AdminOverviewPage, AdminUsersPage, AdminModelsPage, AdminFlagsPage, AdminLogsPage, AdminHealthPage });

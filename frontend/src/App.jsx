@@ -71,7 +71,8 @@ function AppRouter() {
     return <AppPages.WorkspaceDetailPage params={[name]} />;
   }
   if (route.startsWith('/workspaces')) return <AppPages.WorkspacesPage />;
-  if (route.startsWith('/upload')) return <AuthPages.UploadPage />;
+  if (route.startsWith('/integrations')) return <AppPages.IntegrationsPage />;
+  if (route.startsWith('/upload')) return <AppPages.LibraryPage />;
   if (route.startsWith('/settings')) return <AuthPages.SettingsPage />;
   if (route.startsWith('/upgrade')) return <AuthPages.UpgradePage />;
   if (route.startsWith('/help')) return <HelpPage />;
