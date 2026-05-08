@@ -42,8 +42,8 @@ function Nav({ tweaks, setTweak }) {
           >
             {tweaks.dark ? "LIGHT" : "DARK"}
           </button>
-          <a href="#" style={{ fontSize: 14, color: "var(--ink-2)" }}>Log in</a>
-          <a href="#" className="btn btn-primary" style={{ height: 38 }}>
+          <a href="#/login" style={{ fontSize: 14, color: "var(--ink-2)" }}>Log in</a>
+          <a href="#/register" className="btn btn-primary" style={{ height: 38 }}>
             Get Aid free <I.arrow />
           </a>
         </div>

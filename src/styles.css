@@ -1,3 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Material Symbols icon styling */
+.material-symbols-outlined { font-size: 20px; vertical-align: middle; }
+input, textarea { font-family: inherit; }
+kbd { font-family: ui-monospace, monospace; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: #d4d4d4; border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-track { background: transparent; }
+
 /* === Aid landing — design tokens & globals === */
 :root {
   --bg: #f1ece1;

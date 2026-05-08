@@ -48,7 +48,7 @@ function Hero({ tweaks }) {
         </FadeUp>
 
         <FadeUp delay={220} className="row center gap-12" style={{ justifyContent: "center", marginTop: 28 }}>
-          <a href="#" className="btn btn-primary">Start your research <I.arrow /></a>
+          <a href="#/register" className="btn btn-primary">Start your research <I.arrow /></a>
           <a href="#" className="btn btn-ghost"><I.play /> Watch demo · 1 min</a>
         </FadeUp>
 
@@ -72,10 +72,6 @@ function Hero({ tweaks }) {
 function ProductWindow({ step, accent }) {
   return (
     <div style={{ position: "relative", maxWidth: 1080, margin: "0 auto" }}>
-      {/* floating bubbles */}
-      <div style={{ position: "absolute", top: -16, left: -10, zIndex: 4, animation: "float-y 5s ease-in-out infinite" }}>
-        <div className="bubble">What does the study say about verifiability?</div>
-      </div>
       <div style={{ position: "absolute", bottom: -24, right: -10, zIndex: 4, animation: "float-y 6s ease-in-out infinite reverse" }}>
         <div className="src-chip"><span className="num">[3]</span> Methodology · p. 12</div>
       </div>
