@@ -1,6 +1,7 @@
 """Workspace schemas."""
 
 from pydantic import BaseModel
+from pydantic import EmailStr
 from datetime import datetime
 from uuid import UUID
 
@@ -34,5 +35,5 @@ class WorkspaceResponse(BaseModel):
 
 
 class AddMemberRequest(BaseModel):
-    user_id: UUID
+    email: EmailStr
     role: str = "Viewer"  # Owner | Editor | Viewer

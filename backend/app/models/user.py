@@ -24,6 +24,8 @@ class User(Base):
     default_citation_style: Mapped[str] = mapped_column(String(20), default="APA")
     preferred_llm: Mapped[str | None] = mapped_column(String(50), nullable=True)
     response_length: Mapped[str] = mapped_column(String(20), default="Medium")
+    affiliation: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    bio: Mapped[str | None] = mapped_column(String, nullable=True)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)

@@ -4,12 +4,18 @@ Users Router — Profile management and preferences.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text, update, select
 from app.database import get_db
 from app.models.user import User
 from app.schemas.user import UserResponse, UserUpdateRequest
 from app.middleware.auth import get_current_user
 
 router = APIRouter(prefix="/users", tags=["Users"])
+
+
+async def ensure_profile_columns(db: AsyncSession) -> None:
+    await db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS affiliation VARCHAR(255);"))
+    await db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;"))
 
 
 @router.get("/profile", response_model=UserResponse)
@@ -26,6 +32,7 @@ async def update_profile(
 ):
     """Update the current user's profile and preferences."""
     update_data = request.model_dump(exclude_unset=True)
+    print(f"UPDATE_PROFILE DATA: {update_data}")
 
     if not update_data:
         raise HTTPException(
@@ -33,11 +40,16 @@ async def update_profile(
             detail="No fields to update",
         )
 
-    for field, value in update_data.items():
-        setattr(current_user, field, value)
+    await ensure_profile_columns(db)
 
-    db.add(current_user)
-    await db.flush()
-    await db.refresh(current_user)
+    await db.execute(
+        update(User)
+        .where(User.user_id == current_user.user_id)
+        .values(**update_data)
+    )
+    await db.commit()
+
+    result = await db.execute(select(User).where(User.user_id == current_user.user_id))
+    current_user = result.scalar_one()
 
     return current_user

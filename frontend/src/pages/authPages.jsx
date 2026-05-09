@@ -1,9 +1,10 @@
 // Auth, Upload, Upgrade, Settings pages
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, Icon, Brand, AppShell, navigate } from '../shared/components';
 import { useAuth } from '../contexts/AuthContext';
 
 const useStateAux = useState;
+const useEffectAux = useEffect;
 const useRefP1 = useRef;
 
 // =================== AUTH SHELL ===================
@@ -313,8 +314,36 @@ function UpgradePage() {
 
 // =================== SETTINGS ===================
 function SettingsPage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [tab, setTab] = useStateAux("profile");
+  
+  // Profile state
+  const [profileData, setProfileData] = useStateAux({
+    firstName: user?.name ? user.name.split(' ')[0] : "",
+    lastName: user?.name && user.name.split(' ').length > 1 ? user.name.split(' ').slice(1).join(' ') : "",
+    affiliation: user?.affiliation || "",
+    bio: user?.bio || ""
+  });
+  const [profileLoading, setProfileLoading] = useStateAux(false);
+  const [profileMsg, setProfileMsg] = useStateAux({ type: "", text: "" });
+
+  // Password state
+  const [pwData, setPwData] = useStateAux({ current: "", new: "", confirm: "" });
+  const [pwLoading, setPwLoading] = useStateAux(false);
+  const [pwMsg, setPwMsg] = useStateAux({ type: "", text: "" });
+  const [showPwForm, setShowPwForm] = useStateAux(false);
+
+  useEffectAux(() => {
+    if (user) {
+      setProfileData({
+        firstName: user.name ? user.name.split(' ')[0] : "",
+        lastName: user.name && user.name.split(' ').length > 1 ? user.name.split(' ').slice(1).join(' ') : "",
+        affiliation: user.affiliation || "",
+        bio: user.bio || ""
+      });
+    }
+  }, [user]);
+
   const tabs = [
     { id: "profile", label: "Profile", icon: "person" },
     { id: "account", label: "Account", icon: "key" },
@@ -329,9 +358,89 @@ function SettingsPage() {
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
 
+  const handleSaveProfile = async () => {
+    setProfileLoading(true);
+    setProfileMsg({ type: "", text: "" });
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/users/profile", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("aid_token")}`
+        },
+        body: JSON.stringify({
+          name: `${profileData.firstName} ${profileData.lastName}`.trim(),
+          affiliation: profileData.affiliation,
+          bio: profileData.bio
+        }),
+      });
+      if (response.ok) {
+        setProfileMsg({ type: "success", text: "Profile updated successfully!" });
+        refreshUser();
+      } else {
+        const data = await response.json();
+        throw new Error(data.detail || "Failed to update profile.");
+      }
+    } catch (err) {
+      setProfileMsg({ type: "error", text: err.message });
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (pwData.new !== pwData.confirm) {
+      setPwMsg({ type: "error", text: "New passwords do not match." });
+      return;
+    }
+    setPwLoading(true);
+    setPwMsg({ type: "", text: "" });
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/auth/password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("aid_token")}`
+        },
+        body: JSON.stringify({
+          current_password: pwData.current,
+          new_password: pwData.new
+        }),
+      });
+      if (response.ok) {
+        setPwMsg({ type: "success", text: "Password changed successfully!" });
+        setPwData({ current: "", new: "", confirm: "" });
+        setTimeout(() => setShowPwForm(false), 2000);
+      } else {
+        const data = await response.json();
+        throw new Error(data.detail || "Failed to change password.");
+      }
+    } catch (err) {
+      setPwMsg({ type: "error", text: err.message });
+    } finally {
+      setPwLoading(false);
+    }
+  };
+
+  const handleThemeChange = async (theme) => {
+    document.body.classList.toggle("theme-dark", theme === "dark");
+    try {
+      await fetch("http://127.0.0.1:8000/api/users/profile", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("aid_token")}`
+        },
+        body: JSON.stringify({ ui_theme: theme }),
+      });
+      refreshUser();
+    } catch (err) {
+      console.error("Failed to save theme:", err);
+    }
+  };
+
   const initials = getInitials(user?.name);
-  const firstName = user?.name ? user.name.split(' ')[0] : "User";
-  const lastName = user?.name && user.name.split(' ').length > 1 ? user.name.split(' ').slice(1).join(' ') : "";
   const email = user?.email || "";
 
   return (
@@ -357,6 +466,11 @@ function SettingsPage() {
                 <h3 className="font-card-title text-card-title mb-1">Profile</h3>
                 <p className="text-xs text-on-surface-variant">How you appear to collaborators.</p>
               </div>
+              {profileMsg.text && (
+                <div className={`p-3 rounded-lg text-xs ${profileMsg.type === "success" ? "bg-green-100 text-green-800" : "bg-error-container text-on-error-container"}`}>
+                  {profileMsg.text}
+                </div>
+              )}
               <div className="flex items-center gap-5">
                 <div className="w-20 h-20 rounded-full bg-primary text-white flex items-center justify-center text-2xl font-bold uppercase">{initials}</div>
                 <div className="flex gap-2">
@@ -365,15 +479,17 @@ function SettingsPage() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="text-xs font-bold mb-1.5 block">First name</label><input defaultValue={firstName} className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
-                <div><label className="text-xs font-bold mb-1.5 block">Last name</label><input defaultValue={lastName} className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
-                <div className="col-span-2"><label className="text-xs font-bold mb-1.5 block">Email</label><input defaultValue={email} className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary bg-surface-container-low" disabled /></div>
-                <div className="col-span-2"><label className="text-xs font-bold mb-1.5 block">Affiliation</label><input defaultValue="Carnegie Mellon University" className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
-                <div className="col-span-2"><label className="text-xs font-bold mb-1.5 block">Bio</label><textarea rows="3" defaultValue="PhD candidate exploring trust calibration in human-AI research workflows." className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary resize-none"></textarea></div>
+                <div><label className="text-xs font-bold mb-1.5 block">First name</label><input value={profileData.firstName} onChange={e => setProfileData({...profileData, firstName: e.target.value})} className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
+                <div><label className="text-xs font-bold mb-1.5 block">Last name</label><input value={profileData.lastName} onChange={e => setProfileData({...profileData, lastName: e.target.value})} className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
+                <div className="col-span-2"><label className="text-xs font-bold mb-1.5 block">Email</label><input value={email} className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary bg-surface-container-low" disabled /></div>
+                <div className="col-span-2"><label className="text-xs font-bold mb-1.5 block">Affiliation</label><input value={profileData.affiliation} onChange={e => setProfileData({...profileData, affiliation: e.target.value})} placeholder="e.g. University of Example" className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
+                <div className="col-span-2"><label className="text-xs font-bold mb-1.5 block">Bio</label><textarea rows="3" value={profileData.bio} onChange={e => setProfileData({...profileData, bio: e.target.value})} placeholder="Tell us about your research..." className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary resize-none"></textarea></div>
               </div>
               <div className="flex justify-end gap-2 pt-4 border-t border-border-subtle">
-                <button className="px-4 py-2 rounded-lg border border-border-subtle text-xs font-bold hover:bg-surface-container-low">Cancel</button>
-                <button className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-bold hover:opacity-90">Save Changes</button>
+                <button onClick={() => refreshUser()} className="px-4 py-2 rounded-lg border border-border-subtle text-xs font-bold hover:bg-surface-container-low">Cancel</button>
+                <button onClick={handleSaveProfile} disabled={profileLoading} className="px-4 py-2 rounded-lg bg-primary text-on-primary text-xs font-bold hover:opacity-90 disabled:opacity-50">
+                  {profileLoading ? "Saving..." : "Save Changes"}
+                </button>
               </div>
             </div>
           )}
@@ -384,17 +500,36 @@ function SettingsPage() {
                 <p className="text-xs text-on-surface-variant">Keep your account secure.</p>
               </div>
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 border border-border-subtle rounded-lg">
-                  <div><p className="text-sm font-bold">Password</p><p className="text-xs text-on-surface-variant">Last changed 4 months ago</p></div>
-                  <button className="px-3 py-1.5 rounded-lg border border-border-subtle text-xs font-bold hover:bg-surface-container-low">Change</button>
+                <div className="p-4 border border-border-subtle rounded-lg">
+                  <div className="flex items-center justify-between mb-4">
+                    <div><p className="text-sm font-bold">Password</p><p className="text-xs text-on-surface-variant">Update your account password</p></div>
+                    {!showPwForm && (
+                      <button onClick={() => setShowPwForm(true)} className="px-3 py-1.5 rounded-lg border border-border-subtle text-xs font-bold hover:bg-surface-container-low">Change</button>
+                    )}
+                  </div>
+                  
+                  {showPwForm && (
+                    <form onSubmit={handleChangePassword} className="space-y-4 pt-4 border-t border-border-subtle animate-dropdown">
+                      {pwMsg.text && (
+                        <div className={`p-3 rounded-lg text-xs ${pwMsg.type === "success" ? "bg-green-100 text-green-800" : "bg-error-container text-on-error-container"}`}>
+                          {pwMsg.text}
+                        </div>
+                      )}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div><label className="text-[10px] font-bold uppercase block mb-1">Current</label><input type="password" required value={pwData.current} onChange={e => setPwData({...pwData, current: e.target.value})} className="w-full border border-border-subtle px-3 py-2 rounded text-xs outline-none focus:border-primary" /></div>
+                        <div><label className="text-[10px] font-bold uppercase block mb-1">New</label><input type="password" required value={pwData.new} onChange={e => setPwData({...pwData, new: e.target.value})} className="w-full border border-border-subtle px-3 py-2 rounded text-xs outline-none focus:border-primary" /></div>
+                        <div><label className="text-[10px] font-bold uppercase block mb-1">Confirm</label><input type="password" required value={pwData.confirm} onChange={e => setPwData({...pwData, confirm: e.target.value})} className="w-full border border-border-subtle px-3 py-2 rounded text-xs outline-none focus:border-primary" /></div>
+                      </div>
+                      <div className="flex justify-end gap-2 mt-4">
+                        <button type="button" onClick={() => setShowPwForm(false)} className="px-3 py-1.5 rounded text-xs font-bold border border-border-subtle">Cancel</button>
+                        <button type="submit" disabled={pwLoading} className="px-3 py-1.5 rounded text-xs font-bold bg-primary text-on-primary disabled:opacity-50">{pwLoading ? "Updating..." : "Update Password"}</button>
+                      </div>
+                    </form>
+                  )}
                 </div>
                 <div className="flex items-center justify-between p-4 border border-border-subtle rounded-lg">
                   <div><p className="text-sm font-bold">Two-factor authentication</p><p className="text-xs text-on-surface-variant">Add an extra layer of security at sign-in.</p></div>
                   <button className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-bold">Enable</button>
-                </div>
-                <div className="flex items-center justify-between p-4 border border-border-subtle rounded-lg">
-                  <div><p className="text-sm font-bold">Active sessions</p><p className="text-xs text-on-surface-variant">Mac · Chrome · San Francisco · Now</p></div>
-                  <button className="px-3 py-1.5 rounded-lg border border-border-subtle text-xs font-bold text-error hover:bg-error-container">Revoke all</button>
                 </div>
               </div>
               <div className="border-t border-border-subtle pt-6">
@@ -481,16 +616,18 @@ function SettingsPage() {
                 {[
                   { id: "light", name: "Light Mode", icon: "light_mode", desc: "Clean and professional." },
                   { id: "dark", name: "Dark Mode", icon: "dark_mode", desc: "Easy on the eyes in low light." },
-                  { id: "system", name: "System Default", icon: "settings_brightness", desc: "Sync with your OS settings." },
-                ].map(t => (
-                  <button key={t.id} className="p-4 border border-border-subtle rounded-xl text-left hover:border-primary transition-all group">
-                    <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary mb-3 group-hover:bg-primary group-hover:text-white transition-colors">
-                      <Icon name={t.icon} />
-                    </div>
-                    <p className="text-sm font-bold">{t.name}</p>
-                    <p className="text-[11px] text-on-surface-variant mt-0.5">{t.desc}</p>
-                  </button>
-                ))}
+                ].map(t => {
+                  const isActive = (user?.ui_theme || "light") === t.id;
+                  return (
+                    <button key={t.id} onClick={() => handleThemeChange(t.id)} className={`p-4 border rounded-xl text-left transition-all group ${isActive ? "border-primary bg-secondary-container/10 shadow-sm" : "border-border-subtle hover:border-primary"}`}>
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 transition-colors ${isActive ? "bg-primary text-white" : "bg-surface-container text-primary group-hover:bg-primary group-hover:text-white"}`}>
+                        <Icon name={t.icon} />
+                      </div>
+                      <p className="text-sm font-bold">{t.name}</p>
+                      <p className="text-[11px] text-on-surface-variant mt-0.5">{t.desc}</p>
+                    </button>
+                  );
+                })}
               </div>
               <div className="pt-6 border-t border-border-subtle">
                  <h4 className="text-sm font-bold mb-3">Accent Color</h4>

@@ -34,6 +34,7 @@ class Workspace(Base):
     owner = relationship("User", back_populates="workspaces")
     members = relationship("WorkspaceMember", back_populates="workspace", lazy="selectin", cascade="all, delete-orphan")
     collections = relationship("Collection", back_populates="workspace", lazy="selectin")
+    documents = relationship("Document", back_populates="workspace", lazy="selectin")
 
     def __repr__(self) -> str:
         return f"<Workspace {self.name}>"
