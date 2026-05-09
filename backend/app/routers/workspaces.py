@@ -149,7 +149,7 @@ async def add_member(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Add a member to a workspace (owner only)."""
+    """Add a member to a workspace by email (owner only)."""
     # Verify ownership
     result = await db.execute(
         select(Workspace).where(
@@ -161,11 +161,16 @@ async def add_member(
     if not workspace:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found or not authorized")
 
+    user_result = await db.execute(select(User).where(User.email == request.email))
+    invited_user = user_result.scalar_one_or_none()
+    if not invited_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No user found with that email")
+
     # Check if user is already a member
     existing = await db.execute(
         select(WorkspaceMember).where(
             WorkspaceMember.workspace_id == workspace_id,
-            WorkspaceMember.user_id == request.user_id,
+            WorkspaceMember.user_id == invited_user.user_id,
         )
     )
     if existing.scalar_one_or_none():
@@ -173,7 +178,7 @@ async def add_member(
 
     member = WorkspaceMember(
         workspace_id=workspace_id,
-        user_id=request.user_id,
+        user_id=invited_user.user_id,
         role=request.role,
     )
     db.add(member)

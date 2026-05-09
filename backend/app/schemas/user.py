@@ -13,6 +13,8 @@ class UserResponse(BaseModel):
     default_citation_style: str
     preferred_llm: str | None
     response_length: str
+    affiliation: str | None = None
+    bio: str | None = None
     email_verified: bool
     created_at: datetime
     updated_at: datetime
@@ -26,3 +28,5 @@ class UserUpdateRequest(BaseModel):
     default_citation_style: str | None = None
     preferred_llm: str | None = None
     response_length: str | None = None
+    affiliation: str | None = None
+    bio: str | None = None

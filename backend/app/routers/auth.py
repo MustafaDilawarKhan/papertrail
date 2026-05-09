@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.models.user import User
-from app.schemas.auth import RegisterRequest, LoginRequest, TokenResponse
+from app.schemas.auth import RegisterRequest, LoginRequest, TokenResponse, ChangePasswordRequest
 from app.schemas.user import UserResponse
 from app.services.auth_service import hash_password, verify_password, create_access_token
 from app.middleware.auth import get_current_user
@@ -92,3 +92,23 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
 async def get_me(current_user: User = Depends(get_current_user)):
     """Get the currently authenticated user's profile."""
     return current_user
+
+
+@router.api_route("/password", methods=["POST", "PATCH"], status_code=status.HTTP_200_OK)
+async def change_password(
+    request: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Change the current user's password."""
+    if not verify_password(request.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect current password",
+        )
+
+    current_user.password_hash = hash_password(request.new_password)
+    db.add(current_user)
+    await db.commit()
+
+    return {"detail": "Password changed successfully"}

@@ -21,6 +21,10 @@ class Document(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True
     )
+    workspace_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workspaces.workspace_id", ondelete="SET NULL"),
+        nullable=True, index=True
+    )
     collection_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("collections.collection_id", ondelete="SET NULL"),
         nullable=True, index=True
@@ -45,6 +49,7 @@ class Document(Base):
 
     # Relationships
     user = relationship("User", back_populates="documents")
+    workspace = relationship("Workspace", back_populates="documents")
     collection = relationship("Collection", back_populates="documents")
     source_highlights = relationship("SourceHighlight", back_populates="document", lazy="selectin")
     annotations = relationship("Annotation", back_populates="document", lazy="selectin")
