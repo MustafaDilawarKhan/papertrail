@@ -26,7 +26,6 @@ function Workflow() {
           {steps.map((s, i) => (
             <FadeUp key={s.n} delay={i * 80} className="card" style={{ background: "var(--paper)", borderRight: i < steps.length - 1 ? "1px solid var(--line)" : "1px solid var(--line)", borderRadius: 0, ...(i === 0 ? { borderTopLeftRadius: 14, borderBottomLeftRadius: 14 } : {}), ...(i === steps.length - 1 ? { borderTopRightRadius: 14, borderBottomRightRadius: 14 } : {}), padding: "32px 26px 30px", position: "relative", zIndex: 1 }}>
               <div className="row center gap-12" style={{ marginBottom: 16 }}>
-                <span className="mono" style={{ fontSize: 11, color: "var(--ink-4)", letterSpacing: "0.12em" }}>{s.n}</span>
                 <span style={{ display: "grid", width: 28, height: 28, borderRadius: 14, background: "var(--ink)", color: "var(--paper)", placeItems: "center", fontFamily: "var(--mono)", fontSize: 11, fontWeight: 600 }}>
                   {String(i + 1).padStart(2, "0")}
                 </span>
