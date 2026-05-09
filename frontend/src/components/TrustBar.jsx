@@ -5,10 +5,10 @@ import { Eyebrow, I } from './Atoms'
 import utokyo from '../assets/UTokyo.png'
 import stanford from '../assets/stanford-hai.png'
 import oxford from '../assets/OXFORD.png'
-import mit from '../assets/mit.png'
+import mit from '../assets/MIT.jfif'
 import cambridge from '../assets/Cambridge.png'
-import eth from '../assets/eth.png'
-import berkeley from '../assets/berkeley.png'
+import eth from '../assets/eth-zurich.png'
+import berkeley from '../assets/Berkeley.jfif'
 import nature from '../assets/nature-methods.png'
 import lums from '../assets/LUMS.png'
 import nust from '../assets/NUST.png'
@@ -47,7 +47,7 @@ function TrustBar() {
                   src={logo.src} 
                   alt={logo.name} 
                   style={{ 
-                    height: "32px", 
+                    height: "38px", 
                     width: "auto", 
                     filter: "grayscale(1) brightness(0.6) contrast(1.2)", 
                     opacity: 0.7,
