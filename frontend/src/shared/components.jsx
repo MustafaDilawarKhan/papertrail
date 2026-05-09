@@ -1,5 +1,6 @@
 // Shared shell components: Sidebar, TopNav, AvatarMenu, CommandPalette, etc.
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 
 // ---- Router (hash-based) ----
 export function useRoute() {
@@ -44,6 +45,7 @@ export function Brand({ small, collapsed, to = "/dashboard" }) {
 
 // ---- Profile Dropdown ----
 export function ProfileDropdown({ side = "bottom", align = "right", collapsed = false }) {
+  const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -59,23 +61,32 @@ export function ProfileDropdown({ side = "bottom", align = "right", collapsed = 
     { icon: "credit_card", label: "Upgrade", to: "/upgrade" },
     { icon: "help", label: "Help & Support", to: "/help" },
     { divider: true },
-    { icon: "logout", label: "Log out", to: "/" },
+    { icon: "logout", label: "Log out", to: "/", onClick: logout },
   ];
 
   const positionClass = side === "top" 
     ? "bottom-full mb-2 left-0" 
     : "top-12 right-0";
 
+  const getInitials = (name) => {
+    if (!name) return "U";
+    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  };
+
+  const initials = getInitials(user?.name);
+  const displayName = user?.name || "User";
+  const displayEmail = user?.email || "";
+
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen(o => !o)} className={`flex items-center gap-3 w-full text-left group ${collapsed ? "justify-center" : ""}`}>
-        <div className="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-[11px] font-bold text-on-surface flex-shrink-0 group-hover:ring-2 group-hover:ring-primary/30 transition-all">
-          MD
+        <div className="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-[11px] font-bold text-on-surface flex-shrink-0 group-hover:ring-2 group-hover:ring-primary/30 transition-all uppercase">
+          {initials}
         </div>
         {!collapsed && (
           <>
             <div className="overflow-hidden flex-1">
-              <p className="text-[12px] font-bold truncate">Mustafa Dilawar</p>
+              <p className="text-[12px] font-bold truncate">{displayName}</p>
               <p className="text-[10px] text-on-surface-variant truncate">Free Plan</p>
             </div>
             <Icon name="more_vert" size={16} className="text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -86,8 +97,8 @@ export function ProfileDropdown({ side = "bottom", align = "right", collapsed = 
       {open && (
         <div className={`absolute ${positionClass} w-56 bg-white rounded-xl border border-border-subtle shadow-xl overflow-hidden animate-dropdown z-50`}>
           <div className="p-4 border-b border-border-subtle">
-            <p className="text-sm font-bold text-primary">Mustafa Dilawar</p>
-            <p className="text-[11px] text-on-surface-variant">mustafa@example.com</p>
+            <p className="text-sm font-bold text-primary">{displayName}</p>
+            <p className="text-[11px] text-on-surface-variant">{displayEmail}</p>
             <span className="inline-block mt-1.5 text-[9px] font-bold bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded">Free Plan</span>
           </div>
           <div className="py-1">
@@ -95,7 +106,7 @@ export function ProfileDropdown({ side = "bottom", align = "right", collapsed = 
               item.divider ? (
                 <div key={i} className="my-1 border-t border-border-subtle" />
               ) : (
-                <Link key={i} to={item.to} onClick={() => setOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-xs transition-colors hover:bg-surface-container-low ${item.label === "Log out" ? "text-error" : "text-on-surface"}`}>
+                <Link key={i} to={item.to} onClick={() => { setOpen(false); if(item.onClick) item.onClick(); }} className={`flex items-center gap-3 px-4 py-2.5 text-xs transition-colors hover:bg-surface-container-low ${item.label === "Log out" ? "text-error" : "text-on-surface"}`}>
                   <Icon name={item.icon} size={16} />
                   {item.label}
                 </Link>
@@ -110,6 +121,9 @@ export function ProfileDropdown({ side = "bottom", align = "right", collapsed = 
 
 // ---- Collapsible Sidebar (user app) ----
 export function Sidebar({ active, collapsed, onToggle }) {
+  const { user } = useAuth();
+  const displayName = user?.name || "User";
+
   const items = [
     { id: "home", label: "Home", icon: "home", to: "/dashboard" },
     { id: "library", label: "Library", icon: "library_books", to: "/library" },
@@ -154,7 +168,7 @@ export function Sidebar({ active, collapsed, onToggle }) {
           <div className="relative group">
             <ProfileDropdown side="top" collapsed={true} />
             <div className="absolute left-full ml-4 top-1/2 -translate-y-1/2 bg-on-surface text-surface px-2.5 py-1.5 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 transform translate-x-[-10px] group-hover:translate-x-0 shadow-lg z-50">
-              Mustafa Dilawar
+              {displayName}
             </div>
           </div>
         ) : (

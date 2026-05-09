@@ -32,13 +32,15 @@ def validate_file(filename: str) -> bool:
     return ext in ALLOWED_EXTENSIONS
 
 
-async def save_upload(file: UploadFile, user_id: str) -> tuple[str, int]:
+async def save_upload(file: UploadFile, user_id: str, workspace_id: str | None = None) -> tuple[str, int]:
     """
     Save an uploaded file to the local filesystem.
     Returns (storage_path, file_size).
     """
-    # Create user upload directory
+    # Create user upload directory, optionally scoped to a workspace
     upload_dir = os.path.join(settings.UPLOAD_DIR, user_id)
+    if workspace_id:
+        upload_dir = os.path.join(upload_dir, workspace_id)
     os.makedirs(upload_dir, exist_ok=True)
 
     # Generate unique filename to avoid collisions

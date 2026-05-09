@@ -1,14 +1,49 @@
 // Dashboard, Library, Document Viewer, Workspaces pages
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, Icon, Brand, Sidebar, TopNav, AppShell, CommandPalette, EmptyState, navigate } from '../shared/components';
+import { useAuth } from '../contexts/AuthContext';
 
 const useStateP1 = useState;
 const useEffectP1 = useEffect;
 const useRefP1 = useRef;
 const useMemoP1 = useMemo;
 
+const API_BASE = "http://127.0.0.1:8000/api";
+
+async function apiRequest(path, options = {}) {
+  const token = localStorage.getItem("aid_token");
+  const headers = { ...(options.headers || {}) };
+  const isFormData = options.body instanceof FormData;
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  if (!isFormData && options.body && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers,
+  });
+
+  const rawText = await response.text();
+  const data = rawText ? (() => {
+    try { return JSON.parse(rawText); } catch { return rawText; }
+  })() : null;
+
+  if (!response.ok) {
+    const detail = data && typeof data === "object" && data.detail ? data.detail : data;
+    throw new Error(detail || `Request failed (${response.status})`);
+  }
+
+  return data;
+}
+
 // =================== DASHBOARD ===================
 function DashboardPage() {
+  const { user } = useAuth();
+  const firstName = user?.name ? user.name.split(' ')[0] : 'User';
   const [search, setSearch] = useStateP1(false);
   const docs = [
     { type: "PDF", name: "Neural Networks in LLMs.pdf", time: "2 hours ago", size: "4.2 MB", to: "/library/ml/neural-networks" },
@@ -35,7 +70,7 @@ function DashboardPage() {
         <section className="mb-12">
           <div className="flex flex-col md:flex-row justify-between items-end gap-6">
             <div>
-              <h2 className="font-section-heading text-section-heading text-primary mb-2">Good morning, Mustafa.</h2>
+              <h2 className="font-section-heading text-section-heading text-primary mb-2">Good morning, {firstName}.</h2>
               <p className="text-on-surface-variant font-body-main">Continue your exploration or start a new project.</p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -457,11 +492,43 @@ function DocViewerPage({ params }) {
 // =================== WORKSPACES ===================
 function WorkspacesPage() {
   const [search, setSearch] = useStateP1(false);
-  const cards = [
-    { name: "Thesis Research", desc: "Long-term ethnographic study on decentralized digital communities.", icon: "auto_stories", files: 24, chats: 152, members: 4, color: "bg-primary" },
-    { name: "HCI Lab", desc: "Evaluating adaptive UI patterns for neurodivergent productivity tools.", icon: "biotech", files: 118, chats: 41, members: 6, color: "bg-[#5d5e60]" },
-    { name: "Clinical Studies", desc: "Systematic review of trust-calibrated robotic assistants in clinical care.", icon: "medical_services", files: 47, chats: 23, members: 3, color: "bg-[#6b4f3a]" },
-  ];
+  const [cards, setCards] = useStateP1([]);
+  const [loading, setLoading] = useStateP1(true);
+  const [error, setError] = useStateP1("");
+
+  useEffectP1(() => {
+    const loadWorkspaces = async () => {
+      try {
+        setError("");
+        setLoading(true);
+        const data = await apiRequest("/workspaces");
+        setCards(Array.isArray(data) ? data : []);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadWorkspaces();
+  }, []);
+
+  const handleCreateWorkspace = async () => {
+    const name = window.prompt("Workspace name");
+    if (!name) return;
+
+    try {
+      const created = await apiRequest("/workspaces", {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      });
+      setCards(prev => [created, ...prev]);
+      navigate(`/workspaces/${created.workspace_id}`);
+    } catch (err) {
+      window.alert(err.message);
+    }
+  };
+
   return (
     <>
       <CommandPalette open={search} onClose={() => setSearch(false)} />
@@ -471,34 +538,40 @@ function WorkspacesPage() {
             <h1 className="font-section-heading text-section-heading text-primary mb-2">Your Workspaces</h1>
             <p className="text-on-surface-variant">Manage your collaborative research projects.</p>
           </div>
-          <button className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-full font-bold text-sm hover:opacity-90">
+          <button onClick={handleCreateWorkspace} className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-full font-bold text-sm hover:opacity-90">
             <Icon name="add" size={20} /> New Workspace
           </button>
         </div>
 
+        {error && <div className="mb-6 p-3 rounded-lg bg-error-container text-on-error-container text-xs">{error}</div>}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-          {cards.map((c, i) => (
-            <div key={i} className="group relative bg-white border border-border-subtle p-6 rounded-xl hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate(`/workspaces/${c.name.toLowerCase().replace(/\s+/g, "-")}`)}>
+          {loading ? (
+            <div className="col-span-full text-sm text-on-surface-variant">Loading workspaces...</div>
+          ) : cards.length === 0 ? (
+            <div className="col-span-full text-sm text-on-surface-variant">No workspaces yet. Create one to start collaborating.</div>
+          ) : cards.map((c, i) => (
+            <div key={c.workspace_id || i} className="group relative bg-white border border-border-subtle p-6 rounded-xl hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate(`/workspaces/${c.workspace_id}`)}>
               <div className="flex justify-between items-start mb-8">
-                <div className={`w-11 h-11 rounded-lg ${c.color} flex items-center justify-center text-white`}>
-                  <Icon name={c.icon} filled />
+                <div className="w-11 h-11 rounded-lg bg-primary flex items-center justify-center text-white">
+                  <Icon name="auto_stories" filled />
                 </div>
                 <div className="flex -space-x-2">
-                  {Array.from({ length: Math.min(3, c.members) }).map((_, j) => (
+                  {Array.from({ length: Math.min(3, c.members?.length || 0) }).map((_, j) => (
                     <div key={j} className="w-7 h-7 rounded-full border-2 border-white bg-surface-container-high flex items-center justify-center text-[9px] font-bold">U{j+1}</div>
                   ))}
-                  {c.members > 3 && <div className="w-7 h-7 rounded-full border-2 border-white bg-surface-container-high flex items-center justify-center text-[9px] font-bold">+{c.members-3}</div>}
+                  {(c.members?.length || 0) > 3 && <div className="w-7 h-7 rounded-full border-2 border-white bg-surface-container-high flex items-center justify-center text-[9px] font-bold">+{(c.members?.length || 0)-3}</div>}
                 </div>
               </div>
               <h3 className="font-card-title text-card-title mb-1">{c.name}</h3>
-              <p className="text-[12px] text-on-surface-variant mb-5 leading-relaxed line-clamp-2">{c.desc}</p>
+              <p className="text-[12px] text-on-surface-variant mb-5 leading-relaxed line-clamp-2">Collaborative workspace shared through the backend.</p>
               <div className="flex items-center gap-4 text-[11px] text-on-secondary-container font-medium">
-                <span className="flex items-center gap-1"><Icon name="description" size={14} /> {c.files} Files</span>
-                <span className="flex items-center gap-1"><Icon name="forum" size={14} /> {c.chats} Chats</span>
+                <span className="flex items-center gap-1"><Icon name="description" size={14} /> Files</span>
+                <span className="flex items-center gap-1"><Icon name="group" size={14} /> {c.members?.length || 0} Members</span>
               </div>
             </div>
           ))}
-          <button onClick={() => alert("New workspace flow")} className="border-2 border-dashed border-border-subtle p-6 rounded-xl flex flex-col items-center justify-center text-center hover:border-primary hover:bg-surface-container-low transition-all min-h-[220px]">
+          <button onClick={handleCreateWorkspace} className="border-2 border-dashed border-border-subtle p-6 rounded-xl flex flex-col items-center justify-center text-center hover:border-primary hover:bg-surface-container-low transition-all min-h-[220px]">
             <div className="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center mb-3 text-on-surface-variant">
               <Icon name="add_circle" size={28} />
             </div>
@@ -513,8 +586,84 @@ function WorkspacesPage() {
 
 // =================== WORKSPACE DETAIL ===================
 function WorkspaceDetailPage({ params }) {
+  const { user } = useAuth();
+  const workspaceId = params?.[0];
   const [tab, setTab] = useStateP1("files");
-  const name = params?.[0] ? params[0].replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase()) : "Thesis Research";
+  const [workspace, setWorkspace] = useStateP1(null);
+  const [documents, setDocuments] = useStateP1([]);
+  const [message, setMessage] = useStateP1("");
+  const [loading, setLoading] = useStateP1(true);
+  const [inviteLoading, setInviteLoading] = useStateP1(false);
+  const [uploadLoading, setUploadLoading] = useStateP1(false);
+  const [uploadFile, setUploadFile] = useStateP1(null);
+
+  const loadWorkspace = async () => {
+    if (!workspaceId) return;
+    try {
+      setLoading(true);
+      const [workspaceData, documentData] = await Promise.all([
+        apiRequest(`/workspaces/${workspaceId}`),
+        apiRequest(`/documents?workspace_id=${workspaceId}`),
+      ]);
+      setWorkspace(workspaceData);
+      setDocuments(Array.isArray(documentData) ? documentData : []);
+    } catch (err) {
+      setMessage(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffectP1(() => {
+    loadWorkspace();
+  }, [workspaceId]);
+
+  const handleInvite = async () => {
+    const email = window.prompt("Invite by email");
+    if (!email) return;
+
+    try {
+      setInviteLoading(true);
+      setMessage("");
+      await apiRequest(`/workspaces/${workspaceId}/members`, {
+        method: "POST",
+        body: JSON.stringify({ email, role: "Viewer" }),
+      });
+      setMessage(`Invited ${email}`);
+      await loadWorkspace();
+    } catch (err) {
+      setMessage(err.message);
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!uploadFile) {
+      setMessage("Choose a file first.");
+      return;
+    }
+
+    try {
+      setUploadLoading(true);
+      setMessage("");
+      const formData = new FormData();
+      formData.append("file", uploadFile);
+      await apiRequest(`/documents/upload?workspace_id=${workspaceId}`, {
+        method: "POST",
+        body: formData,
+      });
+      setMessage(`Uploaded ${uploadFile.name}`);
+      setUploadFile(null);
+      await loadWorkspace();
+    } catch (err) {
+      setMessage(err.message);
+    } finally {
+      setUploadLoading(false);
+    }
+  };
+
+  const name = workspace?.name || "Workspace";
 
   return (
     <AppShell active="workspaces" breadcrumbs={[{ label: "Workspaces", to: "/workspaces" }, { label: name }]}>
@@ -527,12 +676,12 @@ function WorkspaceDetailPage({ params }) {
               </div>
               <div>
                 <h2 className="font-bold text-xl">{name}</h2>
-                <p className="text-[12px] text-on-surface-variant">Active Workspace • Updated 2 hours ago</p>
+                <p className="text-[12px] text-on-surface-variant">{workspace?.owner_id === user?.user_id ? "Owner workspace" : "Shared workspace"}</p>
               </div>
             </div>
             <div className="flex gap-2">
-              <button className="px-4 py-2 rounded-lg border border-border-subtle text-xs font-semibold hover:bg-surface-container-low flex items-center gap-2">
-                <Icon name="person_add" size={16} /> Invite
+              <button onClick={handleInvite} disabled={inviteLoading} className="px-4 py-2 rounded-lg border border-border-subtle text-xs font-semibold hover:bg-surface-container-low flex items-center gap-2 disabled:opacity-50">
+                <Icon name="person_add" size={16} /> {inviteLoading ? "Inviting..." : "Invite"}
               </button>
               <button className="px-3 py-2 rounded-lg border border-border-subtle hover:bg-surface-container-low">
                 <Icon name="settings" size={16} />
@@ -550,25 +699,33 @@ function WorkspaceDetailPage({ params }) {
         </div>
 
         <div className="p-8">
+          {message && <div className="mb-4 p-3 rounded-lg bg-surface-container-low text-xs text-on-surface-variant">{message}</div>}
+          {loading && <div className="mb-4 text-sm text-on-surface-variant">Loading workspace...</div>}
           {tab === "files" && (
             <div className="space-y-3">
-              {[
-                { ext: "PDF", color: "bg-error-container text-error", name: "Methodology_Draft_v2.pdf", by: "Anna", time: "4h ago" },
-                { ext: "DOC", color: "bg-secondary-container text-on-secondary-container", name: "Interview_Transcripts_Pack.docx", by: "John", time: "1d ago" },
-                { ext: "PDF", color: "bg-accent-source-highlight text-on-surface", name: "Decentralized_Governance_Lit.pdf", by: "Mira", time: "2d ago" },
-                { ext: "URL", color: "bg-surface-container-high", name: "papers.ssrn.com/abstract=4501023", by: "You", time: "3d ago" },
-              ].map((f, i) => (
+              <div className="flex flex-col md:flex-row gap-3 md:items-end mb-6 p-4 border border-border-subtle rounded-xl bg-surface-container-lowest">
+                <div className="flex-1">
+                  <label className="text-[10px] font-bold uppercase block mb-1">Upload file to workspace</label>
+                  <input type="file" onChange={e => setUploadFile(e.target.files?.[0] || null)} className="w-full text-xs" />
+                </div>
+                <button onClick={handleUpload} disabled={uploadLoading} className="px-4 py-2 rounded-lg bg-primary text-on-primary text-xs font-bold disabled:opacity-50">
+                  {uploadLoading ? "Uploading..." : "Upload"}
+                </button>
+              </div>
+
+              {documents.map((f, i) => (
                 <div key={i} className="flex items-center justify-between p-4 border border-border-subtle rounded-lg hover:bg-surface-container-low group cursor-pointer">
                   <div className="flex items-center gap-3">
-                    <div className={`w-9 h-9 rounded ${f.color} flex items-center justify-center text-[10px] font-bold`}>{f.ext}</div>
+                    <div className="w-9 h-9 rounded bg-surface-container-high flex items-center justify-center text-[10px] font-bold">{f.file_type}</div>
                     <div>
-                      <p className="text-sm font-bold">{f.name}</p>
-                      <p className="text-[11px] text-on-surface-variant">Modified by {f.by} • {f.time}</p>
+                      <p className="text-sm font-bold">{f.filename}</p>
+                      <p className="text-[11px] text-on-surface-variant">Uploaded {new Date(f.upload_date).toLocaleString()}</p>
                     </div>
                   </div>
                   <Icon name="more_vert" className="text-on-surface-variant opacity-0 group-hover:opacity-100" />
                 </div>
               ))}
+              {documents.length === 0 && <div className="text-sm text-on-surface-variant">No files uploaded yet.</div>}
             </div>
           )}
           {tab === "chats" && (
@@ -593,25 +750,19 @@ function WorkspaceDetailPage({ params }) {
           )}
           {tab === "members" && (
             <div className="space-y-3">
-              {[
-                { name: "Mustafa Dilawar", email: "mustafa@example.com", role: "Owner" },
-                { name: "Anna Petrova", email: "anna@example.com", role: "Editor" },
-                { name: "John Carter", email: "john@example.com", role: "Editor" },
-                { name: "Mira Cohen", email: "mira@example.com", role: "Viewer" },
-              ].map((m, i) => (
+              {(workspace?.members || []).map((m, i) => (
                 <div key={i} className="flex items-center justify-between p-4 border border-border-subtle rounded-lg hover:bg-surface-container-low">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center text-xs font-bold">{m.name.split(" ").map(n=>n[0]).join("")}</div>
+                    <div className="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center text-xs font-bold">{String(m.user_id).slice(0, 2).toUpperCase()}</div>
                     <div>
-                      <p className="text-sm font-bold">{m.name}</p>
-                      <p className="text-[11px] text-on-surface-variant">{m.email}</p>
+                      <p className="text-sm font-bold">{m.role}</p>
+                      <p className="text-[11px] text-on-surface-variant">{m.user_id}</p>
                     </div>
                   </div>
-                  <select className="text-xs px-2 py-1 border border-border-subtle rounded-md bg-white" defaultValue={m.role}>
-                    <option>Owner</option><option>Editor</option><option>Viewer</option>
-                  </select>
+                  <span className="text-xs px-2 py-1 border border-border-subtle rounded-md bg-white">{m.role}</span>
                 </div>
               ))}
+              {!(workspace?.members || []).length && <div className="text-sm text-on-surface-variant">No members found.</div>}
             </div>
           )}
         </div>

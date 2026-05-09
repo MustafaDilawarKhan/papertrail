@@ -16,6 +16,7 @@ import { useRoute, Icon, AppShell, Link } from './shared/components'
 import * as AppPages from './pages/appPages'
 import * as AuthPages from './pages/authPages'
 import * as AdminPages from './pages/adminPages'
+import { useAuth } from './contexts/AuthContext'
 
 function HelpPage() {
   return (
@@ -98,7 +99,15 @@ function App() {
     "reducedMotion": false
   }/*EDITMODE-END*/);
 
+  const { user } = useAuth();
   const route = useRoute(); // Get current route
+
+  // Sync tweaks with user profile theme
+  useEffect(() => {
+    if (user?.ui_theme) {
+      setTweak("dark", user.ui_theme === "dark");
+    }
+  }, [user?.ui_theme]);
 
   // Accessibility: Apply theme and system preferences
   useEffect(() => {
