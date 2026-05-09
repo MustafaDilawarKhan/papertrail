@@ -20,3 +20,8 @@ The design medium is **HTML/CSS/JS** — these are prototypes, not production co
 
 - `projekt/README.md` — this file
 - `projekt/project/` — the `Projekt` project files (HTML prototypes, assets, components)
+
+
+
+
+.\venv\Scripts\python.exe -m uvicorn app.main:app --reload

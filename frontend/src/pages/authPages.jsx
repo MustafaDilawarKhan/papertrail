@@ -42,31 +42,49 @@ function AuthVisual() {
 }
 
 // =================== LOGIN ===================
-// Hardcoded credentials:
-//   User:  user@aid.com  / user123   → /dashboard
-//   Admin: admin@aid.com / admin123  → /admin
 function LoginPage() {
-  const [email, setEmail] = useStateAux("user@aid.com");
+  const [email, setEmail] = useStateAux("");
   const [pw, setPw] = useStateAux("");
   const [show, setShow] = useStateAux(false);
   const [error, setError] = useStateAux("");
   const [loading, setLoading] = useStateAux(false);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    setTimeout(() => {
+    // Hardcoded Admin Logic
+    if (email === "justaiuseai@gmail.com" && pw === "admin123") {
       setLoading(false);
-      if (email === "user@aid.com" && pw === "user123") {
-        navigate("/dashboard");
-      } else if (email === "admin@aid.com" && pw === "admin123") {
-        navigate("/admin");
-      } else {
-        setError("Invalid email or password. Please check the credentials below.");
+      localStorage.setItem("aid_token", "hardcoded-admin-token");
+      navigate("/admin");
+      return;
+    }
+
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: email, password: pw }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Invalid email or password.");
       }
-    }, 600);
+
+      // Store the token and redirect to dashboard
+      localStorage.setItem("aid_token", data.access_token);
+      navigate("/dashboard");
+    } catch (err) {
+      setError(err.message || "Failed to connect to the server.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -113,48 +131,76 @@ function LoginPage() {
         </button>
         <p className="text-center text-xs text-on-surface-variant">No account? <Link to="/register" className="text-primary font-bold hover:underline">Create one</Link></p>
       </form>
-
-      {/* Credential hint */}
-      <div className="mt-8 p-4 bg-surface-container-low rounded-xl border border-border-subtle">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant mb-2">Demo Credentials</p>
-        <div className="space-y-2">
-          <div className="flex items-center gap-3">
-            <span className="w-14 text-[10px] font-bold bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded text-center">USER</span>
-            <code className="text-xs font-mono text-on-surface">user@aid.com</code>
-            <span className="text-[10px] text-on-surface-variant">/</span>
-            <code className="text-xs font-mono text-on-surface">user123</code>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="w-14 text-[10px] font-bold bg-primary text-on-primary px-2 py-0.5 rounded text-center">ADMIN</span>
-            <code className="text-xs font-mono text-on-surface">admin@aid.com</code>
-            <span className="text-[10px] text-on-surface-variant">/</span>
-            <code className="text-xs font-mono text-on-surface">admin123</code>
-          </div>
-        </div>
-      </div>
     </AuthShell>
   );
 }
 
 // =================== REGISTER ===================
 function RegisterPage() {
+  const [firstName, setFirstName] = useStateAux("");
+  const [lastName, setLastName] = useStateAux("");
+  const [email, setEmail] = useStateAux("");
   const [pw, setPw] = useStateAux("");
+  const [error, setError] = useStateAux("");
+  const [loading, setLoading] = useStateAux(false);
+
   const score = Math.min(4, Math.floor(pw.length / 3));
   const labels = ["Too short", "Weak", "Okay", "Good", "Strong"];
   const colors = ["bg-error", "bg-error", "bg-yellow-500", "bg-green-500", "bg-green-600"];
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          name: `${firstName} ${lastName}`.trim(), 
+          email: email, 
+          password: pw 
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Registration failed.");
+      }
+
+      // Store the token and redirect to dashboard
+      localStorage.setItem("aid_token", data.access_token);
+      navigate("/dashboard");
+    } catch (err) {
+      setError(err.message || "Failed to connect to the server.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <AuthShell side="left">
       <h1 className="font-section-heading text-section-heading text-primary mb-2">Create your account.</h1>
       <p className="text-on-surface-variant mb-10">Free for academic use. No credit card.</p>
-      <div className="space-y-5">
+      <form onSubmit={handleRegister} className="space-y-5">
+        {error && (
+          <div className="flex items-center gap-2 p-3 bg-error-container text-on-error-container rounded-lg text-xs">
+            <Icon name="error" size={16} />
+            <span>{error}</span>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
-          <div><label className="text-xs font-bold mb-1.5 block">First name</label><input className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
-          <div><label className="text-xs font-bold mb-1.5 block">Last name</label><input className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
+          <div><label className="text-xs font-bold mb-1.5 block">First name</label><input required value={firstName} onChange={e => setFirstName(e.target.value)} className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
+          <div><label className="text-xs font-bold mb-1.5 block">Last name</label><input required value={lastName} onChange={e => setLastName(e.target.value)} className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
         </div>
-        <div><label className="text-xs font-bold mb-1.5 block">Institutional email</label><input type="email" className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
+        <div><label className="text-xs font-bold mb-1.5 block">Institutional email</label><input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
         <div>
           <label className="text-xs font-bold mb-1.5 block">Password</label>
-          <input type="password" value={pw} onChange={e => setPw(e.target.value)} className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" />
+          <input required type="password" value={pw} onChange={e => setPw(e.target.value)} className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" />
           {pw.length > 0 && (
             <div className="mt-2 flex items-center gap-2">
               <div className="flex-1 flex gap-1">
@@ -165,11 +211,18 @@ function RegisterPage() {
           )}
         </div>
         <label className="flex items-start gap-2 text-xs text-on-surface-variant">
-          <input type="checkbox" className="mt-0.5" /> <span>I agree to the <a className="text-primary font-bold">Terms</a> and <a className="text-primary font-bold">Privacy Policy</a>.</span>
+          <input type="checkbox" required className="mt-0.5" /> <span>I agree to the <a className="text-primary font-bold">Terms</a> and <a className="text-primary font-bold">Privacy Policy</a>.</span>
         </label>
-        <Link to="/verify" className="block w-full bg-primary text-on-primary py-3 rounded-lg text-sm font-bold text-center hover:opacity-90">Create Account</Link>
+        <button type="submit" disabled={loading} className="block w-full bg-primary text-on-primary py-3 rounded-lg text-sm font-bold text-center hover:opacity-90 disabled:opacity-60 transition-opacity">
+          {loading ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+              Creating Account...
+            </span>
+          ) : "Create Account"}
+        </button>
         <p className="text-center text-xs text-on-surface-variant">Already have an account? <Link to="/login" className="text-primary font-bold hover:underline">Sign in</Link></p>
-      </div>
+      </form>
     </AuthShell>
   );
 }
