@@ -1,5 +1,10 @@
 // Auth, Upload, Upgrade, Settings pages
-const { useState: useStateAux } = React;
+import React, { useState, useRef } from 'react';
+import { Link, Icon, Brand, AppShell, navigate } from '../shared/components';
+import API_BASE_URL from '../apiConfig';
+
+const useStateAux = useState;
+const useRefP1 = useRef;
 
 // =================== AUTH SHELL ===================
 function AuthShell({ children, side = "right" }) {
@@ -8,7 +13,7 @@ function AuthShell({ children, side = "right" }) {
       {side === "left" && <AuthVisual />}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
-          <Brand />
+          <Brand to="/" />
           <div className="mt-12">{children}</div>
         </div>
       </div>
@@ -28,7 +33,7 @@ function AuthVisual() {
         <p className="text-body-main opacity-80 leading-relaxed">Aid is the deliberate research workspace. We don't manufacture answers — we help you reason through them, with citations on every line.</p>
         <div className="mt-12 flex items-center gap-3 text-xs">
           <div className="flex -space-x-2">
-            {["RM","SK","AT"].map((i, k) => <div key={k} className="w-7 h-7 rounded-full bg-white/20 border-2 border-primary flex items-center justify-center text-[9px] font-bold">{i}</div>)}
+            {["RM", "SK", "AT"].map((i, k) => <div key={k} className="w-7 h-7 rounded-full bg-white/20 border-2 border-primary flex items-center justify-center text-[9px] font-bold">{i}</div>)}
           </div>
           <span className="opacity-70">Joined by researchers from Stanford, MIT, and 200+ institutions.</span>
         </div>
@@ -39,23 +44,73 @@ function AuthVisual() {
 
 // =================== LOGIN ===================
 function LoginPage() {
+  const [email, setEmail] = useStateAux("");
   const [pw, setPw] = useStateAux("");
   const [show, setShow] = useStateAux(false);
+  const [error, setError] = useStateAux("");
+  const [loading, setLoading] = useStateAux(false);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    // Hardcoded Admin Logic
+    if (email === "justaiuseai@gmail.com" && pw === "admin123") {
+      setLoading(false);
+      localStorage.setItem("aid_token", "hardcoded-admin-token");
+      navigate("/admin");
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: email, password: pw }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Invalid email or password.");
+      }
+
+      // Store the token and redirect to dashboard
+      localStorage.setItem("aid_token", data.access_token);
+      navigate("/dashboard");
+    } catch (err) {
+      setError(err.message || "Failed to connect to the server.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <AuthShell>
       <h1 className="font-section-heading text-section-heading text-primary mb-2">Welcome back.</h1>
       <p className="text-on-surface-variant mb-10">Sign in to continue your research.</p>
-      <div className="space-y-5">
-        <button className="w-full flex items-center justify-center gap-3 border border-border-subtle py-3 rounded-lg font-bold text-sm hover:bg-surface-container-low">
-          <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      <form onSubmit={handleLogin} className="space-y-5">
+        <button type="button" className="w-full flex items-center justify-center gap-3 border border-border-subtle py-3 rounded-lg font-bold text-sm hover:bg-surface-container-low">
+          <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" /><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" /><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" /><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" /></svg>
           Continue with Google
         </button>
         <div className="flex items-center gap-3 text-xs text-on-surface-variant">
           <div className="flex-1 h-px bg-border-subtle"></div><span>or</span><div className="flex-1 h-px bg-border-subtle"></div>
         </div>
+
+        {error && (
+          <div className="flex items-center gap-2 p-3 bg-error-container text-on-error-container rounded-lg text-xs">
+            <Icon name="error" size={16} />
+            <span>{error}</span>
+          </div>
+        )}
+
         <div>
           <label className="text-xs font-bold mb-1.5 block">Email</label>
-          <input type="email" defaultValue="mustafa@example.com" className="w-full border border-border-subtle bg-white px-3.5 py-2.5 rounded-lg text-body-main outline-none focus:border-primary" />
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full border border-border-subtle bg-white px-3.5 py-2.5 rounded-lg text-body-main outline-none focus:border-primary" />
         </div>
         <div>
           <div className="flex justify-between mb-1.5">
@@ -64,50 +119,111 @@ function LoginPage() {
           </div>
           <div className="relative">
             <input type={show ? "text" : "password"} value={pw} onChange={e => setPw(e.target.value)} placeholder="••••••••" className="w-full border border-border-subtle bg-white px-3.5 py-2.5 pr-10 rounded-lg text-body-main outline-none focus:border-primary" />
-            <button onClick={() => setShow(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant"><Icon name={show ? "visibility_off" : "visibility"} size={18} /></button>
+            <button type="button" onClick={() => setShow(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant"><Icon name={show ? "visibility_off" : "visibility"} size={18} /></button>
           </div>
         </div>
-        <Link to="/dashboard" className="block w-full bg-primary text-on-primary py-3 rounded-lg text-sm font-bold text-center hover:opacity-90">Sign In</Link>
+        <button type="submit" disabled={loading} className="block w-full bg-primary text-on-primary py-3 rounded-lg text-sm font-bold text-center hover:opacity-90 disabled:opacity-60 transition-opacity">
+          {loading ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+              Signing in...
+            </span>
+          ) : "Sign In"}
+        </button>
         <p className="text-center text-xs text-on-surface-variant">No account? <Link to="/register" className="text-primary font-bold hover:underline">Create one</Link></p>
-      </div>
+      </form>
     </AuthShell>
   );
 }
 
 // =================== REGISTER ===================
 function RegisterPage() {
+  const [firstName, setFirstName] = useStateAux("");
+  const [lastName, setLastName] = useStateAux("");
+  const [email, setEmail] = useStateAux("");
   const [pw, setPw] = useStateAux("");
+  const [error, setError] = useStateAux("");
+  const [loading, setLoading] = useStateAux(false);
+
   const score = Math.min(4, Math.floor(pw.length / 3));
   const labels = ["Too short", "Weak", "Okay", "Good", "Strong"];
   const colors = ["bg-error", "bg-error", "bg-yellow-500", "bg-green-500", "bg-green-600"];
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: `${firstName} ${lastName}`.trim(),
+          email: email,
+          password: pw
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Registration failed.");
+      }
+
+      // Store the token and redirect to dashboard
+      localStorage.setItem("aid_token", data.access_token);
+      navigate("/dashboard");
+    } catch (err) {
+      setError(err.message || "Failed to connect to the server.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <AuthShell side="left">
       <h1 className="font-section-heading text-section-heading text-primary mb-2">Create your account.</h1>
       <p className="text-on-surface-variant mb-10">Free for academic use. No credit card.</p>
-      <div className="space-y-5">
+      <form onSubmit={handleRegister} className="space-y-5">
+        {error && (
+          <div className="flex items-center gap-2 p-3 bg-error-container text-on-error-container rounded-lg text-xs">
+            <Icon name="error" size={16} />
+            <span>{error}</span>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
-          <div><label className="text-xs font-bold mb-1.5 block">First name</label><input className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
-          <div><label className="text-xs font-bold mb-1.5 block">Last name</label><input className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
+          <div><label className="text-xs font-bold mb-1.5 block">First name</label><input required value={firstName} onChange={e => setFirstName(e.target.value)} className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
+          <div><label className="text-xs font-bold mb-1.5 block">Last name</label><input required value={lastName} onChange={e => setLastName(e.target.value)} className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
         </div>
-        <div><label className="text-xs font-bold mb-1.5 block">Institutional email</label><input type="email" className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
+        <div><label className="text-xs font-bold mb-1.5 block">Institutional email</label><input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
         <div>
           <label className="text-xs font-bold mb-1.5 block">Password</label>
-          <input type="password" value={pw} onChange={e => setPw(e.target.value)} className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" />
+          <input required type="password" value={pw} onChange={e => setPw(e.target.value)} className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" />
           {pw.length > 0 && (
             <div className="mt-2 flex items-center gap-2">
               <div className="flex-1 flex gap-1">
-                {[0,1,2,3].map(i => <div key={i} className={`h-1 flex-1 rounded ${i < score ? colors[score] : "bg-surface-container-high"}`}></div>)}
+                {[0, 1, 2, 3].map(i => <div key={i} className={`h-1 flex-1 rounded ${i < score ? colors[score] : "bg-surface-container-high"}`}></div>)}
               </div>
               <span className="text-[10px] text-on-surface-variant font-bold">{labels[score]}</span>
             </div>
           )}
         </div>
         <label className="flex items-start gap-2 text-xs text-on-surface-variant">
-          <input type="checkbox" className="mt-0.5" /> <span>I agree to the <a className="text-primary font-bold">Terms</a> and <a className="text-primary font-bold">Privacy Policy</a>.</span>
+          <input type="checkbox" required className="mt-0.5" /> <span>I agree to the <a className="text-primary font-bold">Terms</a> and <a className="text-primary font-bold">Privacy Policy</a>.</span>
         </label>
-        <Link to="/verify" className="block w-full bg-primary text-on-primary py-3 rounded-lg text-sm font-bold text-center hover:opacity-90">Create Account</Link>
+        <button type="submit" disabled={loading} className="block w-full bg-primary text-on-primary py-3 rounded-lg text-sm font-bold text-center hover:opacity-90 disabled:opacity-60 transition-opacity">
+          {loading ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+              Creating Account...
+            </span>
+          ) : "Create Account"}
+        </button>
         <p className="text-center text-xs text-on-surface-variant">Already have an account? <Link to="/login" className="text-primary font-bold hover:underline">Sign in</Link></p>
-      </div>
+      </form>
     </AuthShell>
   );
 }
@@ -139,101 +255,7 @@ function VerifyPage() {
 }
 
 // =================== UPLOAD MODAL (page) ===================
-function UploadPage() {
-  const [files, setFiles] = useStateAux([
-    { name: "Trustworthiness_AI.pdf", size: "4.2 MB", progress: 100, status: "done" },
-    { name: "Cognitive_Load_Theory.pdf", size: "2.1 MB", progress: 67, status: "uploading" },
-    { name: "RAG_Architecture.pdf", size: "1.8 MB", progress: 0, status: "queued" },
-  ]);
-  const [dragOver, setDragOver] = useStateAux(false);
-  const [tab, setTab] = useStateAux("file");
 
-  return (
-    <AppShell active="library" breadcrumbs={[{ label: "Library", to: "/library" }, { label: "Upload" }]}>
-      <div className="max-w-3xl mx-auto">
-        <h1 className="font-section-heading text-section-heading text-primary mb-2">Add to your library</h1>
-        <p className="text-on-surface-variant mb-8">Aid will extract metadata, generate embeddings, and link citations automatically.</p>
-
-        <div className="bg-white border border-border-subtle rounded-2xl overflow-hidden">
-          <div className="flex border-b border-border-subtle">
-            {[{id:"file",label:"Upload File",icon:"upload_file"},{id:"url",label:"From URL",icon:"link"},{id:"doi",label:"By DOI",icon:"format_quote"}].map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)} className={`flex-1 px-4 py-3 text-sm flex items-center justify-center gap-2 transition-colors border-b-2 ${tab === t.id ? "border-primary text-primary font-bold bg-surface-container-lowest" : "border-transparent text-on-surface-variant hover:text-on-surface"}`}>
-                <Icon name={t.icon} size={18} /> {t.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="p-8">
-            {tab === "file" && (
-              <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={e => { e.preventDefault(); setDragOver(false); }} className={`border-2 border-dashed rounded-xl p-12 text-center transition-colors ${dragOver ? "border-primary bg-secondary-container/30" : "border-border-subtle bg-surface-container-lowest"}`}>
-                <div className="w-14 h-14 rounded-full bg-secondary-container mx-auto flex items-center justify-center mb-4">
-                  <Icon name="cloud_upload" filled className="text-primary" size={28} />
-                </div>
-                <p className="font-bold text-card-title mb-1">Drop files here or browse</p>
-                <p className="text-xs text-on-surface-variant mb-4">PDF, DOCX, TXT, EPUB up to 50MB</p>
-                <button className="bg-primary text-white px-5 py-2 rounded-full text-xs font-bold">Choose Files</button>
-              </div>
-            )}
-            {tab === "url" && (
-              <div>
-                <label className="text-xs font-bold mb-2 block">Web URL</label>
-                <input placeholder="https://arxiv.org/abs/2301.04267" className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary mb-4" />
-                <p className="text-xs text-on-surface-variant mb-4">We'll capture the page, extract the article, and detect DOIs / citations.</p>
-                <button className="bg-primary text-white px-5 py-2 rounded-lg text-xs font-bold">Fetch &amp; Add</button>
-              </div>
-            )}
-            {tab === "doi" && (
-              <div>
-                <label className="text-xs font-bold mb-2 block">DOI</label>
-                <input placeholder="10.48550/arXiv.2301.04267" className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary mb-4 font-mono" />
-                <button className="bg-primary text-white px-5 py-2 rounded-lg text-xs font-bold">Resolve &amp; Add</button>
-              </div>
-            )}
-
-            {tab === "file" && files.length > 0 && (
-              <div className="mt-6 space-y-2">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant mb-2">In Progress</p>
-                {files.map((f, i) => (
-                  <div key={i} className="flex items-center gap-3 p-3 bg-surface-container-lowest rounded-lg border border-border-subtle">
-                    <Icon name="picture_as_pdf" className="text-error" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-bold truncate">{f.name}</p>
-                        <span className="text-[10px] text-on-surface-variant ml-2">{f.size}</span>
-                      </div>
-                      <div className="mt-1.5 h-1 bg-surface-container-high rounded-full overflow-hidden">
-                        <div className={`h-full transition-all ${f.status === "done" ? "bg-green-600" : f.status === "uploading" ? "bg-primary" : "bg-on-surface-variant/30"}`} style={{ width: `${f.progress}%` }}></div>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider w-16 text-right">
-                      {f.status === "done" && <span className="text-green-600">Done</span>}
-                      {f.status === "uploading" && <span className="text-primary">{f.progress}%</span>}
-                      {f.status === "queued" && <span className="text-on-surface-variant">Queued</span>}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="px-8 py-4 bg-surface-container-lowest border-t border-border-subtle flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2 text-xs">
-              <Icon name="folder" size={16} className="text-on-surface-variant" />
-              <span className="text-on-surface-variant">Add to:</span>
-              <select className="px-2 py-1 border border-border-subtle rounded bg-white text-xs">
-                <option>Inbox (default)</option><option>ML Research</option><option>Thesis Sources</option>
-              </select>
-            </div>
-            <div className="flex gap-2">
-              <Link to="/library" className="px-4 py-2 rounded-lg border border-border-subtle text-xs font-bold hover:bg-surface-container-low">Cancel</Link>
-              <Link to="/library" className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-bold hover:opacity-90">Done</Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    </AppShell>
-  );
-}
 
 // =================== UPGRADE ===================
 function UpgradePage() {
@@ -296,6 +318,7 @@ function SettingsPage() {
     { id: "billing", label: "Billing", icon: "credit_card" },
     { id: "models", label: "AI Models", icon: "smart_toy" },
     { id: "notifications", label: "Notifications", icon: "notifications" },
+    { id: "appearance", label: "Appearance", icon: "palette" },
   ];
 
   return (
@@ -435,6 +458,37 @@ function SettingsPage() {
               ))}
             </div>
           )}
+          {tab === "appearance" && (
+            <div className="space-y-8">
+              <div>
+                <h3 className="font-card-title text-card-title mb-1">Appearance</h3>
+                <p className="text-xs text-on-surface-variant">Customize your interface theme and layout.</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  { id: "light", name: "Light Mode", icon: "light_mode", desc: "Clean and professional." },
+                  { id: "dark", name: "Dark Mode", icon: "dark_mode", desc: "Easy on the eyes in low light." },
+                  { id: "system", name: "System Default", icon: "settings_brightness", desc: "Sync with your OS settings." },
+                ].map(t => (
+                  <button key={t.id} className="p-4 border border-border-subtle rounded-xl text-left hover:border-primary transition-all group">
+                    <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary mb-3 group-hover:bg-primary group-hover:text-white transition-colors">
+                      <Icon name={t.icon} />
+                    </div>
+                    <p className="text-sm font-bold">{t.name}</p>
+                    <p className="text-[11px] text-on-surface-variant mt-0.5">{t.desc}</p>
+                  </button>
+                ))}
+              </div>
+              <div className="pt-6 border-t border-border-subtle">
+                <h4 className="text-sm font-bold mb-3">Accent Color</h4>
+                <div className="flex gap-3">
+                  {["#3a7d57", "#2a5b9e", "#cc6d3e", "#7c3aed", "#171513"].map(c => (
+                    <button key={c} className="w-8 h-8 rounded-full ring-offset-2 hover:ring-2 ring-primary transition-all" style={{ backgroundColor: c }}></button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </section>
       </div>
     </AppShell>
@@ -450,4 +504,4 @@ function Toggle({ defaultOn = false }) {
   );
 }
 
-Object.assign(window, { LoginPage, RegisterPage, VerifyPage, UploadPage, UpgradePage, SettingsPage });
+export { LoginPage, RegisterPage, VerifyPage, UpgradePage, SettingsPage, Toggle };
