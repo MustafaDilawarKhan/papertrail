@@ -1,6 +1,7 @@
 // Dashboard, Library, Document Viewer, Workspaces pages
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, Icon, Brand, Sidebar, TopNav, AppShell, CommandPalette, EmptyState, navigate } from '../shared/components';
+import { useAuth } from '../contexts/AuthContext';
 
 const useStateP1 = useState;
 const useEffectP1 = useEffect;
@@ -9,6 +10,8 @@ const useMemoP1 = useMemo;
 
 // =================== DASHBOARD ===================
 function DashboardPage() {
+  const { user } = useAuth();
+  const firstName = user?.name ? user.name.split(' ')[0] : 'User';
   const [search, setSearch] = useStateP1(false);
   const docs = [
     { type: "PDF", name: "Neural Networks in LLMs.pdf", time: "2 hours ago", size: "4.2 MB", to: "/library/ml/neural-networks" },
@@ -35,7 +38,7 @@ function DashboardPage() {
         <section className="mb-12">
           <div className="flex flex-col md:flex-row justify-between items-end gap-6">
             <div>
-              <h2 className="font-section-heading text-section-heading text-primary mb-2">Good morning, Mustafa.</h2>
+              <h2 className="font-section-heading text-section-heading text-primary mb-2">Good morning, {firstName}.</h2>
               <p className="text-on-surface-variant font-body-main">Continue your exploration or start a new project.</p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -513,6 +516,7 @@ function WorkspacesPage() {
 
 // =================== WORKSPACE DETAIL ===================
 function WorkspaceDetailPage({ params }) {
+  const { user } = useAuth();
   const [tab, setTab] = useStateP1("files");
   const name = params?.[0] ? params[0].replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase()) : "Thesis Research";
 
@@ -594,7 +598,7 @@ function WorkspaceDetailPage({ params }) {
           {tab === "members" && (
             <div className="space-y-3">
               {[
-                { name: "Mustafa Dilawar", email: "mustafa@example.com", role: "Owner" },
+                { name: user?.name || "User", email: user?.email || "", role: "Owner" },
                 { name: "Anna Petrova", email: "anna@example.com", role: "Editor" },
                 { name: "John Carter", email: "john@example.com", role: "Editor" },
                 { name: "Mira Cohen", email: "mira@example.com", role: "Viewer" },

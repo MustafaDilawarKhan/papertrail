@@ -1,6 +1,7 @@
 // Auth, Upload, Upgrade, Settings pages
 import React, { useState, useRef } from 'react';
 import { Link, Icon, Brand, AppShell, navigate } from '../shared/components';
+import { useAuth } from '../contexts/AuthContext';
 
 const useStateAux = useState;
 const useRefP1 = useRef;
@@ -43,6 +44,7 @@ function AuthVisual() {
 
 // =================== LOGIN ===================
 function LoginPage() {
+  const { login } = useAuth();
   const [email, setEmail] = useStateAux("");
   const [pw, setPw] = useStateAux("");
   const [show, setShow] = useStateAux(false);
@@ -57,7 +59,7 @@ function LoginPage() {
     // Hardcoded Admin Logic
     if (email === "justaiuseai@gmail.com" && pw === "admin123") {
       setLoading(false);
-      localStorage.setItem("aid_token", "hardcoded-admin-token");
+      login("hardcoded-admin-token");
       navigate("/admin");
       return;
     }
@@ -78,7 +80,7 @@ function LoginPage() {
       }
 
       // Store the token and redirect to dashboard
-      localStorage.setItem("aid_token", data.access_token);
+      login(data.access_token);
       navigate("/dashboard");
     } catch (err) {
       setError(err.message || "Failed to connect to the server.");
@@ -137,6 +139,7 @@ function LoginPage() {
 
 // =================== REGISTER ===================
 function RegisterPage() {
+  const { login } = useAuth();
   const [firstName, setFirstName] = useStateAux("");
   const [lastName, setLastName] = useStateAux("");
   const [email, setEmail] = useStateAux("");
@@ -173,7 +176,7 @@ function RegisterPage() {
       }
 
       // Store the token and redirect to dashboard
-      localStorage.setItem("aid_token", data.access_token);
+      login(data.access_token);
       navigate("/dashboard");
     } catch (err) {
       setError(err.message || "Failed to connect to the server.");
@@ -310,6 +313,7 @@ function UpgradePage() {
 
 // =================== SETTINGS ===================
 function SettingsPage() {
+  const { user } = useAuth();
   const [tab, setTab] = useStateAux("profile");
   const tabs = [
     { id: "profile", label: "Profile", icon: "person" },
@@ -319,6 +323,16 @@ function SettingsPage() {
     { id: "notifications", label: "Notifications", icon: "notifications" },
     { id: "appearance", label: "Appearance", icon: "palette" },
   ];
+
+  const getInitials = (name) => {
+    if (!name) return "U";
+    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  };
+
+  const initials = getInitials(user?.name);
+  const firstName = user?.name ? user.name.split(' ')[0] : "User";
+  const lastName = user?.name && user.name.split(' ').length > 1 ? user.name.split(' ').slice(1).join(' ') : "";
+  const email = user?.email || "";
 
   return (
     <AppShell active="settings" breadcrumbs={[{ label: "Settings" }]}>
@@ -344,16 +358,16 @@ function SettingsPage() {
                 <p className="text-xs text-on-surface-variant">How you appear to collaborators.</p>
               </div>
               <div className="flex items-center gap-5">
-                <div className="w-20 h-20 rounded-full bg-primary text-white flex items-center justify-center text-2xl font-bold">MD</div>
+                <div className="w-20 h-20 rounded-full bg-primary text-white flex items-center justify-center text-2xl font-bold uppercase">{initials}</div>
                 <div className="flex gap-2">
                   <button className="px-3 py-2 rounded-lg border border-border-subtle text-xs font-bold hover:bg-surface-container-low">Upload</button>
                   <button className="px-3 py-2 rounded-lg text-xs font-bold text-error hover:bg-error-container">Remove</button>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="text-xs font-bold mb-1.5 block">First name</label><input defaultValue="Mustafa" className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
-                <div><label className="text-xs font-bold mb-1.5 block">Last name</label><input defaultValue="Dilawar" className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
-                <div className="col-span-2"><label className="text-xs font-bold mb-1.5 block">Email</label><input defaultValue="mustafa@example.com" className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary bg-surface-container-low" disabled /></div>
+                <div><label className="text-xs font-bold mb-1.5 block">First name</label><input defaultValue={firstName} className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
+                <div><label className="text-xs font-bold mb-1.5 block">Last name</label><input defaultValue={lastName} className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
+                <div className="col-span-2"><label className="text-xs font-bold mb-1.5 block">Email</label><input defaultValue={email} className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary bg-surface-container-low" disabled /></div>
                 <div className="col-span-2"><label className="text-xs font-bold mb-1.5 block">Affiliation</label><input defaultValue="Carnegie Mellon University" className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary" /></div>
                 <div className="col-span-2"><label className="text-xs font-bold mb-1.5 block">Bio</label><textarea rows="3" defaultValue="PhD candidate exploring trust calibration in human-AI research workflows." className="w-full border border-border-subtle px-3.5 py-2.5 rounded-lg outline-none focus:border-primary resize-none"></textarea></div>
               </div>
