@@ -129,7 +129,23 @@ function App() {
     }
   }, [tweaks]);
 
-  const isLandingPage = (route || '/') === '/';
+  const landingSections = ['features', 'verify', 'vs', 'integrations', 'pricing'];
+
+  // Handle section scrolling on landing page
+  useEffect(() => {
+    if (landingSections.includes(route)) {
+      const el = document.getElementById(route);
+      if (el) {
+        // Use a small timeout to ensure the DOM is ready if navigating from another page
+        const timer = setTimeout(() => {
+          el.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [route]);
+
+  const isLandingPage = (route || '/') === '/' || landingSections.includes(route);
 
   return (
     <>

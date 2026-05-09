@@ -27,16 +27,24 @@ function Footer() {
             ["Resources", ["Documentation", "API", "Research blog", "Citation guide", "Templates"]],
             ["Company", ["About", "Careers", "Press kit", "Contact", "Brand"]],
             ["Legal", ["Privacy", "Terms", "Security", "DPA", "Cookies"]],
-          ].map(([h, links]) => (
-            <div key={h}>
-              <div className="mono" style={{ fontSize: 11, color: "var(--ink-4)", letterSpacing: "0.14em", marginBottom: 16, textTransform: "uppercase" }}>{h}</div>
-              <div className="col gap-8">
-                {links.map(l => (
-                  <a key={l} href="#" style={{ fontSize: 14, color: "var(--ink-2)" }}>{l}</a>
-                ))}
+          ].map(([h, links]) => {
+            const sectionMap = {
+              "Features": "#features",
+              "Verify": "#verify",
+              "Integrations": "#integrations",
+              "Pricing": "#pricing"
+            };
+            return (
+              <div key={h}>
+                <div className="mono" style={{ fontSize: 11, color: "var(--ink-4)", letterSpacing: "0.14em", marginBottom: 16, textTransform: "uppercase" }}>{h}</div>
+                <div className="col gap-8">
+                  {links.map(l => (
+                    <a key={l} href={sectionMap[l] || "#"} style={{ fontSize: 14, color: "var(--ink-2)" }}>{l}</a>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="row between center" style={{ padding: "20px 0", borderTop: "1px solid var(--line)", flexWrap: "wrap", gap: 12 }}>
