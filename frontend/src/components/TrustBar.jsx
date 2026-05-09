@@ -3,16 +3,16 @@ import { Eyebrow, I } from './Atoms'
 
 // Import logos from assets
 import utokyo from '../assets/UTokyo.png'
-import stanford from '../assets/Stanford Hai.png'
+import stanford from '../assets/stanford-hai.png'
 import oxford from '../assets/OXFORD.png'
 import mit from '../assets/MIT.jfif'
 import cambridge from '../assets/Cambridge.png'
-import eth from '../assets/ETH ZÜRICH.png'
+import eth from '../assets/eth-zurich.png'
 import berkeley from '../assets/Berkeley.jfif'
-import nature from '../assets/Nature Methods.png'
+import nature from '../assets/nature-methods.png'
 import lums from '../assets/LUMS.png'
 import nust from '../assets/NUST.png'
-import bahria from '../assets/Bahria University.png'
+import bahria from '../assets/bahria.png'
 
 function TrustBar() {
   const logos = [
