@@ -3,7 +3,7 @@ import { FadeUp, PlusMark, I } from './Atoms'
 
 function CTA() {
   return (
-    <section id="pricing" style={{ padding: "100px 0 60px" }}>
+    <section id="pricing" style={{ padding: "100px 0 60px", background: "var(--bg-soft)" }}>
       <div className="container">
         <FadeUp>
           <div style={{
@@ -30,7 +30,7 @@ function CTA() {
             <PlusMark bottom={28} right={28} />
 
             <div style={{ position: "relative", textAlign: "center", maxWidth: 760, margin: "0 auto" }}>
-              <div className="mono" style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 18 }}>
+              <div className="mono" style={{ fontSize: 11, color: "rgba(255,255,255,0.9)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 18 }}>
                 <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: 3, background: "var(--verify)", marginRight: 8, verticalAlign: "middle", boxShadow: "0 0 0 3px color-mix(in oklab, var(--verify) 25%, transparent)" }} />
                 LIMITED ACCESS — RESEARCHERS &amp; STUDENTS
               </div>
@@ -38,7 +38,7 @@ function CTA() {
                 Stop second-guessing your AI.<br />
                 <em>Start citing it.</em>
               </h2>
-              <p style={{ marginTop: 22, fontSize: 17, color: "rgba(255,255,255,0.65)", maxWidth: 560, margin: "22px auto 0" }}>
+              <p style={{ marginTop: 22, fontSize: 17, color: "rgba(255,255,255,0.9)", maxWidth: 560, margin: "22px auto 0" }}>
                 Free for 50 queries / month. Pro plans unlock unlimited queries, 1,000-doc libraries, and team workspaces.
               </p>
               <div className="row center gap-12" style={{ justifyContent: "center", marginTop: 30 }}>
@@ -49,7 +49,7 @@ function CTA() {
                   Book a demo
                 </a>
               </div>
-              <div className="row center gap-12 mono" style={{ justifyContent: "center", marginTop: 22, fontSize: 11, color: "rgba(255,255,255,0.5)" }}>
+              <div className="row center gap-12 mono" style={{ justifyContent: "center", marginTop: 22, fontSize: 11, color: "rgba(255,255,255,0.75)" }}>
                 <span>NO CREDIT CARD</span>
                 <span>·</span>
                 <span>5-MIN SETUP</span>

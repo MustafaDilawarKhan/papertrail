@@ -43,16 +43,16 @@ function TrustBar() {
           <div className="marquee">
             {[...logos, ...logos].map((logo, i) => (
               <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 32, margin: "0 24px" }}>
-                <img 
-                  src={logo.src} 
-                  alt={logo.name} 
-                  style={{ 
-                    height: "38px", 
-                    width: "auto", 
-                    filter: "grayscale(1) brightness(0.6) contrast(1.2)", 
+                <img
+                  src={logo.src}
+                  alt={logo.name}
+                  style={{
+                    height: "58px",
+                    width: "auto",
+                    filter: "grayscale(1) brightness(0.6) contrast(1.2)",
                     opacity: 0.7,
                     transition: "all 0.3s ease"
-                  }} 
+                  }}
                   onMouseEnter={e => {
                     e.currentTarget.style.filter = "grayscale(0) brightness(1)";
                     e.currentTarget.style.opacity = "1";
