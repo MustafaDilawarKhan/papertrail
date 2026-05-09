@@ -47,7 +47,7 @@ function TrustBar() {
                   src={logo.src} 
                   alt={logo.name} 
                   style={{ 
-                    height: "24px", 
+                    height: "32px", 
                     width: "auto", 
                     filter: "grayscale(1) brightness(0.6) contrast(1.2)", 
                     opacity: 0.7,

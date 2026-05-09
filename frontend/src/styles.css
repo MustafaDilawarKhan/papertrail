@@ -442,7 +442,7 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.02em; color: var(--ink); }
 .marquee {
   display: flex;
   gap: 64px;
-  animation: marquee 38s linear infinite;
+  animation: marquee 65s linear infinite;
   width: max-content;
 }
 @keyframes marquee {
