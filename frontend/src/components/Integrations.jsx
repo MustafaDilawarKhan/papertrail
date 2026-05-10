@@ -86,10 +86,10 @@ function Integrations() {
                 ))}
               </svg>
 
-              {/* Center: Aid */}
+              {/* Center: Paper Trail */}
               <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", padding: "14px 22px", borderRadius: 14, background: "var(--ink)", color: "var(--paper)", display: "inline-flex", alignItems: "center", gap: 10, boxShadow: "0 12px 30px rgba(0,0,0,0.22)" }}>
-                <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: 6, background: "rgba(255,255,255,0.08)", fontFamily: "var(--mono)", fontSize: 12, fontWeight: 600 }}>A</span>
-                <span style={{ fontFamily: "var(--serif)", fontSize: 22 }}>Aid</span>
+                <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: 6, background: "rgba(255,255,255,0.08)", fontFamily: "var(--mono)", fontSize: 12, fontWeight: 600 }}>P</span>
+                <span style={{ fontFamily: "var(--serif)", fontSize: 22 }}>Paper Trail</span>
               </div>
 
               {/* Integration nodes */}

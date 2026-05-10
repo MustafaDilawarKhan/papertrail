@@ -66,7 +66,7 @@ function ProductWindow({ step, accent }) {
 
   return (
     <div style={{ position: "relative", maxWidth: 1080, margin: "0 auto" }}>
-      <Window title="aid.app/library/cognitive-bias-review">
+      <Window title="papertrail.app/library/cognitive-bias-review">
         <div className="row" style={{ minHeight: 460 }}>
           {/* Sidebar */}
           <aside style={{ width: 200, borderRight: "1px solid var(--line)", padding: "16px 14px", background: "color-mix(in oklab, var(--paper) 80%, var(--bg))" }}>
