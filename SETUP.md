@@ -84,22 +84,35 @@ Docker allows you to run the entire stack (Frontend, Backend, and Database) with
 - **Hot Reloading (Development)**: Our `docker-compose.yml` uses **Volumes** to map your local code into the containers. This means any edits you make in your editor will sync instantly inside Docker.
 - **Nginx (Frontend)**: In the Docker environment, the frontend is served by Nginx. This is a production-grade web server that is faster than the Vite dev server and handles SPA routing (preventing 404s on page refresh).
 
-### 3. Commands
-**Run everything:**
+### 3. Choose your mode
+
+#### **Option A: Development Mode (Syncs instantly)**
+Use this for daily coding. Edits in your editor will reflect instantly in the browser.
+- **Frontend Port**: [http://localhost:5173](http://localhost:5173) (Vite Dev Server)
+- **Backend Port**: [http://localhost:8000](http://localhost:8000)
+
+**Command:**
+```bash
+docker-compose -f docker-compose.dev.yml up --build
+```
+
+#### **Option B: Production Mode (Fast & Secure)**
+Use this to test the "Real World" version of your app. It uses Nginx to serve static files. **Note**: You must rebuild if you change code in this mode.
+- **Frontend Port**: [http://localhost:3000](http://localhost:3000) (Nginx)
+- **Backend Port**: [http://localhost:8000](http://localhost:8000)
+
+**Command:**
 ```bash
 docker-compose up --build
 ```
-*The `--build` flag ensures that your images are updated if you changed dependencies (like `package.json` or `requirements.txt`).*
 
-**Run in background:**
-```bash
-docker-compose up -d
-```
+### 4. Common Commands
 
 **Stop everything:**
 ```bash
 docker-compose down
 ```
+*(Add `-f docker-compose.dev.yml` if you were running in Dev mode).*
 
 ### 4. Accessing the App
 - **Frontend**: [http://localhost:3000](http://localhost:3000)
