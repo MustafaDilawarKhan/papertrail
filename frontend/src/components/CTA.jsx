@@ -43,7 +43,7 @@ function CTA() {
               </p>
               <div className="row center gap-12" style={{ justifyContent: "center", marginTop: 30 }}>
                 <a href="#/register" className="btn" style={{ background: "var(--paper)", color: "var(--ink)", height: 46, padding: "0 22px", fontSize: 15 }}>
-                  Get Aid free <I.arrow />
+                  Get Paper Trail free <I.arrow />
                 </a>
                 <a href="#/login" className="btn" style={{ background: "transparent", color: "var(--paper)", height: 46, padding: "0 22px", fontSize: 15, border: "1px solid rgba(255,255,255,0.25)" }}>
                   Book a demo

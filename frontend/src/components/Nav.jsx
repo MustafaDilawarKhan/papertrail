@@ -10,8 +10,8 @@ function Nav({ tweaks, setTweak }) {
             display: "inline-flex", alignItems: "center", justifyContent: "center",
             width: 28, height: 28, borderRadius: 6, background: "var(--ink)", color: "var(--paper)",
             fontFamily: "var(--mono)", fontSize: 13, fontWeight: 600
-          }}>A</span>
-          <span style={{ fontWeight: 500 }}>Aid</span>
+          }}>P</span>
+          <span style={{ fontWeight: 500 }}>Paper Trail</span>
           <span className="mono" style={{ fontSize: 10, color: "var(--ink-4)", border: "1px solid var(--line-2)", padding: "1px 5px", borderRadius: 4, marginLeft: 4 }}>BETA</span>
         </a>
 
@@ -44,7 +44,7 @@ function Nav({ tweaks, setTweak }) {
           </button>
           <a href="#/login" style={{ fontSize: 14, color: "var(--ink-2)" }}>Log in</a>
           <a href="#/register" className="btn btn-primary" style={{ height: 38 }}>
-            Get Aid free <I.arrow />
+            Get Paper Trail free <I.arrow />
           </a>
         </div>
       </div>

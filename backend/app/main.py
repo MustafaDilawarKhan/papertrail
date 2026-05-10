@@ -66,9 +66,9 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down application.")
 
 app = FastAPI(
-    title=settings.APP_NAME,
-    version=settings.APP_VERSION,
-    lifespan=lifespan
+    title="Paper Trail API",
+    description="Backend for the Paper Trail AI Research Assistant",
+    version="2.0.0",
 )
 
 

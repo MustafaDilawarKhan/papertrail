@@ -3,9 +3,9 @@ import { FadeUp, Eyebrow, I } from './Atoms'
 
 function Workflow() {
   const steps = [
-    { n: "01", title: "Upload", body: "Drop PDFs, DOCX, or paste a URL. Aid OCRs scanned pages, extracts metadata, and indexes everything in seconds." },
-    { n: "02", title: "Ask",    body: "Use natural language. @-mention specific docs, or ask across your whole library. Aid streams answers in under 5s." },
-    { n: "03", title: "Verify", body: "Click any citation chip. Aid scrolls to the source, highlights the exact line, and shows a confidence score." },
+    { n: "01", title: "Upload", body: "Drop PDFs, DOCX, or paste a URL. Paper Trail OCRs scanned pages, extracts metadata, and indexes everything in seconds." },
+    { n: "02", title: "Ask",    body: "Use natural language. @-mention specific docs, or ask across your whole library. Paper Trail streams answers in under 5s." },
+    { n: "03", title: "Verify", body: "Click any citation chip. Paper Trail scrolls to the source, highlights the exact line, and shows a confidence score." },
     { n: "04", title: "Cite",   body: "Export answers with references in APA, MLA, Chicago — or send straight to Zotero, Notion, Obsidian." }
   ];
   return (

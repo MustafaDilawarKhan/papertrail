@@ -3,10 +3,10 @@ import { FadeUp, Eyebrow, I } from './Atoms'
 
 function Testimonials() {
   const items = [
-    { q: "Aid has completely transformed my literature review process. The ability to verify the AI's claims instantly gives me the confidence I need for my PhD thesis.", n: "Sarah J.", r: "PhD Candidate · Biology · MIT" },
-    { q: "Unlike other AI tools that hallucinate references, Aid links directly to my uploaded PDFs. It's a game-changer for systematic reviews.", n: "Dr. Mark T.", r: "Clinical Researcher · Mayo Clinic" },
+    { q: "Paper Trail has completely transformed my literature review process. The ability to verify the AI's claims instantly gives me the confidence I need for my PhD thesis.", n: "Sarah J.", r: "PhD Candidate · Biology · MIT" },
+    { q: "Unlike other AI tools that hallucinate references, Paper Trail links directly to my uploaded PDFs. It's a game-changer for systematic reviews.", n: "Dr. Mark T.", r: "Clinical Researcher · Mayo Clinic" },
     { q: "The multi-document analysis saves me hours of cross-referencing. I can ask a single question and get an answer synthesized from 20 papers.", n: "Emily R.", r: "Data Analyst · Stanford HAI" },
-    { q: "I trusted Aid with my dissertation literature review. It found seven papers I'd missed and traced every claim to a paragraph.", n: "Aleksei P.", r: "DPhil candidate · Oxford" }
+    { q: "I trusted Paper Trail with my dissertation literature review. It found seven papers I'd missed and traced every claim to a paragraph.", n: "Aleksei P.", r: "DPhil candidate · Oxford" }
   ];
   return (
     <section style={{ padding: "120px 0", background: "var(--bg-soft)", borderTop: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }}>

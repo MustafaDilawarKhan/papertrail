@@ -1,11 +1,11 @@
-# Aid — AI Research Assistant
+# Paper Trail — AI Research Assistant
 
 [![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com)
 [![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 
-**Aid** is a deliberate research workspace designed to help academics and researchers anchor every claim to verifiable sources. Unlike generic AI assistants, Aid focuses on reasoning, citations, and source-grounded insights.
+**Paper Trail** is a deliberate research workspace designed to help academics and researchers anchor every claim to verifiable sources. Unlike generic AI assistants, Paper Trail focuses on reasoning, citations, and source-grounded insights.
 
 ---
 

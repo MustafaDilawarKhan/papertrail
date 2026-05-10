@@ -1,6 +1,6 @@
 # Project Setup Guide
 
-This guide covers how to set up **Aid** for local development and how to deploy it to production using Vercel.
+This guide covers how to set up **Paper Trail** for local development and how to deploy it to production using Vercel.
 
 ---
 
@@ -53,7 +53,7 @@ npm run dev
 
 ## ☁️ Vercel Deployment
 
-Aid uses a **Dual-Project Deployment** strategy on Vercel to handle the React frontend and FastAPI backend separately.
+Paper Trail uses a **Dual-Project Deployment** strategy on Vercel to handle the React frontend and FastAPI backend separately.
 
 ### 1. Deploy the Backend
 - **Root Directory**: `backend`

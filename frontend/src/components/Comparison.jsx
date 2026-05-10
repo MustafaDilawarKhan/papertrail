@@ -2,11 +2,11 @@ import React from 'react'
 import { FadeUp, Eyebrow, Window, I } from './Atoms'
 
 function Comparison() {
-  const [active, setActive] = React.useState("aid");
+  const [active, setActive] = React.useState("papertrail");
   const [step, setStep] = React.useState(0);
 
   React.useEffect(() => {
-    if (active === "aid") {
+    if (active === "papertrail") {
       const t1 = setTimeout(() => setStep(1), 500);
       const t2 = setTimeout(() => setStep(2), 1100);
       const t3 = setTimeout(() => setStep(3), 1700);
@@ -31,7 +31,7 @@ function Comparison() {
         </FadeUp>
         <FadeUp delay={80}>
           <h2 className="h-section" style={{ textAlign: "center", maxWidth: 940, margin: "0 auto" }}>
-            Other chats <em>guess.</em><br />Aid <em>cites.</em>
+            Other chats <em>guess.</em><br />Paper Trail <em>cites.</em>
           </h2>
         </FadeUp>
         <FadeUp delay={140}>
@@ -45,7 +45,7 @@ function Comparison() {
           <div style={{ display: "inline-flex", padding: 4, border: "1px solid var(--line)", borderRadius: 999, background: "var(--paper)" }}>
             {[
               { id: "other", label: "Other Chat" },
-              { id: "aid", label: "Aid" }
+              { id: "papertrail", label: "Paper Trail" }
             ].map(t => (
               <button
                 key={t.id}
@@ -109,11 +109,11 @@ function Comparison() {
             </div>
           </FadeUp>
 
-          {/* Aid */}
-          <FadeUp delay={80} className="window" style={{ opacity: active === "aid" ? 1 : 0.55, transform: active === "aid" ? "scale(1.01)" : "scale(0.99)", transition: "all .35s ease", borderColor: active === "aid" ? "color-mix(in oklab, var(--verify) 50%, var(--line))" : "var(--line)" }}>
-            <div className="window-bar" style={{ background: active === "aid" ? "linear-gradient(to bottom, color-mix(in oklab, var(--verify-soft) 50%, var(--paper)), var(--paper))" : undefined }}>
+          {/* Paper Trail */}
+          <FadeUp delay={80} className="window" style={{ opacity: active === "papertrail" ? 1 : 0.55, transform: active === "papertrail" ? "scale(1.01)" : "scale(0.99)", transition: "all .35s ease", borderColor: active === "papertrail" ? "color-mix(in oklab, var(--verify) 50%, var(--line))" : "var(--line)" }}>
+            <div className="window-bar" style={{ background: active === "papertrail" ? "linear-gradient(to bottom, color-mix(in oklab, var(--verify-soft) 50%, var(--paper)), var(--paper))" : undefined }}>
               <span className="tl-dot tl-r" /><span className="tl-dot tl-y" /><span className="tl-dot tl-g" />
-              <div className="window-title">aid.app · verified</div>
+              <div className="window-title">papertrail.app · verified</div>
               <div style={{ width: 42 }} />
             </div>
             <div style={{ padding: 22, minHeight: 380, position: "relative" }}>
@@ -123,7 +123,7 @@ function Comparison() {
               </div>
               <div className="mono" style={{ fontSize: 10, color: "var(--ink-4)", marginBottom: 12, letterSpacing: "0.1em" }}>RESPONSE</div>
 
-              {active === "aid" && step >= 1 && (
+              {active === "papertrail" && step >= 1 && (
                 <p style={{ fontSize: 13.5, color: "var(--ink-2)", lineHeight: 1.7 }}>
                   Smith et al. (2023) report that source verification by independent reviewers reduced false-positive claims by{" "}
                   <strong>40%</strong>{" "}
@@ -131,7 +131,7 @@ function Comparison() {
                   {step >= 2 && <>, and that cross-referencing improves accuracy by <strong>28%</strong> <span className="src-chip" style={{ verticalAlign: "middle" }}><span className="num">[3]</span> p. 14</span></>}.
                 </p>
               )}
-              {active === "aid" && step >= 3 && (
+              {active === "papertrail" && step >= 3 && (
                 <div className="row gap-12 mono" style={{ marginTop: 16, fontSize: 11, color: "oklch(0.36 0.07 150)", padding: "10px 12px", border: "1px solid color-mix(in oklab, var(--verify) 35%, transparent)", background: "var(--verify-soft)", borderRadius: 8 }}>
                   <span style={{ color: "var(--verify)" }}><I.check /></span>
                   <span>2 SOURCES VERIFIED</span>
@@ -143,7 +143,7 @@ function Comparison() {
               )}
 
               {/* Connecting dots from chip to source mark */}
-              {active === "aid" && step >= 3 && (
+              {active === "papertrail" && step >= 3 && (
                 <svg style={{ position: "absolute", left: 0, right: 0, bottom: 0, top: 0, pointerEvents: "none" }}>
                   <defs>
                     <pattern id="dots-pat" x="0" y="0" width="6" height="6" patternUnits="userSpaceOnUse">
@@ -162,7 +162,7 @@ function Comparison() {
             <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", borderBottom: "1px solid var(--line)" }}>
               <div style={{ padding: "16px 22px", fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-4)", letterSpacing: "0.12em" }}>CRITERIA</div>
               <div style={{ padding: "16px 22px", fontWeight: 500, color: "var(--ink-3)", borderLeft: "1px solid var(--line)" }}>Other Chat</div>
-              <div style={{ padding: "16px 22px", fontWeight: 500, borderLeft: "1px solid var(--line)", background: "color-mix(in oklab, var(--verify-soft) 50%, transparent)" }}>Aid</div>
+              <div style={{ padding: "16px 22px", fontWeight: 500, borderLeft: "1px solid var(--line)", background: "color-mix(in oklab, var(--verify-soft) 50%, transparent)" }}>Paper Trail</div>
             </div>
             {[
               ["Cites every claim with line-level anchors", false, true],

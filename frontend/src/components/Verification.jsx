@@ -25,14 +25,14 @@ function Verification({ tweaks }) {
               From <em>claim</em> to <em>proof</em>, in one click.
             </h2>
             <p className="lead" style={{ marginTop: 16 }}>
-              Every sentence Aid generates carries a citation chip. Click it — and the document on the left scrolls,
-              zooms, and highlights the exact passage. No more guessing whether the AI is making it up.
+              Every sentence Paper Trail generates carries a citation chip. Click it — and the document on the left scrolls,
+              highlights the exact line, and shows you the raw evidence.
             </p>
-            <div className="col gap-12" style={{ marginTop: 24 }}>
+            <div className="col gap-16" style={{ marginTop: 28 }}>
               {[
-                ["Inline source chips", "Numbered, hoverable, jumpable."],
-                ["Pixel-perfect anchors", "Snap to the exact line — works on scanned PDFs via OCR."],
-                ["Confidence scoring", "Aid flags claims with weak source coverage in amber."],
+                ["Source Grounding", "Paper Trail only answers using your uploaded document library."],
+                ["Confidence scoring", "Paper Trail flags claims with weak source coverage in amber."],
+                ["Multi-doc synthesis", "Combine insights from 50+ papers into a single verified response."]
               ].map(([t, s], i) => (
                 <div key={i} className="row gap-12" style={{ alignItems: "flex-start" }}>
                   <span style={{ marginTop: 4, color: "var(--verify)" }}><I.check /></span>

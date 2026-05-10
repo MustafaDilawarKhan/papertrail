@@ -7,12 +7,12 @@ function Footer() {
         <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr 1fr", gap: 32, paddingBottom: 56 }}>
           <div>
             <div className="row center gap-8" style={{ marginBottom: 14 }}>
-              <span style={{
+              <div style={{
                 display: "inline-flex", alignItems: "center", justifyContent: "center",
                 width: 28, height: 28, borderRadius: 6, background: "var(--ink)", color: "var(--paper)",
                 fontFamily: "var(--mono)", fontSize: 13, fontWeight: 600
-              }}>A</span>
-              <span style={{ fontFamily: "var(--serif)", fontSize: 22 }}>Aid</span>
+              }}>P</div>
+              <span style={{ fontFamily: "var(--serif)", fontSize: 22 }}>Paper Trail</span>
             </div>
             <p style={{ fontSize: 14, color: "var(--ink-3)", maxWidth: 280, marginBottom: 22 }}>
               The verifiable AI research assistant. Built for researchers who can't afford to be wrong.

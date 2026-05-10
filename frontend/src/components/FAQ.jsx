@@ -3,12 +3,12 @@ import { FadeUp, Eyebrow, I } from './Atoms'
 
 function FAQ() {
   const items = [
-    { q: "How does Aid prevent hallucinations?", a: "Aid is explicitly designed for source verification. Every answer it provides is generated strictly from documents you upload, and it includes a clickable link to the exact sentence used to formulate the answer. We also run a faithfulness audit on every response — flagging any claim that isn't fully supported." },
-    { q: "What file types can I upload?", a: "Currently, Aid supports PDF, DOCX, and TXT files, plus web pages via URL. Scanned PDFs are OCR'd automatically. Images and audio are on the roadmap." },
+    { q: "How does Paper Trail prevent hallucinations?", a: "Paper Trail is explicitly designed for source verification. Every answer it provides is generated strictly from documents you upload, and it includes a clickable link to the exact sentence used to formulate the answer. We also run a faithfulness audit on every response — flagging any claim that isn't fully supported." },
+    { q: "What file types can I upload?", a: "Currently, Paper Trail supports PDF, DOCX, and TXT files, plus web pages via URL. Scanned PDFs are OCR'd automatically. Images and audio are on the roadmap." },
     { q: "Is my research data secure?", a: "Yes. All data is encrypted in transit (TLS 1.3) and at rest (AES-256). We use strict multi-tenant isolation — your documents and chats are completely private to your account or shared workspaces. SOC2 Type II is in progress." },
     { q: "Can I collaborate with my team?", a: "Yes. Team plans offer Workspaces where you can share collections of documents and chats with colleagues or fellow researchers. Roles include Owner, Editor, Viewer." },
-    { q: "Which AI models does Aid use?", a: "Aid runs on the latest frontier models (GPT-4-class and Claude-class). Pro plans let you choose your preferred underlying model per query." },
-    { q: "How is Aid different from ChatGPT or Elicit?", a: "Other tools either lack citations entirely or cite from a closed corpus. Aid only answers from YOUR uploaded library — and pins every claim to a specific line in a specific PDF you can click to inspect." },
+    { q: "Which AI models does Paper Trail use?", a: "Paper Trail runs on the latest frontier models (GPT-4-class and Claude-class). Pro plans let you choose your preferred underlying model per query." },
+    { q: "How is Paper Trail different from ChatGPT or Elicit?", a: "Other tools either lack citations entirely or cite from a closed corpus. Paper Trail only answers from YOUR uploaded library — and pins every claim to a specific line in a specific PDF you can click to inspect." },
   ];
   const [open, setOpen] = useState(0);
 

@@ -67,7 +67,7 @@ function Features() {
               <span className="mono" style={{ fontSize: 11, color: "var(--ink-4)" }}>03</span>
             </div>
             <h3 style={{ fontFamily: "var(--serif)", fontSize: 24, lineHeight: 1.1, marginBottom: 6 }}>Semantic citation search.</h3>
-            <p className="text-mute" style={{ fontSize: 13.5 }}>Find papers by meaning — not just keywords. Aid understands the context behind your query.</p>
+            <p className="text-mute" style={{ fontSize: 13.5 }}>Find papers by meaning — not just keywords. Paper Trail understands the context behind your query.</p>
             <div style={{ marginTop: 14, padding: "8px 12px", border: "1px solid var(--line)", borderRadius: 8, background: "var(--bg-soft)", fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--ink-3)" }}>
               ▸ studies refuting prior X w/ n &gt; 1k
             </div>
