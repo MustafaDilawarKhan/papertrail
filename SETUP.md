@@ -73,8 +73,44 @@ In `backend/app/main.py`, ensure the `origins` list includes your frontend produ
 
 ---
 
+## 🐳 Docker Setup (Best Practices)
+
+Docker allows you to run the entire stack (Frontend, Backend, and Database) with a single command. It ensures environment consistency across all machines.
+
+### 1. Prerequisites
+- **Docker Desktop** installed and running.
+
+### 2. How it works
+- **Hot Reloading (Development)**: Our `docker-compose.yml` uses **Volumes** to map your local code into the containers. This means any edits you make in your editor will sync instantly inside Docker.
+- **Nginx (Frontend)**: In the Docker environment, the frontend is served by Nginx. This is a production-grade web server that is faster than the Vite dev server and handles SPA routing (preventing 404s on page refresh).
+
+### 3. Commands
+**Run everything:**
+```bash
+docker-compose up --build
+```
+*The `--build` flag ensures that your images are updated if you changed dependencies (like `package.json` or `requirements.txt`).*
+
+**Run in background:**
+```bash
+docker-compose up -d
+```
+
+**Stop everything:**
+```bash
+docker-compose down
+```
+
+### 4. Accessing the App
+- **Frontend**: [http://localhost:3000](http://localhost:3000)
+- **Backend API**: [http://localhost:8000/api](http://localhost:8000/api)
+- **Database**: Port `5432` on `localhost`
+
+---
+
 ## 🛠️ Troubleshooting
 
 - **CORS Errors**: If you see "Failed to fetch," check that your backend's `main.py` allows your frontend domain.
 - **Database Connection**: Ensure your `DATABASE_URL` includes `+asyncpg` for the asynchronous SQLAlchemy driver.
 - **Vercel Build Fails**: Double-check that your **Root Directory** is set correctly in the Vercel project settings.
+- **Docker Build Fails**: If you add new packages, you **must** run `docker-compose up --build` to reinstall them inside the container.
