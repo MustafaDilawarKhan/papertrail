@@ -2,17 +2,30 @@
 Collections Router — CRUD for nested document folders.
 """
 
+import time
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import noload
 from app.database import get_db
 from app.models.user import User
 from app.models.collection import Collection
 from app.schemas.collection import CollectionCreateRequest, CollectionUpdateRequest, CollectionResponse
 from app.middleware.auth import get_current_user
+from app.services.session_cache import clear_user_bootstrap_cache
 
 router = APIRouter(prefix="/collections", tags=["Collections"])
+COLLECTIONS_CACHE_TTL_SECONDS = 30
+collections_cache: dict[tuple[str, str | None, str | None], tuple[float, list[dict]]] = {}
+
+
+def clear_collection_caches(user_id: UUID) -> None:
+    user_key = str(user_id)
+    keys = [key for key in collections_cache if key[0] == user_key]
+    for key in keys:
+        collections_cache.pop(key, None)
+    clear_user_bootstrap_cache(user_key)
 
 
 @router.get("", response_model=list[CollectionResponse])
@@ -23,7 +36,20 @@ async def list_collections(
     db: AsyncSession = Depends(get_db),
 ):
     """List collections. Optionally filter by workspace or parent collection."""
-    query = select(Collection).where(Collection.user_id == current_user.user_id)
+    cache_key = (
+        str(current_user.user_id),
+        str(workspace_id) if workspace_id else None,
+        str(parent_id) if parent_id else None,
+    )
+    cached = collections_cache.get(cache_key)
+    if cached and (time.time() - cached[0]) < COLLECTIONS_CACHE_TTL_SECONDS:
+        return cached[1]
+
+    query = (
+        select(Collection)
+        .options(noload("*"))
+        .where(Collection.user_id == current_user.user_id)
+    )
 
     if workspace_id:
         query = query.where(Collection.workspace_id == workspace_id)
@@ -34,7 +60,10 @@ async def list_collections(
         query = query.where(Collection.parent_collection_id.is_(None))
 
     result = await db.execute(query.order_by(Collection.name))
-    return result.scalars().all()
+    items = result.scalars().all()
+    payload = [CollectionResponse.model_validate(item).model_dump() for item in items]
+    collections_cache[cache_key] = (time.time(), payload)
+    return payload
 
 
 @router.post("", response_model=CollectionResponse, status_code=status.HTTP_201_CREATED)
@@ -54,6 +83,7 @@ async def create_collection(
     db.add(collection)
     await db.flush()
     await db.refresh(collection)
+    clear_collection_caches(current_user.user_id)
     return collection
 
 
@@ -100,6 +130,7 @@ async def update_collection(
 
     await db.flush()
     await db.refresh(collection)
+    clear_collection_caches(current_user.user_id)
     return collection
 
 
@@ -121,3 +152,4 @@ async def delete_collection(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found")
 
     await db.delete(collection)
+    clear_collection_caches(current_user.user_id)

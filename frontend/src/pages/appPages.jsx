@@ -8,6 +8,44 @@ const useStateP1 = useState;
 const useEffectP1 = useEffect;
 const useRefP1 = useRef;
 const useMemoP1 = useMemo;
+const BOOTSTRAP_MAX_AGE_SECONDS = 60;
+
+function readBootstrapCache() {
+  try {
+    const raw = sessionStorage.getItem("aid_bootstrap");
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function getFreshBootstrapCache(maxAgeSeconds = BOOTSTRAP_MAX_AGE_SECONDS) {
+  const cached = readBootstrapCache();
+  if (!cached) return null;
+
+  const fetchedAt = Number(cached.fetched_at || 0);
+  if (!fetchedAt) return null;
+
+  const ageSeconds = Math.floor(Date.now() / 1000) - fetchedAt;
+  if (ageSeconds > maxAgeSeconds) return null;
+
+  return cached;
+}
+
+function writeBootstrapCache(patch) {
+  try {
+    const current = readBootstrapCache() || {};
+    const next = {
+      ...current,
+      ...patch,
+      fetched_at: Math.floor(Date.now() / 1000),
+    };
+    sessionStorage.setItem("aid_bootstrap", JSON.stringify(next));
+  } catch {
+    // Ignore storage errors and keep UI functional.
+  }
+}
 
 function formatFileSize(bytes) {
   if (typeof bytes !== "number" || Number.isNaN(bytes)) return "0 B";
@@ -57,17 +95,31 @@ function DashboardPage() {
     let active = true;
 
     const loadDashboard = async () => {
+      const bootstrap = getFreshBootstrapCache();
+      const hasBootstrap = Boolean(bootstrap);
+
       try {
         setError("");
-        setLoading(true);
+
+        if (hasBootstrap && active) {
+          setRecentDocuments(Array.isArray(bootstrap.documents) ? bootstrap.documents : []);
+          setRecentCollections(Array.isArray(bootstrap.collections) ? bootstrap.collections : []);
+          setLoading(false);
+        } else {
+          setLoading(true);
+        }
+
         const [documentsData, collectionsData] = await Promise.all([
           apiRequest("/documents"),
           apiRequest("/collections"),
         ]);
 
         if (!active) return;
-        setRecentDocuments(Array.isArray(documentsData) ? documentsData : []);
-        setRecentCollections(Array.isArray(collectionsData) ? collectionsData : []);
+        const docs = Array.isArray(documentsData) ? documentsData : [];
+        const cols = Array.isArray(collectionsData) ? collectionsData : [];
+        setRecentDocuments(docs);
+        setRecentCollections(cols);
+        writeBootstrapCache({ documents: docs, collections: cols });
       } catch (err) {
         if (active) setError(err.message);
       } finally {
@@ -207,17 +259,31 @@ function LibraryPage() {
     let active = true;
 
     const loadLibrary = async () => {
+      const bootstrap = getFreshBootstrapCache();
+      const hasBootstrap = Boolean(bootstrap);
+
       try {
         setError("");
-        setLoading(true);
+
+        if (hasBootstrap && active) {
+          setDocuments(Array.isArray(bootstrap.documents) ? bootstrap.documents : []);
+          setCollections(Array.isArray(bootstrap.collections) ? bootstrap.collections : []);
+          setLoading(false);
+        } else {
+          setLoading(true);
+        }
+
         const [documentsData, collectionsData] = await Promise.all([
           apiRequest("/documents"),
           apiRequest("/collections"),
         ]);
 
         if (!active) return;
-        setDocuments(Array.isArray(documentsData) ? documentsData : []);
-        setCollections(Array.isArray(collectionsData) ? collectionsData : []);
+        const docs = Array.isArray(documentsData) ? documentsData : [];
+        const cols = Array.isArray(collectionsData) ? collectionsData : [];
+        setDocuments(docs);
+        setCollections(cols);
+        writeBootstrapCache({ documents: docs, collections: cols });
       } catch (err) {
         if (active) setError(err.message);
       } finally {
@@ -693,20 +759,38 @@ function WorkspacesPage() {
   const [error, setError] = useStateP1("");
 
   useEffectP1(() => {
+    let active = true;
+
     const loadWorkspaces = async () => {
+      const bootstrap = getFreshBootstrapCache();
+      const hasBootstrap = Boolean(bootstrap);
+
       try {
         setError("");
-        setLoading(true);
+
+        if (hasBootstrap && active) {
+          setCards(Array.isArray(bootstrap.workspaces) ? bootstrap.workspaces : []);
+          setLoading(false);
+        } else {
+          setLoading(true);
+        }
+
         const data = await apiRequest("/workspaces");
-        setCards(Array.isArray(data) ? data : []);
+        if (!active) return;
+        const workspaces = Array.isArray(data) ? data : [];
+        setCards(workspaces);
+        writeBootstrapCache({ workspaces });
       } catch (err) {
-        setError(err.message);
+        if (active) setError(err.message);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     loadWorkspaces();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleCreateWorkspace = async () => {

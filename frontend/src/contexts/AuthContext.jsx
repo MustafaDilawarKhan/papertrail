@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { API_BASE_URL } from '../apiConfig';
 
 const AuthContext = createContext(null);
 
@@ -6,8 +7,30 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUser = async () => {
-    const token = localStorage.getItem('aid_token');
+  const warmBootstrap = async (tokenOverride) => {
+    const token = tokenOverride || localStorage.getItem('aid_token');
+    if (!token || token === 'hardcoded-admin-token') {
+      sessionStorage.removeItem('aid_bootstrap');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/bootstrap`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!response.ok) return;
+
+      const data = await response.json();
+      sessionStorage.setItem('aid_bootstrap', JSON.stringify(data));
+    } catch (error) {
+      console.error('Failed to warm bootstrap data:', error);
+    }
+  };
+
+  const fetchUser = async (tokenOverride) => {
+    const token = tokenOverride || localStorage.getItem('aid_token');
     
     // Handle hardcoded admin token
     if (token === 'hardcoded-admin-token') {
@@ -27,7 +50,7 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/auth/me', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -51,15 +74,20 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     fetchUser();
+    warmBootstrap();
   }, []);
 
-  const login = (token) => {
+  const login = async (token) => {
     localStorage.setItem('aid_token', token);
-    fetchUser(); // Re-fetch user data after storing token
+    await Promise.all([
+      fetchUser(token),
+      warmBootstrap(token),
+    ]);
   };
 
   const logout = () => {
     localStorage.removeItem('aid_token');
+    sessionStorage.removeItem('aid_bootstrap');
     setUser(null);
   };
 

@@ -3,9 +3,11 @@ Documents Router — File upload, listing, and management.
 """
 
 from uuid import UUID
+import time
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
+from sqlalchemy.orm import noload
 from app.database import get_db
 from app.models.user import User
 from app.models.document import Document
@@ -13,15 +15,49 @@ from app.models.workspace import Workspace, WorkspaceMember
 from app.models.collection import Collection
 from app.schemas.document import DocumentResponse, DocumentViewUrlResponse
 from app.services.document_service import save_upload, get_file_type, validate_file, delete_file, get_view_url, get_local_file_url
+from app.services.session_cache import clear_user_bootstrap_cache
 from app.middleware.auth import get_current_user
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
+LIST_CACHE_TTL_SECONDS = 20
+VIEW_URL_CACHE_TTL_SECONDS = 60
+document_list_cache: dict[tuple[str, str | None, str | None], tuple[float, list[dict]]] = {}
+document_view_url_cache: dict[tuple[str, str], tuple[float, dict]] = {}
 
-async def get_accessible_workspace_ids(db: AsyncSession, user_id: UUID) -> set[UUID]:
-    owned_result = await db.execute(select(Workspace.workspace_id).where(Workspace.owner_id == user_id))
-    membership_result = await db.execute(select(WorkspaceMember.workspace_id).where(WorkspaceMember.user_id == user_id))
-    return {row[0] for row in owned_result.all()} | {row[0] for row in membership_result.all()}
+
+def clear_user_document_caches(user_id: UUID) -> None:
+    user_key = str(user_id)
+    list_keys = [key for key in document_list_cache if key[0] == user_key]
+    for key in list_keys:
+        document_list_cache.pop(key, None)
+
+    view_keys = [key for key in document_view_url_cache if key[0] == user_key]
+    for key in view_keys:
+        document_view_url_cache.pop(key, None)
+
+    clear_user_bootstrap_cache(user_key)
+
+
+def accessible_workspace_ids_subquery(user_id: UUID):
+    return (
+        select(Workspace.workspace_id)
+        .where(Workspace.owner_id == user_id)
+        .union(select(WorkspaceMember.workspace_id).where(WorkspaceMember.user_id == user_id))
+        .subquery()
+    )
+
+
+async def has_workspace_access(db: AsyncSession, user_id: UUID, workspace_id: UUID) -> bool:
+    ws_ids = accessible_workspace_ids_subquery(user_id)
+    result = await db.execute(
+        select(Workspace.workspace_id)
+        .where(
+            Workspace.workspace_id == workspace_id,
+            Workspace.workspace_id.in_(select(ws_ids.c.workspace_id)),
+        )
+    )
+    return result.scalar_one_or_none() is not None
 
 
 async def ensure_document_access(db: AsyncSession, current_user: User, document: Document) -> None:
@@ -31,8 +67,7 @@ async def ensure_document_access(db: AsyncSession, current_user: User, document:
     if document.workspace_id is None:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    accessible_workspace_ids = await get_accessible_workspace_ids(db, current_user.user_id)
-    if document.workspace_id not in accessible_workspace_ids:
+    if not await has_workspace_access(db, current_user.user_id, document.workspace_id):
         raise HTTPException(status_code=404, detail="Document not found")
 
 
@@ -60,8 +95,7 @@ async def upload_document(
             resolved_workspace_id = collection.workspace_id
 
     if resolved_workspace_id is not None:
-        accessible_workspace_ids = await get_accessible_workspace_ids(db, current_user.user_id)
-        if resolved_workspace_id not in accessible_workspace_ids:
+        if not await has_workspace_access(db, current_user.user_id, resolved_workspace_id):
             raise HTTPException(status_code=403, detail="You do not have access to this workspace")
 
     try:
@@ -86,6 +120,7 @@ async def upload_document(
     db.add(document)
     await db.flush()
     await db.refresh(document)
+    clear_user_document_caches(current_user.user_id)
     return document
 
 
@@ -97,25 +132,38 @@ async def list_documents(
     db: AsyncSession = Depends(get_db),
 ):
     """List documents, optionally filtered by collection."""
-    query = select(Document)
-    accessible_workspace_ids = await get_accessible_workspace_ids(db, current_user.user_id)
-    if accessible_workspace_ids:
-        query = query.where(
+    cache_key = (
+        str(current_user.user_id),
+        str(collection_id) if collection_id else None,
+        str(workspace_id) if workspace_id else None,
+    )
+    cached = document_list_cache.get(cache_key)
+    if cached and (time.time() - cached[0]) < LIST_CACHE_TTL_SECONDS:
+        return cached[1]
+
+    ws_ids = accessible_workspace_ids_subquery(current_user.user_id)
+    query = (
+        select(Document)
+        .options(noload("*"))
+        .where(
             or_(
                 Document.user_id == current_user.user_id,
-                Document.workspace_id.in_(accessible_workspace_ids),
+                Document.workspace_id.in_(select(ws_ids.c.workspace_id)),
             )
         )
-    else:
-        query = query.where(Document.user_id == current_user.user_id)
+    )
     if collection_id:
         query = query.where(Document.collection_id == collection_id)
     if workspace_id:
-        if workspace_id not in accessible_workspace_ids:
+        if not await has_workspace_access(db, current_user.user_id, workspace_id):
             raise HTTPException(status_code=403, detail="You do not have access to this workspace")
         query = query.where(Document.workspace_id == workspace_id)
+
     result = await db.execute(query.order_by(Document.upload_date.desc()))
-    return result.scalars().all()
+    docs = result.scalars().all()
+    payload = [DocumentResponse.model_validate(doc).model_dump() for doc in docs]
+    document_list_cache[cache_key] = (time.time(), payload)
+    return payload
 
 
 @router.get("/{document_id}", response_model=DocumentResponse)
@@ -126,7 +174,9 @@ async def get_document(
 ):
     """Get document details."""
     result = await db.execute(
-        select(Document).where(Document.document_id == document_id)
+        select(Document)
+        .options(noload("*"))
+        .where(Document.document_id == document_id)
     )
     doc = result.scalar_one_or_none()
     if not doc:
@@ -142,7 +192,16 @@ async def get_document_view_url(
     db: AsyncSession = Depends(get_db),
 ):
     """Generate a temporary URL for viewing a document."""
-    result = await db.execute(select(Document).where(Document.document_id == document_id))
+    cache_key = (str(current_user.user_id), str(document_id))
+    cached = document_view_url_cache.get(cache_key)
+    if cached and (time.time() - cached[0]) < VIEW_URL_CACHE_TTL_SECONDS:
+        return cached[1]
+
+    result = await db.execute(
+        select(Document)
+        .options(noload("*"))
+        .where(Document.document_id == document_id)
+    )
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -156,12 +215,15 @@ async def get_document_view_url(
     if view_url is None:
         raise HTTPException(status_code=404, detail="Stored file could not be resolved")
 
-    return DocumentViewUrlResponse(
+    payload = DocumentViewUrlResponse(
         document_id=doc.document_id,
         filename=doc.filename,
         file_type=doc.file_type,
         view_url=view_url,
     )
+    payload_dict = payload.model_dump()
+    document_view_url_cache[cache_key] = (time.time(), payload_dict)
+    return payload_dict
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -172,7 +234,9 @@ async def delete_document(
 ):
     """Delete a document and its file."""
     result = await db.execute(
-        select(Document).where(Document.document_id == document_id)
+        select(Document)
+        .options(noload("*"))
+        .where(Document.document_id == document_id)
     )
     doc = result.scalar_one_or_none()
     if not doc:
@@ -180,3 +244,4 @@ async def delete_document(
     await ensure_document_access(db, current_user, doc)
     delete_file(doc.storage_path)
     await db.delete(doc)
+    clear_user_document_caches(current_user.user_id)

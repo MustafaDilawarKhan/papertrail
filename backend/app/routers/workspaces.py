@@ -2,10 +2,12 @@
 Workspaces Router — CRUD for workspaces and member management.
 """
 
+import time
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_
+from sqlalchemy.orm import noload
 from app.database import get_db
 from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember
@@ -14,8 +16,21 @@ from app.schemas.workspace import (
     WorkspaceResponse, AddMemberRequest, WorkspaceMemberResponse,
 )
 from app.middleware.auth import get_current_user
+from app.services.session_cache import clear_user_bootstrap_cache
 
 router = APIRouter(prefix="/workspaces", tags=["Workspaces"])
+WORKSPACES_CACHE_TTL_SECONDS = 30
+workspaces_cache: dict[str, tuple[float, list[dict]]] = {}
+
+
+def clear_workspace_caches(user_id: UUID) -> None:
+    workspaces_cache.pop(str(user_id), None)
+    clear_user_bootstrap_cache(str(user_id))
+
+
+def clear_workspace_caches_for_user_id(user_id: UUID) -> None:
+    workspaces_cache.pop(str(user_id), None)
+    clear_user_bootstrap_cache(str(user_id))
 
 
 @router.get("", response_model=list[WorkspaceResponse])
@@ -24,28 +39,31 @@ async def list_workspaces(
     db: AsyncSession = Depends(get_db),
 ):
     """List all workspaces the user owns or is a member of."""
-    # Workspaces the user owns
-    owned = await db.execute(
-        select(Workspace).where(Workspace.owner_id == current_user.user_id)
-    )
-    owned_workspaces = list(owned.scalars().all())
+    cache_key = str(current_user.user_id)
+    cached = workspaces_cache.get(cache_key)
+    if cached and (time.time() - cached[0]) < WORKSPACES_CACHE_TTL_SECONDS:
+        return cached[1]
 
-    # Workspaces the user is a member of
-    memberships = await db.execute(
-        select(WorkspaceMember.workspace_id).where(WorkspaceMember.user_id == current_user.user_id)
+    member_ws_ids = (
+        select(WorkspaceMember.workspace_id)
+        .where(WorkspaceMember.user_id == current_user.user_id)
+        .subquery()
     )
-    member_ws_ids = [m[0] for m in memberships.all()]
-
-    if member_ws_ids:
-        member_ws = await db.execute(
-            select(Workspace).where(
-                Workspace.workspace_id.in_(member_ws_ids),
-                Workspace.owner_id != current_user.user_id,
+    result = await db.execute(
+        select(Workspace)
+        .options(noload("*"))
+        .where(
+            or_(
+                Workspace.owner_id == current_user.user_id,
+                Workspace.workspace_id.in_(select(member_ws_ids.c.workspace_id)),
             )
         )
-        owned_workspaces.extend(member_ws.scalars().all())
-
-    return owned_workspaces
+        .order_by(Workspace.updated_at.desc())
+    )
+    items = result.scalars().all()
+    payload = [WorkspaceResponse.model_validate(item).model_dump() for item in items]
+    workspaces_cache[cache_key] = (time.time(), payload)
+    return payload
 
 
 @router.post("", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED)
@@ -71,6 +89,7 @@ async def create_workspace(
     db.add(member)
     await db.flush()
     await db.refresh(workspace)
+    clear_workspace_caches(current_user.user_id)
 
     return workspace
 
@@ -118,6 +137,7 @@ async def update_workspace(
 
     await db.flush()
     await db.refresh(workspace)
+    clear_workspace_caches(current_user.user_id)
     return workspace
 
 
@@ -140,6 +160,7 @@ async def delete_workspace(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found or not authorized")
 
     await db.delete(workspace)
+    clear_workspace_caches(current_user.user_id)
 
 
 @router.post("/{workspace_id}/members", response_model=WorkspaceMemberResponse, status_code=status.HTTP_201_CREATED)
@@ -184,6 +205,8 @@ async def add_member(
     db.add(member)
     await db.flush()
     await db.refresh(member)
+    clear_workspace_caches(current_user.user_id)
+    clear_workspace_caches_for_user_id(member.user_id)
     return member
 
 
@@ -215,4 +238,7 @@ async def remove_member(
     if not member:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
 
+    removed_user_id = member.user_id
     await db.delete(member)
+    clear_workspace_caches(current_user.user_id)
+    clear_workspace_caches_for_user_id(removed_user_id)

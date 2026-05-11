@@ -61,7 +61,7 @@ function LoginPage() {
     // Hardcoded Admin Logic
     if (email === "justaiuseai@gmail.com" && pw === "admin123") {
       setLoading(false);
-      login("hardcoded-admin-token");
+      await login("hardcoded-admin-token");
       navigate("/admin");
       return;
     }
@@ -82,7 +82,7 @@ function LoginPage() {
       }
 
       // Store the token and redirect to dashboard
-      login(data.access_token);
+      await login(data.access_token);
       navigate("/dashboard");
     } catch (err) {
       setError(err.message || "Failed to connect to the server.");
@@ -178,7 +178,7 @@ function RegisterPage() {
       }
 
       // Store the token and redirect to dashboard
-      login(data.access_token);
+      await login(data.access_token);
       navigate("/dashboard");
     } catch (err) {
       setError(err.message || "Failed to connect to the server.");

@@ -76,8 +76,12 @@ app = FastAPI(
 async def log_api_requests(request: Request, call_next):
     is_api_route = request.url.path.startswith("/api")
     if is_api_route:
-        request_body = await request.body()
-        logger.info("--> %s %s body=%s", request.method, request.url.path, _redact_payload(request_body))
+        content_type = request.headers.get("content-type", "")
+        if settings.DEBUG and "multipart/form-data" not in content_type:
+            request_body = await request.body()
+            logger.info("--> %s %s body=%s", request.method, request.url.path, _redact_payload(request_body))
+        else:
+            logger.info("--> %s %s", request.method, request.url.path)
 
     started_at = time.perf_counter()
     response = await call_next(request)

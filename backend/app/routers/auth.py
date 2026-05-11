@@ -3,20 +3,30 @@ Auth Router — Registration, login, and current user.
 """
 
 import logging
+import time
 import traceback
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_
+from sqlalchemy.orm import noload
 from app.database import get_db
 from app.models.user import User
+from app.models.document import Document
+from app.models.collection import Collection
+from app.models.workspace import Workspace, WorkspaceMember
 from app.schemas.auth import RegisterRequest, LoginRequest, TokenResponse, ChangePasswordRequest
 from app.schemas.user import UserResponse
+from app.schemas.document import DocumentResponse
+from app.schemas.collection import CollectionResponse
+from app.schemas.workspace import WorkspaceResponse
 from app.services.auth_service import hash_password, verify_password, create_access_token
 from app.middleware.auth import get_current_user
+from app.services.session_cache import get_cache, set_cache
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+BOOTSTRAP_CACHE_TTL_SECONDS = 45
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
@@ -92,6 +102,66 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
 async def get_me(current_user: User = Depends(get_current_user)):
     """Get the currently authenticated user's profile."""
     return current_user
+
+
+@router.get("/bootstrap")
+async def bootstrap(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Warm and return the core dashboard payload after login."""
+    cache_key = f"bootstrap:{current_user.user_id}"
+    cached = get_cache(cache_key, BOOTSTRAP_CACHE_TTL_SECONDS)
+    if cached is not None:
+        return cached
+
+    ws_ids = (
+        select(Workspace.workspace_id)
+        .where(Workspace.owner_id == current_user.user_id)
+        .union(select(WorkspaceMember.workspace_id).where(WorkspaceMember.user_id == current_user.user_id))
+        .subquery()
+    )
+
+    docs_result = await db.execute(
+        select(Document)
+        .options(noload("*"))
+        .where(
+            or_(
+                Document.user_id == current_user.user_id,
+                Document.workspace_id.in_(select(ws_ids.c.workspace_id)),
+            )
+        )
+        .order_by(Document.upload_date.desc())
+    )
+    collections_result = await db.execute(
+        select(Collection)
+        .options(noload("*"))
+        .where(
+            Collection.user_id == current_user.user_id,
+            Collection.parent_collection_id.is_(None),
+        )
+        .order_by(Collection.name)
+    )
+    workspaces_result = await db.execute(
+        select(Workspace)
+        .options(noload("*"))
+        .where(
+            or_(
+                Workspace.owner_id == current_user.user_id,
+                Workspace.workspace_id.in_(select(ws_ids.c.workspace_id)),
+            )
+        )
+        .order_by(Workspace.updated_at.desc())
+    )
+
+    payload = {
+        "documents": [DocumentResponse.model_validate(doc).model_dump() for doc in docs_result.scalars().all()],
+        "collections": [CollectionResponse.model_validate(collection).model_dump() for collection in collections_result.scalars().all()],
+        "workspaces": [WorkspaceResponse.model_validate(workspace).model_dump() for workspace in workspaces_result.scalars().all()],
+        "fetched_at": int(time.time()),
+    }
+    set_cache(cache_key, payload)
+    return payload
 
 
 @router.api_route("/password", methods=["POST", "PATCH"], status_code=status.HTTP_200_OK)
