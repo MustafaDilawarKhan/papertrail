@@ -1,6 +1,7 @@
 // Shared shell components: Sidebar, TopNav, AvatarMenu, CommandPalette, etc.
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { apiRequest } from '../apiConfig';
 
 // ---- Router (hash-based) ----
 export function useRoute() {
@@ -273,13 +274,77 @@ export function Modal({ open, onClose, title, children }) {
 
 // ---- Upload Modal Component ----
 export function UploadModal({ open, onClose }) {
-  const [files, setFiles] = useState([
-    { name: "Trustworthiness_AI.pdf", size: "4.2 MB", progress: 100, status: "done" },
-    { name: "Cognitive_Load_Theory.pdf", size: "2.1 MB", progress: 67, status: "uploading" },
-    { name: "RAG_Architecture.pdf", size: "1.8 MB", progress: 0, status: "queued" },
-  ]);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [collections, setCollections] = useState([]);
+  const [selectedCollectionId, setSelectedCollectionId] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [tab, setTab] = useState("file");
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    let active = true;
+
+    const loadCollections = async () => {
+      try {
+        const data = await apiRequest("/collections");
+        if (!active) return;
+        const items = Array.isArray(data) ? data : [];
+        setCollections(items);
+        if (!selectedCollectionId && items.length > 0) {
+          setSelectedCollectionId(String(items[0].collection_id));
+        }
+      } catch (err) {
+        if (active) setError(err.message);
+      }
+    };
+
+    loadCollections();
+    return () => {
+      active = false;
+    };
+  }, [open, selectedCollectionId]);
+
+  const submitUpload = async () => {
+    if (!selectedFile) {
+      setError("Choose a file first.");
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setError("");
+
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      const uploadPath = selectedCollectionId
+        ? `/documents/upload?collection_id=${selectedCollectionId}`
+        : "/documents/upload";
+
+      await apiRequest(uploadPath, {
+        method: "POST",
+        body: formData,
+      });
+
+      setSelectedFile(null);
+      onClose();
+      navigate("/library");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0] || null;
+    setSelectedFile(file);
+    setError("");
+  };
 
   if (!open) return null;
 
@@ -287,6 +352,7 @@ export function UploadModal({ open, onClose }) {
     <Modal open={open} onClose={onClose} title="Add to your library">
       <div className="p-4">
         <p className="text-on-surface-variant text-[11px] mb-4">Extract metadata and citations automatically.</p>
+        {error && <div className="mb-4 rounded-lg border border-error/20 bg-error-container px-3 py-2 text-[11px] text-on-error-container">{error}</div>}
         
         <div className="bg-white border border-border-subtle rounded-xl overflow-hidden">
           <div className="flex border-b border-border-subtle bg-surface-container-lowest">
@@ -299,47 +365,31 @@ export function UploadModal({ open, onClose }) {
 
           <div className="p-4">
             {tab === "file" && (
-              <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={e => { e.preventDefault(); setDragOver(false); }} className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${dragOver ? "border-primary bg-secondary-container/30" : "border-border-subtle bg-surface-container-lowest"}`}>
+              <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={e => { e.preventDefault(); setDragOver(false); const droppedFile = e.dataTransfer.files?.[0] || null; setSelectedFile(droppedFile); if (droppedFile) setError(""); }} className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${dragOver ? "border-primary bg-secondary-container/30" : "border-border-subtle bg-surface-container-lowest"}`}>
                 <div className="w-10 h-10 rounded-full bg-secondary-container mx-auto flex items-center justify-center mb-3">
                   <Icon name="cloud_upload" filled className="text-primary" size={20} />
                 </div>
                 <p className="font-bold text-xs mb-1">Drop files here or browse</p>
                 <p className="text-[9px] text-on-surface-variant mb-3">PDF, DOCX, TXT up to 50MB</p>
-                <button className="bg-primary text-white px-4 py-1.5 rounded-full text-[10px] font-bold">Choose Files</button>
+                <input ref={fileInputRef} type="file" accept=".pdf,.docx,.txt" className="hidden" onChange={handleFileChange} />
+                <button onClick={() => fileInputRef.current?.click()} className="bg-primary text-white px-4 py-1.5 rounded-full text-[10px] font-bold">Choose Files</button>
+                {selectedFile && <p className="mt-3 text-[10px] text-on-surface-variant">Selected: <span className="font-bold text-primary">{selectedFile.name}</span></p>}
               </div>
             )}
             {tab === "url" && (
-              <div className="py-2">
+              <div className="py-2 text-xs text-on-surface-variant">
                 <label className="text-[10px] font-bold mb-1.5 block">Web URL</label>
                 <input placeholder="https://arxiv.org/abs/2301.04267" className="w-full border border-border-subtle px-3 py-2 rounded-lg outline-none focus:border-primary mb-3 text-xs" />
-                <button className="bg-primary text-white px-4 py-1.5 rounded-lg text-[10px] font-bold">Fetch & Add</button>
+                <button className="bg-primary text-white px-4 py-1.5 rounded-lg text-[10px] font-bold" type="button">Fetch & Add</button>
+                <p className="mt-2">URL import is available in the backend later; file upload is now connected.</p>
               </div>
             )}
             {tab === "doi" && (
-              <div className="py-2">
+              <div className="py-2 text-xs text-on-surface-variant">
                 <label className="text-[10px] font-bold mb-1.5 block">DOI</label>
                 <input placeholder="10.48550/arXiv.2301.04267" className="w-full border border-border-subtle px-3 py-2 rounded-lg outline-none focus:border-primary mb-3 font-mono text-xs" />
-                <button className="bg-primary text-white px-4 py-1.5 rounded-lg text-[10px] font-bold">Resolve & Add</button>
-              </div>
-            )}
-
-            {tab === "file" && files.length > 0 && (
-              <div className="mt-4 space-y-1.5">
-                <p className="text-[9px] font-bold uppercase tracking-wider text-on-surface-variant mb-1">In Progress</p>
-                {files.slice(0, 3).map((f, i) => (
-                  <div key={i} className="flex items-center gap-2.5 p-2 bg-surface-container-lowest rounded-lg border border-border-subtle">
-                    <Icon name="picture_as_pdf" className="text-error" size={16} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className="text-[10px] font-bold truncate">{f.name}</p>
-                        <span className="text-[8px] text-on-surface-variant ml-2">{f.size}</span>
-                      </div>
-                      <div className="mt-1 h-0.5 bg-surface-container-high rounded-full overflow-hidden">
-                        <div className={`h-full transition-all ${f.status === "done" ? "bg-green-600" : f.status === "uploading" ? "bg-primary" : "bg-on-surface-variant/30"}`} style={{ width: `${f.progress}%` }}></div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                <button className="bg-primary text-white px-4 py-1.5 rounded-lg text-[10px] font-bold" type="button">Resolve & Add</button>
+                <p className="mt-2">DOI import remains a future enhancement; file upload is fully connected now.</p>
               </div>
             )}
           </div>
@@ -350,13 +400,16 @@ export function UploadModal({ open, onClose }) {
         <div className="flex items-center gap-2 text-[11px]">
           <Icon name="folder" size={14} className="text-on-surface-variant" />
           <span className="text-on-surface-variant">Add to:</span>
-          <select className="px-2 py-1 border border-border-subtle rounded bg-white">
-            <option>Inbox (default)</option><option>ML Research</option><option>Thesis Sources</option>
+          <select value={selectedCollectionId} onChange={e => setSelectedCollectionId(e.target.value)} className="px-2 py-1 border border-border-subtle rounded bg-white">
+            <option value="">Inbox (default)</option>
+            {collections.map(collection => (
+              <option key={collection.collection_id} value={collection.collection_id}>{collection.name}</option>
+            ))}
           </select>
         </div>
         <div className="flex gap-2">
           <button onClick={onClose} className="px-4 py-2 rounded-lg border border-border-subtle text-[11px] font-bold hover:bg-surface-container-low">Cancel</button>
-          <button onClick={onClose} className="px-4 py-2 rounded-lg bg-primary text-white text-[11px] font-bold hover:opacity-90">Done</button>
+          <button onClick={submitUpload} disabled={uploading} className="px-4 py-2 rounded-lg bg-primary text-white text-[11px] font-bold hover:opacity-90 disabled:opacity-50">{uploading ? "Uploading..." : "Done"}</button>
         </div>
       </div>
     </Modal>

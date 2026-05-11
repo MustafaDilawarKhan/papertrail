@@ -1,43 +1,40 @@
 // Dashboard, Library, Document Viewer, Workspaces pages
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Link, Icon, Brand, Sidebar, TopNav, AppShell, CommandPalette, EmptyState, navigate } from '../shared/components';
+import { Link, Icon, Brand, Sidebar, TopNav, AppShell, CommandPalette, EmptyState, navigate, useRoute } from '../shared/components';
 import { useAuth } from '../contexts/AuthContext';
+import { apiRequest } from '../apiConfig';
 
 const useStateP1 = useState;
 const useEffectP1 = useEffect;
 const useRefP1 = useRef;
 const useMemoP1 = useMemo;
 
-const API_BASE = "http://127.0.0.1:8000/api";
+function formatFileSize(bytes) {
+  if (typeof bytes !== "number" || Number.isNaN(bytes)) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes >= 10 * 1024 ? 0 : 1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(bytes >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+}
 
-async function apiRequest(path, options = {}) {
-  const token = localStorage.getItem("aid_token");
-  const headers = { ...(options.headers || {}) };
-  const isFormData = options.body instanceof FormData;
+function formatRelativeTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Recently";
 
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-  if (!isFormData && options.body && !headers["Content-Type"]) {
-    headers["Content-Type"] = "application/json";
-  }
+  const diffMinutes = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60000));
+  if (diffMinutes < 1) return "Just now";
+  if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes === 1 ? "" : "s"} ago`;
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  });
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
 
-  const rawText = await response.text();
-  const data = rawText ? (() => {
-    try { return JSON.parse(rawText); } catch { return rawText; }
-  })() : null;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
 
-  if (!response.ok) {
-    const detail = data && typeof data === "object" && data.detail ? data.detail : data;
-    throw new Error(detail || `Request failed (${response.status})`);
-  }
+  return date.toLocaleDateString();
+}
 
-  return data;
+function getCollectionDocumentCount(collectionId, documents) {
+  return documents.filter(document => document.collection_id === collectionId).length;
 }
 
 // =================== DASHBOARD ===================
@@ -45,23 +42,47 @@ function DashboardPage() {
   const { user } = useAuth();
   const firstName = user?.name ? user.name.split(' ')[0] : 'User';
   const [search, setSearch] = useStateP1(false);
-  const docs = [
-    { type: "PDF", name: "Neural Networks in LLMs.pdf", time: "2 hours ago", size: "4.2 MB", to: "/library/ml/neural-networks" },
-    { type: "DOCX", name: "Thesis Proposal — Draft 3.docx", time: "5 hours ago", size: "124 KB", to: "/library/thesis/proposal" },
-    { type: "URL", name: "arxiv.org/abs/2301.04...", time: "Yesterday", size: "Web Clip", to: "/library/ml/arxiv-2301" },
-    { type: "PDF", name: "Ethics in AI — Meta Review.pdf", time: "3 days ago", size: "1.8 MB", to: "/library/ethics/meta-review" },
-  ];
-  const cols = [
-    { name: "ML Research", count: 12, cites: 4, icon: "folder" },
-    { name: "Thesis Sources", count: 28, cites: 12, icon: "school" },
-    { name: "Dataset Refs", count: 8, cites: 1, icon: "science" },
-  ];
+  const [recentDocuments, setRecentDocuments] = useStateP1([]);
+  const [recentCollections, setRecentCollections] = useStateP1([]);
+  const [loading, setLoading] = useStateP1(true);
+  const [error, setError] = useStateP1("");
   const activity = [
     { icon: "edit_note", text: <><b>You</b> annotated "Neural Networks…"</>, time: "2 hours ago" },
     { icon: "upload_file", text: <><b>You</b> uploaded "Ethics in AI…"</>, time: "5 hours ago" },
     { icon: "chat_bubble", text: <>Summarized <b>ML Research</b> collection</>, time: "Yesterday" },
     { icon: "bookmark", text: <>Cited <b>Arxiv:2301.04</b> in Thesis</>, time: "3 days ago" },
   ];
+
+  useEffectP1(() => {
+    let active = true;
+
+    const loadDashboard = async () => {
+      try {
+        setError("");
+        setLoading(true);
+        const [documentsData, collectionsData] = await Promise.all([
+          apiRequest("/documents"),
+          apiRequest("/collections"),
+        ]);
+
+        if (!active) return;
+        setRecentDocuments(Array.isArray(documentsData) ? documentsData : []);
+        setRecentCollections(Array.isArray(collectionsData) ? collectionsData : []);
+      } catch (err) {
+        if (active) setError(err.message);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    loadDashboard();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const docs = recentDocuments.slice(0, 4);
+  const cols = recentCollections.slice(0, 3);
 
   return (
     <>
@@ -85,6 +106,8 @@ function DashboardPage() {
               </Link>
             </div>
           </div>
+          {error && <div className="mt-4 rounded-xl border border-error/20 bg-error-container px-4 py-3 text-xs text-on-error-container">{error}</div>}
+          {loading && <div className="mt-4 text-xs text-on-surface-variant">Loading your documents and collections...</div>}
         </section>
 
         <div className="grid grid-cols-12 gap-8">
@@ -94,14 +117,18 @@ function DashboardPage() {
               <Link to="/library" className="text-xs font-bold text-primary hover:underline">View All</Link>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {docs.map((d, i) => (
-                <Link key={i} to={d.to} className="bg-white border border-border-subtle p-4 rounded-xl hover:shadow-md transition-shadow group cursor-pointer block">
+              {docs.length === 0 && !loading ? (
+                <div className="md:col-span-2">
+                  <EmptyState icon="description" title="No documents yet" text="Upload a file to populate your recent documents list." action={<Link to="/upload" className="bg-primary text-on-primary px-4 py-2 rounded-full text-xs font-bold">Upload doc</Link>} />
+                </div>
+              ) : docs.map((d, i) => (
+                <Link key={d.document_id || i} to={`/library/doc/${encodeURIComponent(d.filename)}`} className="bg-white border border-border-subtle p-4 rounded-xl hover:shadow-md transition-shadow group cursor-pointer block">
                   <div className="flex justify-between items-start mb-4">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${d.type === "PDF" ? "bg-accent-source-highlight" : d.type === "DOCX" ? "bg-secondary-container text-on-secondary-container" : "bg-surface-container-high"}`}>{d.type}</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${d.file_type === "PDF" ? "bg-accent-source-highlight" : d.file_type === "DOCX" ? "bg-secondary-container text-on-secondary-container" : "bg-surface-container-high"}`}>{d.file_type}</span>
                     <Icon name="more_vert" className="text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
-                  <h4 className="font-card-title text-card-title mb-1 truncate pr-4">{d.name}</h4>
-                  <p className="text-xs text-on-surface-variant">Modified {d.time} • {d.size}</p>
+                  <h4 className="font-card-title text-card-title mb-1 truncate pr-4">{d.filename}</h4>
+                  <p className="text-xs text-on-surface-variant">Modified {formatRelativeTime(d.updated_at || d.upload_date)} • {formatFileSize(d.file_size)}</p>
                 </Link>
               ))}
             </div>
@@ -112,13 +139,17 @@ function DashboardPage() {
                 <Link to="/library" className="text-xs font-bold text-primary hover:underline">Manage</Link>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                {cols.map((c, i) => (
-                  <Link key={i} to="/library" className="bg-white p-5 rounded-2xl border border-border-subtle hover:border-primary transition-colors cursor-pointer group block">
+                {cols.length === 0 && !loading ? (
+                  <div className="sm:col-span-3">
+                    <EmptyState icon="folder" title="No collections yet" text="Create a collection in Library to organize your documents." action={<Link to="/library" className="bg-primary text-on-primary px-4 py-2 rounded-full text-xs font-bold">Open Library</Link>} />
+                  </div>
+                ) : cols.map((c, i) => (
+                  <Link key={c.collection_id || i} to={`/library?collection_id=${c.collection_id}`} className="bg-white p-5 rounded-2xl border border-border-subtle hover:border-primary transition-colors cursor-pointer group block">
                     <div className="w-10 h-10 bg-surface-container rounded-lg flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-colors">
-                      <Icon name={c.icon} />
+                      <Icon name="folder" />
                     </div>
                     <h4 className="font-bold text-sm mb-1">{c.name}</h4>
-                    <p className="text-[11px] text-on-surface-variant">{c.count} Documents • {c.cites} Citations</p>
+                    <p className="text-[11px] text-on-surface-variant">{getCollectionDocumentCount(c.collection_id, recentDocuments)} Documents</p>
                   </Link>
                 ))}
               </div>
@@ -162,15 +193,72 @@ function LibraryPage() {
   const [view, setView] = useStateP1("list");
   const [search, setSearch] = useStateP1(false);
   const [filter, setFilter] = useStateP1("all");
-  const allRows = [
-    { type: "PDF", title: "Trustworthiness of AI in Human-Robot Interaction", authors: "L. Roberts, J. Miller", added: "Oct 12, 2023", full: true, tags: ["High Trust", "ArXiv:2024"], slug: "trust-ai-hri" },
-    { type: "PDF", title: "Measuring Trust: Dynamic Scaling in Autonomous Systems", authors: "Sarah G. Jenkins", added: "Oct 10, 2023", full: true, tags: ["Methodology"], slug: "measuring-trust" },
-    { type: "DOC", title: "Ethics of Large Language Models in Scientific Publication", authors: "Dr. Alan Turing Inst.", added: "Sep 28, 2023", full: false, tags: ["Pre-print"], slug: "ethics-llm" },
-    { type: "PDF", title: "Cognitive Load Theory in Digital Environments", authors: "Sweller, J., Paas, F.", added: "Sep 24, 2023", full: true, tags: ["Review", "Nature"], slug: "cognitive-load" },
-    { type: "PDF", title: "Hierarchical RAG Architecture for Long-Context Reasoning", authors: "Y. Tanaka et al.", added: "Sep 14, 2023", full: true, tags: ["Methodology", "ArXiv:2024"], slug: "hierarchical-rag" },
-    { type: "URL", title: "arxiv.org/abs/2301.04267 — Multi-Agent RAG", authors: "—", added: "Sep 02, 2023", full: false, tags: ["Web Clip"], slug: "arxiv-2301" },
-  ];
-  const rows = filter === "all" ? allRows : allRows.filter(r => r.type === filter);
+  const route = useRoute();
+  const query = useMemoP1(() => new URLSearchParams(route.includes("?") ? route.split("?")[1] : ""), [route]);
+  const selectedCollectionId = query.get("collection_id");
+  const [documents, setDocuments] = useStateP1([]);
+  const [collections, setCollections] = useStateP1([]);
+  const [loading, setLoading] = useStateP1(true);
+  const [error, setError] = useStateP1("");
+  const [newCollectionName, setNewCollectionName] = useStateP1("");
+  const [creatingCollection, setCreatingCollection] = useStateP1(false);
+
+  useEffectP1(() => {
+    let active = true;
+
+    const loadLibrary = async () => {
+      try {
+        setError("");
+        setLoading(true);
+        const [documentsData, collectionsData] = await Promise.all([
+          apiRequest("/documents"),
+          apiRequest("/collections"),
+        ]);
+
+        if (!active) return;
+        setDocuments(Array.isArray(documentsData) ? documentsData : []);
+        setCollections(Array.isArray(collectionsData) ? collectionsData : []);
+      } catch (err) {
+        if (active) setError(err.message);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    loadLibrary();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const createCollection = async (e) => {
+    e.preventDefault();
+    const name = newCollectionName.trim();
+    if (!name) return;
+
+    try {
+      setCreatingCollection(true);
+      setError("");
+      const created = await apiRequest("/collections", {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      });
+      setCollections(prev => [created, ...prev]);
+      setNewCollectionName("");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCreatingCollection(false);
+    }
+  };
+
+  const collectionFilteredDocuments = selectedCollectionId
+    ? documents.filter(document => String(document.collection_id) === selectedCollectionId)
+    : documents;
+  const rows = filter === "all"
+    ? collectionFilteredDocuments
+    : collectionFilteredDocuments.filter(document => document.file_type === filter);
+  const selectedCollection = collections.find(collection => String(collection.collection_id) === selectedCollectionId);
 
   return (
     <>
@@ -180,6 +268,7 @@ function LibraryPage() {
           <div>
             <h1 className="font-section-heading text-section-heading text-primary mb-2">Research Library</h1>
             <p className="text-on-surface-variant text-body-main">Manage your academic sources and cross-reference documents.</p>
+            {selectedCollection && <p className="text-xs text-primary mt-2">Filtering collection: <span className="font-bold">{selectedCollection.name}</span></p>}
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center bg-surface-container p-1 rounded-lg">
@@ -204,6 +293,42 @@ function LibraryPage() {
           </div>
         </div>
 
+        <div className="mb-8 bg-white border border-border-subtle rounded-xl p-5">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h3 className="font-card-title text-card-title text-primary mb-1">Collections</h3>
+              <p className="text-xs text-on-surface-variant">Create and organize your live database collections.</p>
+            </div>
+            <form onSubmit={createCollection} className="flex items-center gap-2 flex-wrap">
+              <input value={newCollectionName} onChange={e => setNewCollectionName(e.target.value)} placeholder="New collection name" className="w-64 max-w-full border border-border-subtle rounded-lg px-3 py-2 text-sm outline-none focus:border-primary" />
+              <button type="submit" disabled={creatingCollection} className="bg-primary text-on-primary px-4 py-2 rounded-lg text-xs font-bold disabled:opacity-50">{creatingCollection ? "Creating..." : "Create collection"}</button>
+            </form>
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {collections.length === 0 && !loading ? (
+              <div className="sm:col-span-3 text-sm text-on-surface-variant">No collections yet. Create one to start organizing documents.</div>
+            ) : collections.map(collection => {
+              const isActive = String(collection.collection_id) === selectedCollectionId;
+              return (
+                <Link key={collection.collection_id} to={`/library?collection_id=${collection.collection_id}`} className={`bg-surface-container-lowest p-4 rounded-xl border transition-colors block ${isActive ? "border-primary shadow-sm" : "border-border-subtle hover:border-primary"}`}>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="w-10 h-10 bg-white rounded-lg border border-border-subtle flex items-center justify-center text-primary">
+                      <Icon name="folder" />
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary-container text-on-secondary-container">{getCollectionDocumentCount(collection.collection_id, documents)} docs</span>
+                  </div>
+                  <h4 className="font-bold text-sm mb-1 truncate">{collection.name}</h4>
+                  <p className="text-[11px] text-on-surface-variant line-clamp-2">{collection.description || "No description yet."}</p>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        {error && <div className="mb-6 rounded-xl border border-error/20 bg-error-container px-4 py-3 text-xs text-on-error-container">{error}</div>}
+        {loading && <div className="mb-6 text-xs text-on-surface-variant">Loading your library...</div>}
+
         {view === "list" ? (
           <div className="bg-white rounded-xl border border-border-subtle overflow-hidden">
             <table className="w-full text-left border-collapse">
@@ -218,26 +343,25 @@ function LibraryPage() {
               </thead>
               <tbody className="divide-y divide-border-subtle">
                 {rows.map((r, i) => (
-                  <tr key={i} className="group hover:bg-surface-container-low transition-colors cursor-pointer" onClick={() => navigate(`/library/thesis/${r.slug}`)}>
+                  <tr key={r.document_id || i} className="group hover:bg-surface-container-low transition-colors cursor-pointer" onClick={() => navigate(`/library/doc/${encodeURIComponent(r.filename)}`)}>
                     <td className="px-6 py-5">
                       <div className="flex items-start gap-3">
                         <div className="mt-1 w-8 h-10 bg-surface-container-highest rounded border border-border-subtle flex items-center justify-center flex-shrink-0">
-                          <span className="text-[10px] font-bold text-on-surface-variant">{r.type}</span>
+                          <span className="text-[10px] font-bold text-on-surface-variant">{r.file_type}</span>
                         </div>
                         <div>
-                          <p className="font-card-title text-primary">{r.title}</p>
+                          <p className="font-card-title text-primary">{r.filename}</p>
                           <div className="flex gap-2 mt-1 flex-wrap">
-                            {r.tags.map((t, j) => (
-                              <span key={j} className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${j === 0 ? "bg-accent-source-highlight" : "bg-secondary-container text-on-secondary-container"}`}>{t}</span>
-                            ))}
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-accent-source-highlight">{r.processing_status}</span>
+                            {r.collection_id && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary-container text-on-secondary-container">Collection</span>}
                           </div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-5 text-body-main text-on-surface-variant">{r.authors}</td>
-                    <td className="px-6 py-5 text-body-main text-on-surface-variant whitespace-nowrap">{r.added}</td>
+                    <td className="px-6 py-5 text-body-main text-on-surface-variant">{String(r.user_id).slice(0, 8)}</td>
+                    <td className="px-6 py-5 text-body-main text-on-surface-variant whitespace-nowrap">{formatRelativeTime(r.upload_date)}</td>
                     <td className="px-6 py-5">
-                      {r.full ? <Icon name="check_circle" filled className="text-green-600" /> : <Icon name="cancel" className="text-on-surface-variant/40" />}
+                      {r.processing_status === "ready" ? <Icon name="check_circle" filled className="text-green-600" /> : <Icon name="schedule" className="text-on-surface-variant/40" />}
                     </td>
                     <td className="px-6 py-5 text-right">
                       <button onClick={(e) => e.stopPropagation()} className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-primary p-1">
@@ -248,19 +372,19 @@ function LibraryPage() {
                 ))}
               </tbody>
             </table>
-            {rows.length === 0 && <EmptyState icon="search_off" title="No documents" text="Try a different filter or add a new source." action={<Link to="/upload" className="bg-primary text-on-primary px-4 py-2 rounded-full text-xs font-bold">Upload</Link>} />}
+            {rows.length === 0 && <EmptyState icon="search_off" title="No documents" text="Upload a file or create a collection to start building your library." action={<Link to="/upload" className="bg-primary text-on-primary px-4 py-2 rounded-full text-xs font-bold">Upload</Link>} />}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {rows.map((r, i) => (
-              <Link key={i} to={`/library/thesis/${r.slug}`} className="bg-white border border-border-subtle p-5 rounded-xl hover:shadow-md transition-shadow block">
+              <Link key={r.document_id || i} to={`/library/doc/${encodeURIComponent(r.filename)}`} className="bg-white border border-border-subtle p-5 rounded-xl hover:shadow-md transition-shadow block">
                 <div className="flex items-center gap-2 mb-4">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-accent-source-highlight">{r.type}</span>
-                  {r.full && <Icon name="check_circle" filled size={14} className="text-green-600" />}
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-accent-source-highlight">{r.file_type}</span>
+                  {r.processing_status === "ready" && <Icon name="check_circle" filled size={14} className="text-green-600" />}
                 </div>
-                <h4 className="font-card-title text-card-title mb-2 line-clamp-2">{r.title}</h4>
-                <p className="text-[11px] text-on-surface-variant mb-3">{r.authors}</p>
-                <p className="text-[10px] text-on-surface-variant">{r.added}</p>
+                <h4 className="font-card-title text-card-title mb-2 line-clamp-2">{r.filename}</h4>
+                <p className="text-[11px] text-on-surface-variant mb-3">{formatFileSize(r.file_size)} • {r.processing_status}</p>
+                <p className="text-[10px] text-on-surface-variant">{formatRelativeTime(r.upload_date)}</p>
               </Link>
             ))}
           </div>
@@ -312,7 +436,7 @@ function DocViewerPage({ params }) {
   const [contextOpen, setContextOpen] = useStateP1(false);
   const [context, setContext] = useStateP1("Research_Paper_V2.pdf");
 
-  const docName = "Research_Paper_V2.pdf";
+  const docName = params?.[1] ? decodeURIComponent(params[1]) : "Research_Paper_V2.pdf";
 
   const send = () => {
     if (!draft.trim()) return;
