@@ -11,8 +11,8 @@ from app.models.user import User
 from app.models.document import Document
 from app.models.workspace import Workspace, WorkspaceMember
 from app.models.collection import Collection
-from app.schemas.document import DocumentResponse
-from app.services.document_service import save_upload, get_file_type, validate_file, delete_file
+from app.schemas.document import DocumentResponse, DocumentViewUrlResponse
+from app.services.document_service import save_upload, get_file_type, validate_file, delete_file, get_view_url, get_local_file_url
 from app.middleware.auth import get_current_user
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -64,7 +64,15 @@ async def upload_document(
         if resolved_workspace_id not in accessible_workspace_ids:
             raise HTTPException(status_code=403, detail="You do not have access to this workspace")
 
-    storage_path, file_size = await save_upload(file, str(current_user.user_id), str(resolved_workspace_id) if resolved_workspace_id else None)
+    try:
+        storage_path, file_size = await save_upload(
+            file,
+            str(current_user.user_id),
+            str(resolved_workspace_id) if resolved_workspace_id else None,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
     document = Document(
         user_id=current_user.user_id,
         workspace_id=resolved_workspace_id,
@@ -125,6 +133,35 @@ async def get_document(
         raise HTTPException(status_code=404, detail="Document not found")
     await ensure_document_access(db, current_user, doc)
     return doc
+
+
+@router.get("/{document_id}/view-url", response_model=DocumentViewUrlResponse)
+async def get_document_view_url(
+    document_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate a temporary URL for viewing a document."""
+    result = await db.execute(select(Document).where(Document.document_id == document_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    await ensure_document_access(db, current_user, doc)
+
+    view_url = get_view_url(doc.storage_path)
+    if view_url is None:
+        view_url = get_local_file_url(doc.storage_path)
+
+    if view_url is None:
+        raise HTTPException(status_code=404, detail="Stored file could not be resolved")
+
+    return DocumentViewUrlResponse(
+        document_id=doc.document_id,
+        filename=doc.filename,
+        file_type=doc.file_type,
+        view_url=view_url,
+    )
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)

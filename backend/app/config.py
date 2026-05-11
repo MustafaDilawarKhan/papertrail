@@ -19,6 +19,10 @@ class Settings(BaseSettings):
 
     # File Uploads
     UPLOAD_DIR: str = "./uploads"
+    SUPABASE_URL: str | None = None
+    SUPABASE_SERVICE_ROLE_KEY: str | None = None
+    SUPABASE_STORAGE_BUCKET: str = "buccket"
+    SUPABASE_SIGNED_URL_EXPIRES_SECONDS: int = 3600
 
     # App
     APP_NAME: str = "Aid API"

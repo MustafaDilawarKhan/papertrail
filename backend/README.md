@@ -26,6 +26,11 @@ pip install -r requirements.txt
 # 3. Configure environment
 # Edit .env with your Supabase connection string
 
+# Required for bucket-based document storage
+# SUPABASE_URL=https://<project-ref>.supabase.co
+# SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+# SUPABASE_STORAGE_BUCKET=buccket
+
 # 4. Start the server (auto-creates tables)
 uvicorn app.main:app --reload --port 8000
 

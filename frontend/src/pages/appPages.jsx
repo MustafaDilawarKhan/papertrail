@@ -122,7 +122,7 @@ function DashboardPage() {
                   <EmptyState icon="description" title="No documents yet" text="Upload a file to populate your recent documents list." action={<Link to="/upload" className="bg-primary text-on-primary px-4 py-2 rounded-full text-xs font-bold">Upload doc</Link>} />
                 </div>
               ) : docs.map((d, i) => (
-                <Link key={d.document_id || i} to={`/library/doc/${encodeURIComponent(d.filename)}`} className="bg-white border border-border-subtle p-4 rounded-xl hover:shadow-md transition-shadow group cursor-pointer block">
+                <Link key={d.document_id || i} to={`/library/doc/${d.document_id}`} className="bg-white border border-border-subtle p-4 rounded-xl hover:shadow-md transition-shadow group cursor-pointer block">
                   <div className="flex justify-between items-start mb-4">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${d.file_type === "PDF" ? "bg-accent-source-highlight" : d.file_type === "DOCX" ? "bg-secondary-container text-on-secondary-container" : "bg-surface-container-high"}`}>{d.file_type}</span>
                     <Icon name="more_vert" className="text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -280,7 +280,7 @@ function LibraryPage() {
               </button>
             </div>
             <div className="flex items-center bg-surface-container p-1 rounded-lg text-xs">
-              {["all", "PDF", "DOC", "URL"].map(f => (
+              {["all", "PDF", "DOCX", "TXT"].map(f => (
                 <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1 rounded-md font-bold transition-all ${filter === f ? "bg-white shadow-sm text-primary" : "text-on-surface-variant"}`}>{f === "all" ? "All" : f}</button>
               ))}
             </div>
@@ -343,7 +343,7 @@ function LibraryPage() {
               </thead>
               <tbody className="divide-y divide-border-subtle">
                 {rows.map((r, i) => (
-                  <tr key={r.document_id || i} className="group hover:bg-surface-container-low transition-colors cursor-pointer" onClick={() => navigate(`/library/doc/${encodeURIComponent(r.filename)}`)}>
+                  <tr key={r.document_id || i} className="group hover:bg-surface-container-low transition-colors cursor-pointer" onClick={() => navigate(`/library/doc/${r.document_id}`)}>
                     <td className="px-6 py-5">
                       <div className="flex items-start gap-3">
                         <div className="mt-1 w-8 h-10 bg-surface-container-highest rounded border border-border-subtle flex items-center justify-center flex-shrink-0">
@@ -377,7 +377,7 @@ function LibraryPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {rows.map((r, i) => (
-              <Link key={r.document_id || i} to={`/library/doc/${encodeURIComponent(r.filename)}`} className="bg-white border border-border-subtle p-5 rounded-xl hover:shadow-md transition-shadow block">
+              <Link key={r.document_id || i} to={`/library/doc/${r.document_id}`} className="bg-white border border-border-subtle p-5 rounded-xl hover:shadow-md transition-shadow block">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-accent-source-highlight">{r.file_type}</span>
                   {r.processing_status === "ready" && <Icon name="check_circle" filled size={14} className="text-green-600" />}
@@ -396,11 +396,13 @@ function LibraryPage() {
 
 // =================== DOCUMENT VIEWER ===================
 function DocViewerPage({ params }) {
-  const [page, setPage] = useStateP1(3);
-  const [zoom, setZoom] = useStateP1(110);
-  const [selection, setSelection] = useStateP1(false);
+  const documentId = params?.[1] || "";
   const [length, setLength] = useStateP1("Med");
-  const [activeChip, setActiveChip] = useStateP1(null);
+  const [loadingDocument, setLoadingDocument] = useStateP1(true);
+  const [viewerError, setViewerError] = useStateP1("");
+  const [documentData, setDocumentData] = useStateP1(null);
+  const [viewUrl, setViewUrl] = useStateP1("");
+  const [textContent, setTextContent] = useStateP1("");
   const [messages, setMessages] = useStateP1([
     { role: "user", text: "What is RAG architecture?", time: "10:42 AM" },
     {
@@ -408,11 +410,7 @@ function DocViewerPage({ params }) {
       time: "10:42 AM",
       blocks: [
         { type: "text", text: "Retrieval-Augmented Generation (RAG) is an architectural pattern used to provide LLMs with contextually relevant, external data." },
-        { type: "text", text: "It works by first retrieving relevant documents from a knowledge base " },
-        { type: "chip", page: 3 },
-        { type: "text", text: " and then using that information to ground the AI's final generation " },
-        { type: "chip", page: 7 },
-        { type: "text", text: "." },
+        { type: "text", text: "It works by first retrieving relevant documents from a knowledge base and then using that information to ground the AI's final generation." },
         { type: "text", text: "This significantly reduces hallucinations and ensures answers are verifiable through citations." },
       ],
     },
@@ -428,15 +426,72 @@ function DocViewerPage({ params }) {
       agent: "@search_web",
       blocks: [
         { type: "text", text: "Searched the web for latest RAG papers (2025). Top results include hierarchical retrieval (Tanaka et al.) and self-correcting RAG agents (Liu et al.)." },
-        { type: "chip", page: 12 },
       ],
     },
   ]);
   const [draft, setDraft] = useStateP1("");
   const [contextOpen, setContextOpen] = useStateP1(false);
-  const [context, setContext] = useStateP1("Research_Paper_V2.pdf");
+  const [context, setContext] = useStateP1("Current Document");
 
-  const docName = params?.[1] ? decodeURIComponent(params[1]) : "Research_Paper_V2.pdf";
+  useEffectP1(() => {
+    let active = true;
+
+    const loadDocument = async () => {
+      if (!documentId) {
+        setViewerError("No document selected.");
+        setLoadingDocument(false);
+        return;
+      }
+
+      try {
+        setViewerError("");
+        setLoadingDocument(true);
+        const [doc, view] = await Promise.all([
+          apiRequest(`/documents/${documentId}`),
+          apiRequest(`/documents/${documentId}/view-url`),
+        ]);
+
+        if (!active) return;
+        setDocumentData(doc);
+        setViewUrl(view?.view_url || "");
+      } catch (err) {
+        if (active) setViewerError(err.message);
+      } finally {
+        if (active) setLoadingDocument(false);
+      }
+    };
+
+    loadDocument();
+    return () => {
+      active = false;
+    };
+  }, [documentId]);
+
+  useEffectP1(() => {
+    let active = true;
+
+    const loadText = async () => {
+      if (!viewUrl || documentData?.file_type !== "TXT") {
+        setTextContent("");
+        return;
+      }
+
+      try {
+        const response = await fetch(viewUrl);
+        const text = await response.text();
+        if (active) setTextContent(text);
+      } catch {
+        if (active) setTextContent("");
+      }
+    };
+
+    loadText();
+    return () => {
+      active = false;
+    };
+  }, [viewUrl, documentData?.file_type]);
+
+  const docName = documentData?.filename || "Document";
 
   const send = () => {
     if (!draft.trim()) return;
@@ -446,17 +501,75 @@ function DocViewerPage({ params }) {
     setTimeout(() => {
       setMessages(m => [...m, {
         role: "ai", time, blocks: [
-          { type: "text", text: "Based on the document, " },
-          { type: "chip", page: 5 },
-          { type: "text", text: " describes the multi-stage retrieval that ensures higher quality context. " },
-          { type: "chip", page: 9 },
-          { type: "text", text: " details the reranking step." },
+          { type: "text", text: "Based on your uploaded file, the model can now cite and reason over the real document content instead of demo text." },
         ],
       }]);
     }, 800);
   };
 
-  const onChip = (p) => { setPage(p); setActiveChip(p); };
+  const handleDownload = () => {
+    if (!viewUrl) return;
+    window.open(viewUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      window.alert("Document link copied.");
+    } catch {
+      window.alert("Could not copy link.");
+    }
+  };
+
+  const renderDocumentPane = () => {
+    if (loadingDocument) {
+      return <div className="w-full max-w-3xl bg-white shadow-sm rounded-xl min-h-[500px] flex items-center justify-center text-sm text-on-surface-variant">Loading document...</div>;
+    }
+
+    if (viewerError) {
+      return <div className="w-full max-w-3xl bg-error-container border border-error/20 rounded-xl min-h-[300px] p-6 text-sm text-on-error-container">{viewerError}</div>;
+    }
+
+    if (!documentData || !viewUrl) {
+      return <div className="w-full max-w-3xl bg-white shadow-sm rounded-xl min-h-[300px] p-6 text-sm text-on-surface-variant">Document URL is not available.</div>;
+    }
+
+    if (documentData.file_type === "PDF") {
+      return (
+        <div className="w-full max-w-4xl bg-white shadow-sm rounded-xl overflow-hidden border border-border-subtle">
+          <iframe title={docName} src={`${viewUrl}#toolbar=1&navpanes=0`} className="w-full h-[78vh]" />
+        </div>
+      );
+    }
+
+    if (documentData.file_type === "TXT") {
+      return (
+        <div className="w-full max-w-4xl bg-white shadow-sm rounded-xl border border-border-subtle p-6">
+          <h3 className="font-card-title text-card-title mb-3">{docName}</h3>
+          <pre className="whitespace-pre-wrap text-sm leading-6 text-on-surface">{textContent || "Loading text content..."}</pre>
+        </div>
+      );
+    }
+
+    if (documentData.file_type === "DOCX") {
+      const officePreviewUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(viewUrl)}`;
+      return (
+        <div className="w-full max-w-4xl bg-white shadow-sm rounded-xl overflow-hidden border border-border-subtle">
+          <iframe title={`${docName} preview`} src={officePreviewUrl} className="w-full h-[78vh]" />
+        </div>
+      );
+    }
+
+    return (
+      <div className="w-full max-w-3xl bg-white shadow-sm rounded-xl border border-border-subtle p-6">
+        <h3 className="font-card-title text-card-title mb-2">Preview not supported for {documentData.file_type}</h3>
+        <p className="text-sm text-on-surface-variant mb-4">Use download to open the original file.</p>
+        <button onClick={handleDownload} className="inline-flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded-lg text-xs font-bold">
+          <Icon name="download" size={16} /> Download file
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div className="h-screen flex flex-col bg-background-primary overflow-hidden">
@@ -468,10 +581,10 @@ function DocViewerPage({ params }) {
           <span className="text-primary font-bold">{docName}</span>
         </nav>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-surface-container-low">
+          <button onClick={handleDownload} disabled={!viewUrl} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-surface-container-low disabled:opacity-50">
             <Icon name="download" size={16} /> Download
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-surface-container-low">
+          <button onClick={handleShare} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-surface-container-low">
             <Icon name="ios_share" size={16} /> Share
           </button>
           <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-surface-container-low">
@@ -484,51 +597,14 @@ function DocViewerPage({ params }) {
         {/* PDF pane */}
         <section className="flex-1 bg-surface-container-low overflow-y-auto p-8 flex flex-col items-center">
           <div className="sticky top-0 mb-8 bg-white/90 backdrop-blur-md border border-border-subtle px-3 py-2 rounded-xl flex items-center gap-4 z-10 shadow-sm">
-            <div className="flex items-center gap-1 border-r border-border-subtle pr-3">
-              <button onClick={() => setZoom(z => Math.max(50, z - 10))} className="p-1 hover:bg-surface-container-low rounded"><Icon name="zoom_out" size={18} /></button>
-              <span className="text-xs font-semibold w-12 text-center">{zoom}%</span>
-              <button onClick={() => setZoom(z => Math.min(200, z + 10))} className="p-1 hover:bg-surface-container-low rounded"><Icon name="zoom_in" size={18} /></button>
+            <div className="flex items-center gap-2 border-r border-border-subtle pr-3 text-xs">
+              <Icon name="description" size={16} className="text-on-surface-variant" />
+              <span className="font-semibold">{documentData?.file_type || "DOC"}</span>
             </div>
-            <div className="flex items-center gap-1 border-r border-border-subtle pr-3">
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} className="p-1 hover:bg-surface-container-low rounded"><Icon name="chevron_left" size={18} /></button>
-              <span className="text-xs font-semibold whitespace-nowrap">Page {page} / 12</span>
-              <button onClick={() => setPage(p => Math.min(12, p + 1))} className="p-1 hover:bg-surface-container-low rounded"><Icon name="chevron_right" size={18} /></button>
-            </div>
-            <button className="p-1 hover:bg-surface-container-low rounded" title="Find"><Icon name="search" size={18} /></button>
-            <button className="p-1 hover:bg-surface-container-low rounded" title="Print"><Icon name="print" size={18} /></button>
+            <span className="text-xs text-on-surface-variant">{documentData ? `Uploaded ${formatRelativeTime(documentData.upload_date)}` : "Preparing viewer"}</span>
           </div>
 
-          <div className="w-full max-w-3xl bg-white shadow-sm min-h-[1100px] p-16 relative" onMouseUp={() => setSelection(true)} onMouseDown={() => setSelection(false)}>
-            <h1 className="font-section-heading text-xl mb-4">Hierarchical Retrieval-Augmented Generation (RAG) Architecture</h1>
-            <p className="text-on-surface-variant text-sm mb-3">Y. Tanaka, M. Schultz · Page {page}</p>
-            <p className="text-body-main text-on-surface mb-6 leading-relaxed">
-              The emergence of large language models (LLMs) has revolutionized the way we interact with unstructured data. However, LLMs suffer from "hallucinations" — confidently stating false information. <span className={`px-1 transition-colors ${activeChip === 3 ? "bg-accent-source-highlight" : "bg-accent-source-highlight/60"}`}>Retrieval-Augmented Generation (RAG) addresses this by anchoring the model's outputs in a verifiable external knowledge base.</span>
-            </p>
-            <p className="text-body-main text-on-surface mb-6 leading-relaxed">
-              Standard RAG workflows involve document ingestion, chunking, and vector embedding. During inference, a user's query is converted into a vector, and the system performs a similarity search against the knowledge base to retrieve relevant context.
-            </p>
-            <div className="w-full h-64 bg-surface-container-low rounded-lg flex items-center justify-center mb-6 border border-dashed border-border-subtle">
-              <div className="text-center text-on-surface-variant">
-                <Icon name="image" className="text-3xl" />
-                <p className="text-xs mt-2 font-mono">[ Figure 2: RAG architecture diagram ]</p>
-              </div>
-            </div>
-            <p className="text-body-main text-on-surface leading-relaxed mb-6">
-              In advanced systems, multi-stage retrieval or reranking is employed to ensure the highest quality context is provided. <span className={`px-1 transition-colors ${activeChip === 7 ? "bg-accent-source-highlight" : ""}`}>This reduces noise and improves the overall accuracy of the generated response.</span>
-            </p>
-            <p className="text-body-main text-on-surface leading-relaxed">
-              <span className={`px-1 transition-colors ${activeChip === 12 ? "bg-accent-source-highlight" : ""}`}>Our hierarchical retriever introduces a coarse-to-fine selection cascade, demonstrably outperforming single-stage retrieval on long-context tasks.</span>
-            </p>
-
-            {selection && (
-              <div className="absolute top-[260px] left-1/2 -translate-x-1/2 bg-primary text-on-primary flex items-center rounded-lg shadow-xl py-1 px-1 z-20">
-                <button className="px-3 py-1.5 text-[12px] font-semibold hover:bg-white/10 flex items-center gap-1.5 border-r border-white/10"><Icon name="summarize" size={16} /> Summarize</button>
-                <button className="px-3 py-1.5 text-[12px] font-semibold hover:bg-white/10 flex items-center gap-1.5 border-r border-white/10"><Icon name="psychology_alt" size={16} /> Explain</button>
-                <button className="px-3 py-1.5 text-[12px] font-semibold hover:bg-white/10 flex items-center gap-1.5 border-r border-white/10"><Icon name="edit_note" size={16} /> Annotate</button>
-                <button className="px-3 py-1.5 text-[12px] font-semibold hover:bg-white/10 flex items-center gap-1.5"><Icon name="format_quote" size={16} /> Cite</button>
-              </div>
-            )}
-          </div>
+          {renderDocumentPane()}
         </section>
 
         {/* Chat pane */}
@@ -547,7 +623,7 @@ function DocViewerPage({ params }) {
               </button>
               {contextOpen && (
                 <div className="absolute top-full mt-1 left-0 bg-white border border-border-subtle rounded-lg shadow-lg p-1 z-20 w-64">
-                  {["Research_Paper_V2.pdf", "Entire Collection (12 docs)", "Workspace: Thesis Research"].map(c => (
+                  {[docName, "Entire Collection", "Workspace"].map(c => (
                     <button key={c} onClick={() => { setContext(c); setContextOpen(false); }} className={`w-full text-left text-xs px-3 py-2 rounded hover:bg-surface-container-low ${context === c ? "bg-surface-container-low font-bold" : ""}`}>{c}</button>
                   ))}
                 </div>
@@ -573,11 +649,7 @@ function DocViewerPage({ params }) {
                 <div className="flex flex-col gap-2 flex-1">
                   {m.agent && <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1"><Icon name="travel_explore" size={12}/> {m.agent}</span>}
                   <div className="text-body-main leading-relaxed text-on-surface">
-                    {m.blocks.map((b, j) => b.type === "text" ? <span key={j}>{b.text}</span> : (
-                      <button key={j} onClick={() => onChip(b.page)} className={`inline-flex items-center bg-accent-source-highlight text-source-chip px-1.5 py-0.5 rounded ml-1 hover:brightness-95 transition-all font-source-chip text-[11px] font-bold ${activeChip === b.page ? "ring-2 ring-primary" : ""}`}>
-                        pg. {b.page} <Icon name="link" size={11} className="ml-0.5" />
-                      </button>
-                    ))}
+                    {m.blocks.map((b, j) => <span key={j}>{b.text}</span>)}
                   </div>
                   <div className="flex gap-1.5">
                     <button className="p-1.5 rounded-lg border border-border-subtle hover:bg-surface-container-low"><Icon name="content_copy" size={14} /></button>

@@ -26,3 +26,10 @@ class DocumentUpdateRequest(BaseModel):
     workspace_id: UUID | None = None
     collection_id: UUID | None = None
     processing_status: str | None = None
+
+
+class DocumentViewUrlResponse(BaseModel):
+    document_id: UUID
+    filename: str
+    file_type: str
+    view_url: str
