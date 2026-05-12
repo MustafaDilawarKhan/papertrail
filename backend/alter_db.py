@@ -87,7 +87,7 @@ async def ensure_notifications_table():
 
     try:
         async with engine.begin() as conn:
-            # Create notifications table if it doesn't exist
+            # Create notifications table if it doesn't exist (includes 'data' column)
             await conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS notifications (
                     notification_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -96,13 +96,20 @@ async def ensure_notifications_table():
                     title VARCHAR(255) NOT NULL,
                     message TEXT NOT NULL,
                     related_id UUID,
+                    data TEXT,
                     read BOOLEAN DEFAULT FALSE NOT NULL,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
                 );
             """))
-            print("✓ Notifications table created")
-            
+            print("✓ Notifications table created/verified")
+
+            # Backfill 'data' column on pre-existing tables that were created without it
+            await conn.execute(text(
+                "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS data TEXT;"
+            ))
+            print("✓ notifications.data column ensured")
+
             # Create index on user_id for faster queries
             await conn.execute(text("""
                 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);

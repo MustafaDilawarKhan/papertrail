@@ -16,6 +16,7 @@ from app.schemas.workspace import (
     WorkspaceCreateRequest, WorkspaceUpdateRequest,
     WorkspaceResponse, AddMemberRequest, WorkspaceMemberResponse,
 )
+from app.schemas.notification import NotificationResponse
 from app.middleware.auth import get_current_user
 from app.services.session_cache import clear_user_bootstrap_cache
 
@@ -166,7 +167,7 @@ async def delete_workspace(
     clear_workspace_caches(current_user.user_id)
 
 
-@router.post("/{workspace_id}/members", response_model=WorkspaceMemberResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/{workspace_id}/members", response_model=NotificationResponse, status_code=status.HTTP_201_CREATED)
 async def add_member(
     workspace_id: UUID,
     request: AddMemberRequest,
@@ -214,6 +215,7 @@ async def add_member(
     )
     db.add(notification)
     await db.flush()
+    await db.refresh(notification)
 
     clear_workspace_caches(current_user.user_id)
     clear_workspace_caches_for_user_id(invited_user.user_id)

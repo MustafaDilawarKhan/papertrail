@@ -274,6 +274,30 @@ function NotificationDropdown() {
     }
   };
 
+  const handleAcceptInvite = async (notif) => {
+    try {
+      // Extract role from the data field if present
+      let role = "Viewer";
+      if (notif.data) {
+        try {
+          const parsed = typeof notif.data === "string" ? JSON.parse(notif.data) : notif.data;
+          role = parsed.role || "Viewer";
+        } catch (e) {
+          // If parsing fails, default to Viewer
+        }
+      }
+      // Call accept endpoint (we need to implement this on the backend)
+      await apiRequest(`/notifications/${notif.notification_id}/accept`, {
+        method: "POST",
+        body: JSON.stringify({ workspace_id: notif.related_id }),
+      });
+      setNotifications(prev => prev.filter(n => n.notification_id !== notif.notification_id));
+      setUnreadCount(Math.max(0, unreadCount - 1));
+    } catch (err) {
+      console.error("Error accepting invite:", err);
+    }
+  };
+
   return (
     <div className="relative" ref={ref}>
       <button 
@@ -317,6 +341,28 @@ function NotificationDropdown() {
                         <p className="text-[10px] text-on-surface-variant/50 mt-1.5">
                           {new Date(notif.created_at).toLocaleString()}
                         </p>
+                        {notif.type === "workspace_invite" && (
+                          <div className="flex gap-2 mt-3">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAcceptInvite(notif);
+                              }}
+                              className="px-2 py-1 text-xs bg-primary text-on-primary rounded font-bold hover:opacity-90"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(notif.notification_id);
+                              }}
+                              className="px-2 py-1 text-xs border border-border-subtle rounded hover:bg-surface-container-low"
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        )}
                       </div>
                       <div className="flex gap-1 flex-shrink-0">
                         <button

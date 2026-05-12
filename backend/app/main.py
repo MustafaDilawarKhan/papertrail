@@ -70,9 +70,31 @@ app = FastAPI(
     title="Paper Trail API",
     description="Backend for the Paper Trail AI Research Assistant",
     version="2.0.0",
+    lifespan=lifespan,
 )
 
+# ─── CORS must be added FIRST so it is the OUTERMOST middleware layer ──────────
+# Starlette processes middleware in reverse registration order.
+# If CORSMiddleware is added after the logging middleware, a 500 error inside
+# call_next() will bubble up before CORS headers are ever attached, causing the
+# browser to (correctly) report a CORS block instead of the real server error.
+origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+]
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ─── Logging middleware (inner layer — runs after CORS headers are set) ────────
 @app.middleware("http")
 async def log_api_requests(request: Request, call_next):
     is_api_route = request.url.path.startswith("/api")
@@ -92,24 +114,6 @@ async def log_api_requests(request: Request, call_next):
         logger.info("<-- %s %s status=%s duration=%.1fms", request.method, request.url.path, response.status_code, elapsed_ms)
 
     return response
-
-# CORS configuration
-# Allowing the typical Vite dev server port and a possible production domain.
-origins = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:3000",
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?$",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Include routers
 app.include_router(auth.router, prefix="/api")

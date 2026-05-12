@@ -79,23 +79,35 @@ async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db))
 @router.post("/login", response_model=TokenResponse)
 async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     """Login with email and password."""
-    result = await db.execute(select(User).where(User.email == request.email))
-    user = result.scalar_one_or_none()
+    try:
+        logger.info(f"Login attempt for email: {request.email}")
+        result = await db.execute(select(User).where(User.email == request.email))
+        user = result.scalar_one_or_none()
 
-    if not user or not verify_password(request.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
+        if not user or not verify_password(request.password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password",
+            )
+
+        access_token = create_access_token(data={"sub": str(user.user_id)})
+        logger.info(f"Login successful for user: {user.user_id}")
+
+        return TokenResponse(
+            access_token=access_token,
+            user_id=str(user.user_id),
+            name=user.name,
+            email=user.email,
         )
-
-    access_token = create_access_token(data={"sub": str(user.user_id)})
-
-    return TokenResponse(
-        access_token=access_token,
-        user_id=str(user.user_id),
-        name=user.name,
-        email=user.email,
-    )
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions (401, etc.)
+    except Exception as exc:
+        logger.error(f"Login failed unexpectedly: {exc}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Login failed: {str(exc)}",
+        )
 
 
 @router.get("/me", response_model=UserResponse)

@@ -12,6 +12,7 @@ from app.models.chat import ChatSession, ChatMessage
 from app.models.source_highlight import SourceHighlight
 from app.models.annotation import Annotation
 from app.models.citation import Citation
+from app.models.notification import Notification
 
 __all__ = [
     "User",
@@ -26,4 +27,5 @@ __all__ = [
     "SourceHighlight",
     "Annotation",
     "Citation",
+    "Notification",
 ]
