@@ -76,6 +76,8 @@ async def create_workspace(
     workspace = Workspace(
         owner_id=current_user.user_id,
         name=request.name,
+        description=request.description,
+        privacy=request.privacy,
     )
     db.add(workspace)
     await db.flush()

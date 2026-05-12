@@ -206,6 +206,24 @@ function DashboardPage() {
                 ))}
               </div>
             </div>
+
+            <div className="mt-12">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-card-title text-card-title text-primary">Your Workspaces</h3>
+                <Link to="/workspaces" className="text-xs font-bold text-primary hover:underline">View All</Link>
+              </div>
+              <Link to="/workspaces" className="block bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-xl p-6 hover:border-primary/40 transition-colors cursor-pointer group">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h4 className="font-bold text-sm text-primary mb-1">Create a new workspace</h4>
+                    <p className="text-xs text-on-surface-variant">Set up a collaborative research environment with your team.</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center group-hover:bg-primary/30 transition-colors">
+                    <Icon name="add" className="text-primary" />
+                  </div>
+                </div>
+              </Link>
+            </div>
           </section>
 
           <section className="col-span-12 lg:col-span-4">
@@ -757,6 +775,10 @@ function WorkspacesPage() {
   const [cards, setCards] = useStateP1([]);
   const [loading, setLoading] = useStateP1(true);
   const [error, setError] = useStateP1("");
+  const [createMode, setCreateMode] = useStateP1(false);
+  const [formData, setFormData] = useStateP1({ name: "", description: "", privacy: "private" });
+  const [formError, setFormError] = useStateP1("");
+  const [formLoading, setFormLoading] = useStateP1(false);
 
   useEffectP1(() => {
     let active = true;
@@ -793,21 +815,141 @@ function WorkspacesPage() {
     };
   }, []);
 
-  const handleCreateWorkspace = async () => {
-    const name = window.prompt("Workspace name");
-    if (!name) return;
+  const handleCreateWorkspace = async (e) => {
+    e.preventDefault();
+    if (!formData.name.trim()) {
+      setFormError("Workspace name is required");
+      return;
+    }
 
     try {
+      setFormError("");
+      setFormLoading(true);
       const created = await apiRequest("/workspaces", {
         method: "POST",
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({
+          name: formData.name.trim(),
+          description: formData.description.trim() || null,
+          privacy: formData.privacy,
+        }),
       });
       setCards(prev => [created, ...prev]);
+      setCreateMode(false);
+      setFormData({ name: "", description: "", privacy: "private" });
       navigate(`/workspaces/${created.workspace_id}`);
     } catch (err) {
-      window.alert(err.message);
+      setFormError(err.message);
+    } finally {
+      setFormLoading(false);
     }
   };
+
+  const handleCancel = () => {
+    setCreateMode(false);
+    setFormData({ name: "", description: "", privacy: "private" });
+    setFormError("");
+  };
+
+  if (createMode) {
+    return (
+      <>
+        <CommandPalette open={search} onClose={() => setSearch(false)} />
+        <AppShell active="workspaces" breadcrumbs={[{ label: "Dashboard", to: "/dashboard" }, { label: "Workspaces", to: "/workspaces" }, { label: "Create New" }]} onSearchOpen={() => setSearch(true)}>
+          <div className="flex justify-between items-end mb-10">
+            <div>
+              <h1 className="font-section-heading text-section-heading text-primary mb-2">Create New Workspace</h1>
+              <p className="text-on-surface-variant">Set up a collaborative research environment with your team.</p>
+            </div>
+          </div>
+
+          <div className="max-w-2xl bg-white border border-border-subtle rounded-2xl p-8">
+            <form onSubmit={handleCreateWorkspace} className="space-y-6">
+              {formError && (
+                <div className="p-4 rounded-lg bg-error-container text-on-error-container text-xs font-medium">
+                  {formError}
+                </div>
+              )}
+
+              {/* Workspace Name */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wide text-on-surface mb-2">Workspace Name *</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g., AI Ethics Research"
+                  className="w-full px-4 py-3 border border-border-subtle rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                  disabled={formLoading}
+                />
+                <p className="text-[11px] text-on-surface-variant mt-1">Give your workspace a clear, descriptive name.</p>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wide text-on-surface mb-2">Description</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Optional: Describe the purpose and scope of this workspace..."
+                  rows="4"
+                  className="w-full px-4 py-3 border border-border-subtle rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
+                  disabled={formLoading}
+                />
+                <p className="text-[11px] text-on-surface-variant mt-1">Max 500 characters. Helps team members understand the workspace purpose.</p>
+              </div>
+
+              {/* Privacy Setting */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wide text-on-surface mb-3">Privacy Level</label>
+                <div className="space-y-2">
+                  {[
+                    { value: "private", label: "Private", desc: "Only you and invited members can access" },
+                    { value: "team", label: "Team", desc: "All team members have automatic access" },
+                    { value: "public", label: "Public", desc: "Anyone with link can view (read-only)" },
+                  ].map(option => (
+                    <label key={option.value} className="flex items-center p-3 border border-border-subtle rounded-lg cursor-pointer hover:bg-surface-container-lowest transition-colors" style={{ backgroundColor: formData.privacy === option.value ? "rgba(var(--color-primary), 0.05)" : "transparent", borderColor: formData.privacy === option.value ? "var(--color-primary)" : undefined }}>
+                      <input
+                        type="radio"
+                        name="privacy"
+                        value={option.value}
+                        checked={formData.privacy === option.value}
+                        onChange={(e) => setFormData(prev => ({ ...prev, privacy: e.target.value }))}
+                        className="w-4 h-4"
+                        disabled={formLoading}
+                      />
+                      <div className="ml-3 flex-1">
+                        <p className="text-sm font-bold text-on-surface">{option.label}</p>
+                        <p className="text-[11px] text-on-surface-variant">{option.desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-6 border-t border-border-subtle">
+                <button
+                  type="submit"
+                  disabled={formLoading}
+                  className="flex-1 px-5 py-3 bg-primary text-on-primary rounded-lg font-bold text-sm hover:opacity-90 disabled:opacity-50 transition-opacity"
+                >
+                  {formLoading ? "Creating..." : "Create Workspace"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  disabled={formLoading}
+                  className="flex-1 px-5 py-3 border border-border-subtle rounded-lg font-bold text-sm hover:bg-surface-container-low disabled:opacity-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </AppShell>
+      </>
+    );
+  }
 
   return (
     <>
@@ -818,7 +960,7 @@ function WorkspacesPage() {
             <h1 className="font-section-heading text-section-heading text-primary mb-2">Your Workspaces</h1>
             <p className="text-on-surface-variant">Manage your collaborative research projects.</p>
           </div>
-          <button onClick={handleCreateWorkspace} className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-full font-bold text-sm hover:opacity-90">
+          <button onClick={() => setCreateMode(true)} className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-full font-bold text-sm hover:opacity-90">
             <Icon name="add" size={20} /> New Workspace
           </button>
         </div>
@@ -832,9 +974,12 @@ function WorkspacesPage() {
             <div className="col-span-full text-sm text-on-surface-variant">No workspaces yet. Create one to start collaborating.</div>
           ) : cards.map((c, i) => (
             <div key={c.workspace_id || i} className="group relative bg-white border border-border-subtle p-6 rounded-xl hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate(`/workspaces/${c.workspace_id}`)}>
-              <div className="flex justify-between items-start mb-8">
-                <div className="w-11 h-11 rounded-lg bg-primary flex items-center justify-center text-white">
-                  <Icon name="auto_stories" filled />
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <div className="w-11 h-11 rounded-lg bg-primary flex items-center justify-center text-white mb-3">
+                    <Icon name="auto_stories" filled />
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-1 rounded uppercase bg-surface-container-high text-on-surface-variant">{c.privacy}</span>
                 </div>
                 <div className="flex -space-x-2">
                   {Array.from({ length: Math.min(3, c.members?.length || 0) }).map((_, j) => (
@@ -843,15 +988,15 @@ function WorkspacesPage() {
                   {(c.members?.length || 0) > 3 && <div className="w-7 h-7 rounded-full border-2 border-white bg-surface-container-high flex items-center justify-center text-[9px] font-bold">+{(c.members?.length || 0)-3}</div>}
                 </div>
               </div>
-              <h3 className="font-card-title text-card-title mb-1">{c.name}</h3>
-              <p className="text-[12px] text-on-surface-variant mb-5 leading-relaxed line-clamp-2">Collaborative workspace shared through the backend.</p>
+              <h3 className="font-card-title text-card-title mb-2">{c.name}</h3>
+              <p className="text-[12px] text-on-surface-variant mb-4 leading-relaxed line-clamp-2">{c.description || "No description yet."}</p>
               <div className="flex items-center gap-4 text-[11px] text-on-secondary-container font-medium">
                 <span className="flex items-center gap-1"><Icon name="description" size={14} /> Files</span>
                 <span className="flex items-center gap-1"><Icon name="group" size={14} /> {c.members?.length || 0} Members</span>
               </div>
             </div>
           ))}
-          <button onClick={handleCreateWorkspace} className="border-2 border-dashed border-border-subtle p-6 rounded-xl flex flex-col items-center justify-center text-center hover:border-primary hover:bg-surface-container-low transition-all min-h-[220px]">
+          <button onClick={() => setCreateMode(true)} className="border-2 border-dashed border-border-subtle p-6 rounded-xl flex flex-col items-center justify-center text-center hover:border-primary hover:bg-surface-container-low transition-all min-h-[220px]">
             <div className="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center mb-3 text-on-surface-variant">
               <Icon name="add_circle" size={28} />
             </div>
@@ -954,9 +1099,13 @@ function WorkspaceDetailPage({ params }) {
               <div className="w-11 h-11 rounded-lg bg-primary flex items-center justify-center text-white">
                 <Icon name="auto_stories" filled />
               </div>
-              <div>
-                <h2 className="font-bold text-xl">{name}</h2>
-                <p className="text-[12px] text-on-surface-variant">{workspace?.owner_id === user?.user_id ? "Owner workspace" : "Shared workspace"}</p>
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-1">
+                  <h2 className="font-bold text-xl">{name}</h2>
+                  <span className="text-[10px] font-bold px-2 py-1 rounded uppercase bg-surface-container-high text-on-surface-variant">{workspace?.privacy || "private"}</span>
+                </div>
+                <p className="text-[12px] text-on-surface-variant mb-2">{workspace?.owner_id === user?.user_id ? "Owner workspace" : "Shared workspace"}</p>
+                {workspace?.description && <p className="text-sm text-on-surface max-w-lg">{workspace.description}</p>}
               </div>
             </div>
             <div className="flex gap-2">

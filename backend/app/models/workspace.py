@@ -21,6 +21,8 @@ class Workspace(Base):
         UUID(as_uuid=True), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    privacy: Mapped[str] = mapped_column(String(20), default="private", nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

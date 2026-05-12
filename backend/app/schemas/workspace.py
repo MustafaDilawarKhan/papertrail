@@ -8,10 +8,14 @@ from uuid import UUID
 
 class WorkspaceCreateRequest(BaseModel):
     name: str
+    description: str | None = None
+    privacy: str = "private"  # private | team | public
 
 
 class WorkspaceUpdateRequest(BaseModel):
     name: str | None = None
+    description: str | None = None
+    privacy: str | None = None
 
 
 class WorkspaceMemberResponse(BaseModel):
@@ -27,6 +31,8 @@ class WorkspaceResponse(BaseModel):
     workspace_id: UUID
     owner_id: UUID
     name: str
+    description: str | None = None
+    privacy: str
     created_at: datetime
     updated_at: datetime
     members: list[WorkspaceMemberResponse] = []
