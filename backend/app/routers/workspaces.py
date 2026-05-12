@@ -11,6 +11,7 @@ from sqlalchemy.orm import noload
 from app.database import get_db
 from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember
+from app.models.notification import Notification
 from app.schemas.workspace import (
     WorkspaceCreateRequest, WorkspaceUpdateRequest,
     WorkspaceResponse, AddMemberRequest, WorkspaceMemberResponse,
@@ -199,17 +200,24 @@ async def add_member(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User is already a member")
 
-    member = WorkspaceMember(
-        workspace_id=workspace_id,
+    # Instead of immediately adding the member, create a pending invite notification.
+    # The invited user must accept the invite via the notifications UI.
+    import json
+
+    notification = Notification(
         user_id=invited_user.user_id,
-        role=request.role,
+        type="workspace_invite",
+        title=f"Invited to {workspace.name}",
+        message=f"{current_user.name} invited you to the workspace '{workspace.name}'.",
+        related_id=workspace_id,
+        data=json.dumps({"role": request.role, "inviter_id": str(current_user.user_id), "inviter_name": current_user.name}),
     )
-    db.add(member)
+    db.add(notification)
     await db.flush()
-    await db.refresh(member)
+
     clear_workspace_caches(current_user.user_id)
-    clear_workspace_caches_for_user_id(member.user_id)
-    return member
+    clear_workspace_caches_for_user_id(invited_user.user_id)
+    return notification
 
 
 @router.delete("/{workspace_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

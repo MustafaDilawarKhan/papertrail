@@ -245,3 +245,38 @@ async def delete_document(
     delete_file(doc.storage_path)
     await db.delete(doc)
     clear_user_document_caches(current_user.user_id)
+
+
+@router.patch("/{document_id}", response_model=DocumentResponse)
+async def update_document(
+    document_id: UUID,
+    payload: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update simple document metadata (e.g., rename)."""
+    result = await db.execute(
+        select(Document).where(Document.document_id == document_id)
+    )
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    await ensure_document_access(db, current_user, doc)
+
+    # Only allow updating filename and collection_id for now
+    name = payload.get("filename") if isinstance(payload, dict) else None
+    collection_id = payload.get("collection_id") if isinstance(payload, dict) else None
+    changed = False
+    if name and name != doc.filename:
+        doc.filename = name
+        changed = True
+    if collection_id is not None and collection_id != doc.collection_id:
+        doc.collection_id = collection_id
+        changed = True
+
+    if changed:
+        await db.flush()
+        clear_user_document_caches(current_user.user_id)
+
+    await db.refresh(doc)
+    return doc

@@ -1,6 +1,6 @@
 // Dashboard, Library, Document Viewer, Workspaces pages
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Link, Icon, Brand, Sidebar, TopNav, AppShell, CommandPalette, EmptyState, navigate, useRoute } from '../shared/components';
+import { Link, Icon, Brand, Sidebar, TopNav, AppShell, CommandPalette, EmptyState, Modal, navigate, useRoute } from '../shared/components';
 import { useAuth } from '../contexts/AuthContext';
 import { apiRequest } from '../apiConfig';
 
@@ -1043,23 +1043,129 @@ function WorkspaceDetailPage({ params }) {
     loadWorkspace();
   }, [workspaceId]);
 
-  const handleInvite = async () => {
-    const email = window.prompt("Invite by email");
-    if (!email) return;
+  // Invite modal state (replaces simple prompt)
+  const [inviteModalOpen, setInviteModalOpen] = useStateP1(false);
+  const [inviteEmail, setInviteEmail] = useStateP1("");
+  const [inviteRole, setInviteRole] = useStateP1("Viewer");
+  const [inviteError, setInviteError] = useStateP1("");
+  const [inviteSuggestions, setInviteSuggestions] = useStateP1([]);
 
+  const [openDocMenuId, setOpenDocMenuId] = useStateP1(null);
+  const [settingsModalOpen, setSettingsModalOpen] = useStateP1(false);
+  const [settingsForm, setSettingsForm] = useStateP1({ name: "", description: "", privacy: "private" });
+  const [settingsLoading, setSettingsLoading] = useStateP1(false);
+  const [settingsError, setSettingsError] = useStateP1("");
+
+  const handleInviteSubmit = async (e) => {
+    e?.preventDefault();
+    if (!inviteEmail.trim()) {
+      setInviteError("Email is required");
+      return;
+    }
     try {
       setInviteLoading(true);
-      setMessage("");
+      setInviteError("");
       await apiRequest(`/workspaces/${workspaceId}/members`, {
         method: "POST",
-        body: JSON.stringify({ email, role: "Viewer" }),
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
       });
-      setMessage(`Invited ${email}`);
+      setMessage(`Invited ${inviteEmail.trim()}`);
+      setInviteModalOpen(false);
+      setInviteEmail("");
       await loadWorkspace();
     } catch (err) {
-      setMessage(err.message);
+      setInviteError(err.message || String(err));
     } finally {
       setInviteLoading(false);
+    }
+  };
+
+  // Fetch user suggestions for invite autocomplete
+  useEffectP1(() => {
+    let active = true;
+    if (!inviteModalOpen) return;
+    const controller = new AbortController();
+
+    const loadSuggestions = async () => {
+      if (!inviteEmail || inviteEmail.length < 2) {
+        if (active) setInviteSuggestions([]);
+        return;
+      }
+      try {
+        const q = encodeURIComponent(inviteEmail.trim());
+        const data = await apiRequest(`/users?q=${q}&limit=8`, { signal: controller.signal });
+        if (!active) return;
+        setInviteSuggestions(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if (!active) return;
+        // ignore network errors for suggestions
+        setInviteSuggestions([]);
+      }
+    };
+
+    const t = setTimeout(loadSuggestions, 200);
+    return () => { active = false; controller.abort(); clearTimeout(t); };
+  }, [inviteEmail, inviteModalOpen]);
+
+  const handleViewDocument = async (documentId) => {
+    try {
+      const res = await apiRequest(`/documents/${documentId}/view-url`);
+      if (res?.view_url) {
+        window.open(res.view_url, "_blank");
+      } else {
+        setMessage("Could not open document preview.");
+      }
+    } catch (err) {
+      setMessage(err.message || String(err));
+    }
+  };
+
+  const handleDeleteDocument = async (documentId) => {
+    if (!window.confirm("Delete this document? This cannot be undone.")) return;
+    try {
+      await apiRequest(`/documents/${documentId}`, { method: "DELETE" });
+      setMessage("Document deleted");
+      await loadWorkspace();
+    } catch (err) {
+      setMessage(err.message || String(err));
+    }
+  };
+
+  const openSettingsForWorkspace = () => {
+    setSettingsForm({ name: workspace?.name || "", description: workspace?.description || "", privacy: workspace?.privacy || "private" });
+    setSettingsError("");
+    setSettingsModalOpen(true);
+  };
+
+  const handleSettingsSubmit = async (e) => {
+    e?.preventDefault();
+    try {
+      setSettingsLoading(true);
+      setSettingsError("");
+      const body = {
+        name: settingsForm.name,
+        description: settingsForm.description,
+        privacy: settingsForm.privacy,
+      };
+      const res = await apiRequest(`/workspaces/${workspaceId}`, { method: "PATCH", body: JSON.stringify(body) });
+      setMessage("Workspace updated");
+      setSettingsModalOpen(false);
+      await loadWorkspace();
+    } catch (err) {
+      setSettingsError(err.message || String(err));
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  const handleDeleteWorkspace = async () => {
+    if (!window.confirm("Delete this workspace and all its data? This cannot be undone.")) return;
+    try {
+      await apiRequest(`/workspaces/${workspaceId}`, { method: "DELETE" });
+      setMessage("Workspace deleted");
+      navigate("/workspaces");
+    } catch (err) {
+      setMessage(err.message || String(err));
     }
   };
 
@@ -1109,13 +1215,76 @@ function WorkspaceDetailPage({ params }) {
               </div>
             </div>
             <div className="flex gap-2">
-              <button onClick={handleInvite} disabled={inviteLoading} className="px-4 py-2 rounded-lg border border-border-subtle text-xs font-semibold hover:bg-surface-container-low flex items-center gap-2 disabled:opacity-50">
+              <button onClick={() => setInviteModalOpen(true)} disabled={inviteLoading} className="px-4 py-2 rounded-lg border border-border-subtle text-xs font-semibold hover:bg-surface-container-low flex items-center gap-2 disabled:opacity-50">
                 <Icon name="person_add" size={16} /> {inviteLoading ? "Inviting..." : "Invite"}
               </button>
               <button className="px-3 py-2 rounded-lg border border-border-subtle hover:bg-surface-container-low">
-                <Icon name="settings" size={16} />
+                <Icon name="settings" size={16} onClick={() => openSettingsForWorkspace()} />
               </button>
             </div>
+            {/* Invite modal */}
+            <Modal open={inviteModalOpen} onClose={() => setInviteModalOpen(false)} title="Invite to workspace">
+              <form onSubmit={handleInviteSubmit} className="p-6 space-y-4">
+                {inviteError && <div className="p-3 bg-error-container text-on-error-container rounded">{inviteError}</div>}
+                <div>
+                  <label className="block text-xs font-bold uppercase mb-2">Email</label>
+                  <div className="relative">
+                    <input autoComplete="off" type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} className="w-full px-3 py-2 border border-border-subtle rounded" placeholder="alice@example.com" />
+                    {inviteSuggestions.length > 0 && (
+                      <div className="absolute left-0 right-0 mt-1 bg-white border border-border-subtle rounded shadow-lg z-50">
+                        {inviteSuggestions.map((s) => (
+                          <button key={s.user_id} type="button" onClick={() => { setInviteEmail(s.email); setInviteSuggestions([]); }} className="block w-full text-left px-3 py-2 text-sm hover:bg-surface-container-low">{s.email} <span className="text-[11px] text-on-surface-variant"> — {s.name}</span></button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase mb-2">Role</label>
+                  <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} className="w-full px-3 py-2 border border-border-subtle rounded">
+                    <option value="Viewer">Viewer</option>
+                    <option value="Editor">Editor</option>
+                    <option value="Owner">Owner</option>
+                  </select>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={() => setInviteModalOpen(false)} className="px-4 py-2 rounded-lg border">Cancel</button>
+                  <button type="submit" disabled={inviteLoading} className="px-4 py-2 rounded-lg bg-primary text-on-primary">{inviteLoading ? "Inviting..." : "Send Invite"}</button>
+                </div>
+              </form>
+            </Modal>
+
+            {/* Settings modal */}
+            <Modal open={settingsModalOpen} onClose={() => setSettingsModalOpen(false)} title="Workspace settings">
+              <form onSubmit={handleSettingsSubmit} className="p-6 space-y-4">
+                {settingsError && <div className="p-3 bg-error-container text-on-error-container rounded">{settingsError}</div>}
+                <div>
+                  <label className="block text-xs font-bold uppercase mb-2">Name</label>
+                  <input type="text" value={settingsForm.name} onChange={e => setSettingsForm(prev => ({ ...prev, name: e.target.value }))} className="w-full px-3 py-2 border border-border-subtle rounded" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase mb-2">Description</label>
+                  <textarea value={settingsForm.description} onChange={e => setSettingsForm(prev => ({ ...prev, description: e.target.value }))} className="w-full px-3 py-2 border border-border-subtle rounded" rows={4} />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase mb-2">Privacy</label>
+                  <select value={settingsForm.privacy} onChange={e => setSettingsForm(prev => ({ ...prev, privacy: e.target.value }))} className="w-full px-3 py-2 border border-border-subtle rounded">
+                    <option value="private">Private</option>
+                    <option value="team">Team</option>
+                    <option value="public">Public</option>
+                  </select>
+                </div>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <button type="button" onClick={handleDeleteWorkspace} className="px-3 py-2 rounded-lg text-error border border-error/20">Delete workspace</button>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setSettingsModalOpen(false)} className="px-4 py-2 rounded-lg border">Cancel</button>
+                    <button type="submit" disabled={settingsLoading} className="px-4 py-2 rounded-lg bg-primary text-on-primary">{settingsLoading ? "Saving..." : "Save changes"}</button>
+                  </div>
+                </div>
+              </form>
+            </Modal>
           </div>
           <div className="flex gap-6">
             {[{id:"files", label:"Files", icon:"folder"},{id:"chats",label:"Chats",icon:"chat_bubble",badge:12},{id:"members",label:"Members",icon:"group"}].map(t => (
@@ -1143,7 +1312,7 @@ function WorkspaceDetailPage({ params }) {
               </div>
 
               {documents.map((f, i) => (
-                <div key={i} className="flex items-center justify-between p-4 border border-border-subtle rounded-lg hover:bg-surface-container-low group cursor-pointer">
+                <div key={i} onClick={() => navigate(`/library/doc/${f.document_id}`)} className="flex items-center justify-between p-4 border border-border-subtle rounded-lg hover:bg-surface-container-low group cursor-pointer">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded bg-surface-container-high flex items-center justify-center text-[10px] font-bold">{f.file_type}</div>
                     <div>
@@ -1151,7 +1320,19 @@ function WorkspaceDetailPage({ params }) {
                       <p className="text-[11px] text-on-surface-variant">Uploaded {new Date(f.upload_date).toLocaleString()}</p>
                     </div>
                   </div>
-                  <Icon name="more_vert" className="text-on-surface-variant opacity-0 group-hover:opacity-100" />
+                  <div className="relative">
+                    <button onClick={(e) => { e.stopPropagation(); setOpenDocMenuId(openDocMenuId === f.document_id ? null : f.document_id); }} className="p-2 rounded hover:bg-surface-container-low">
+                      <Icon name="more_vert" className="text-on-surface-variant" />
+                    </button>
+                    {openDocMenuId === f.document_id && (
+                      <div className="absolute right-0 mt-2 w-48 bg-white border border-border-subtle rounded-lg shadow-lg z-50">
+                        <button onClick={(e) => { e.stopPropagation(); setOpenDocMenuId(null); handleViewDocument(f.document_id); }} className="w-full text-left px-3 py-2 text-sm hover:bg-surface-container-low">View</button>
+                        <button onClick={(e) => { e.stopPropagation(); setOpenDocMenuId(null); (async () => { const name = window.prompt('Rename file', f.filename); if (name && name.trim() && name.trim() !== f.filename) { try { await apiRequest(`/documents/${f.document_id}`, { method: 'PATCH', body: JSON.stringify({ filename: name.trim() }) }); setMessage('Renamed'); await loadWorkspace(); } catch (err) { setMessage(err.message || String(err)); } } })(); }} className="w-full text-left px-3 py-2 text-sm hover:bg-surface-container-low">Rename</button>
+                        <button onClick={(e) => { e.stopPropagation(); setOpenDocMenuId(null); handleDeleteDocument(f.document_id); }} className="w-full text-left px-3 py-2 text-sm hover:bg-surface-container-low text-error">Delete</button>
+                        <button onClick={(e) => { e.stopPropagation(); setOpenDocMenuId(null); (async () => { try { const res = await apiRequest(`/documents/${f.document_id}/view-url`); if (res?.view_url) { window.open(res.view_url, '_blank'); } else { setMessage('Download not available'); } } catch (err) { setMessage(err.message || String(err)); } })(); }} className="w-full text-left px-3 py-2 text-sm hover:bg-surface-container-low">Download</button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
               {documents.length === 0 && <div className="text-sm text-on-surface-variant">No files uploaded yet.</div>}

@@ -181,6 +181,7 @@ export function Sidebar({ active, collapsed, onToggle }) {
 }
 
 // ---- Top Nav (user app) ----
+// ---- TopNav with notifications ----
 export function TopNav({ breadcrumbs = [], onSearchOpen, collapsed }) {
   return (
     <header className={`fixed top-0 right-0 h-16 bg-background-primary/80 backdrop-blur-md border-b border-border-subtle flex justify-between items-center px-container-padding z-30 transition-all duration-300 ${collapsed ? "w-[calc(100%-68px)]" : "w-[calc(100%-240px)]"}`}>
@@ -204,10 +205,7 @@ export function TopNav({ breadcrumbs = [], onSearchOpen, collapsed }) {
         </button>
       </div>
       <div className="flex items-center gap-3">
-        <button className="p-2 hover:bg-surface-container-low rounded-full relative transition-colors active:scale-90">
-          <Icon name="notifications" className="text-[20px]" />
-          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-error rounded-full"></span>
-        </button>
+        <NotificationDropdown />
         <Link to="/upload" className="hidden md:flex items-center gap-1.5 bg-primary text-on-primary px-3 py-1.5 rounded-full text-xs font-bold hover:opacity-90 hover:shadow-md transition-all active:scale-95">
           <Icon name="add" className="text-[16px]" /> Upload
         </Link>
@@ -215,6 +213,146 @@ export function TopNav({ breadcrumbs = [], onSearchOpen, collapsed }) {
     </header>
   );
 }
+
+// ---- Notification Dropdown ----
+function NotificationDropdown() {
+  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handleClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const loadNotifications = async () => {
+      try {
+        setLoading(true);
+        const data = await apiRequest("/notifications?unread_only=false");
+        const notifs = Array.isArray(data) ? data : [];
+        setNotifications(notifs);
+        const unread = notifs.filter(n => !n.read).length;
+        setUnreadCount(unread);
+      } catch (err) {
+        console.error("Error loading notifications:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadNotifications();
+  }, [open]);
+
+  const handleMarkRead = async (notificationId, currentReadState) => {
+    try {
+      await apiRequest(`/notifications/${notificationId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ read: !currentReadState }),
+      });
+      setNotifications(prev => 
+        prev.map(n => n.notification_id === notificationId ? {...n, read: !currentReadState} : n)
+      );
+      const newUnread = notifications.filter(n => !n.read).length - (!currentReadState ? 1 : -1);
+      setUnreadCount(Math.max(0, newUnread));
+    } catch (err) {
+      console.error("Error marking notification:", err);
+    }
+  };
+
+  const handleDelete = async (notificationId) => {
+    try {
+      await apiRequest(`/notifications/${notificationId}`, { method: "DELETE" });
+      setNotifications(prev => prev.filter(n => n.notification_id !== notificationId));
+    } catch (err) {
+      console.error("Error deleting notification:", err);
+    }
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <button 
+        onClick={() => setOpen(o => !o)} 
+        className="p-2 hover:bg-surface-container-low rounded-full relative transition-colors active:scale-90"
+      >
+        <Icon name="notifications" className="text-[20px]" />
+        {unreadCount > 0 && (
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full"></span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-12 w-96 bg-white rounded-xl border border-border-subtle shadow-xl overflow-hidden animate-dropdown z-50">
+          <div className="p-4 border-b border-border-subtle flex items-center justify-between">
+            <h3 className="font-bold text-sm">Notifications</h3>
+            {unreadCount > 0 && <span className="text-[10px] font-bold bg-primary text-white px-2 py-0.5 rounded-full">{unreadCount} new</span>}
+          </div>
+
+          <div className="max-h-[400px] overflow-y-auto">
+            {loading ? (
+              <div className="p-4 text-xs text-on-surface-variant text-center">Loading...</div>
+            ) : notifications.length === 0 ? (
+              <div className="p-8 text-xs text-on-surface-variant text-center">
+                <Icon name="notifications_off" className="text-[32px] opacity-50 mx-auto mb-2" />
+                <p>No notifications yet</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border-subtle">
+                {notifications.map(notif => (
+                  <div 
+                    key={notif.notification_id}
+                    className={`p-4 hover:bg-surface-container-lowest transition-colors cursor-pointer ${!notif.read ? "bg-surface-container-lowest" : ""}`}
+                  >
+                    <div className="flex items-start justify-between gap-3 mb-1">
+                      <div className="flex-1">
+                        <p className={`text-xs ${notif.read ? "text-on-surface-variant" : "font-bold text-primary"}`}>
+                          {notif.title}
+                        </p>
+                        <p className="text-[11px] text-on-surface-variant mt-1">{notif.message}</p>
+                        <p className="text-[10px] text-on-surface-variant/50 mt-1.5">
+                          {new Date(notif.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="flex gap-1 flex-shrink-0">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMarkRead(notif.notification_id, notif.read);
+                          }}
+                          className="p-1 hover:bg-surface-container rounded transition-colors"
+                          title={notif.read ? "Mark unread" : "Mark read"}
+                        >
+                          <Icon name={notif.read ? "mail_outline" : "mail"} size={14} className="text-on-surface-variant" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(notif.notification_id);
+                          }}
+                          className="p-1 hover:bg-surface-container rounded transition-colors"
+                          title="Delete"
+                        >
+                          <Icon name="close" size={14} className="text-on-surface-variant" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 
 // ---- Page shell for user app ----
 export function AppShell({ active, breadcrumbs, children, onSearchOpen }) {

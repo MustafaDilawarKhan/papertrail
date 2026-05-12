@@ -13,6 +13,19 @@ from app.middleware.auth import get_current_user
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
+@router.get("", response_model=list[UserResponse])
+async def list_users(q: str | None = None, limit: int = 20, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """List users (searchable). Returns users matching email or name. Authenticated only."""
+    query = select(User)
+    if q:
+        like = f"%{q}%"
+        query = query.where((User.email.ilike(like)) | (User.name.ilike(like)))
+    query = query.limit(limit)
+    result = await db.execute(query)
+    items = result.scalars().all()
+    return [UserResponse.model_validate(u).model_dump() for u in items]
+
+
 async def ensure_profile_columns(db: AsyncSession) -> None:
     await db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS affiliation VARCHAR(255);"))
     await db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;"))

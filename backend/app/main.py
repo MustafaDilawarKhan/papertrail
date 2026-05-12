@@ -17,7 +17,8 @@ from app.routers import (
     chat,
     annotations,
     citations,
-    subscriptions
+    subscriptions,
+    notifications,
 )
 from alter_db import ensure_user_profile_columns
 
@@ -120,6 +121,7 @@ app.include_router(documents.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(annotations.router, prefix="/api")
 app.include_router(citations.router, prefix="/api")
+app.include_router(notifications.router, prefix="/api")
 
 @app.get("/")
 async def root():

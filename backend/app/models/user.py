@@ -45,6 +45,7 @@ class User(Base):
     chat_sessions = relationship("ChatSession", back_populates="user", lazy="selectin")
     annotations = relationship("Annotation", back_populates="user", lazy="selectin")
     citations = relationship("Citation", back_populates="user", lazy="selectin")
+    notifications = relationship("Notification", back_populates="user", lazy="selectin")
 
     def __repr__(self) -> str:
         return f"<User {self.email}>"

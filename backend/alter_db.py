@@ -10,6 +10,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 async def main():
     await ensure_user_profile_columns()
     await ensure_workspace_columns()
+    await ensure_notifications_table()
 
 
 async def ensure_user_profile_columns():
@@ -70,6 +71,50 @@ async def ensure_workspace_columns():
         print("✓ Workspace columns migration completed successfully")
     except Exception as e:
         print(f"Error with workspace columns: {e}")
+    finally:
+        await engine.dispose()
+
+async def ensure_notifications_table():
+    print(f"Setting up notifications table...")
+    engine = create_async_engine(
+        DATABASE_URL,
+        connect_args={
+            "prepared_statement_cache_size": 0,
+            "statement_cache_size": 0,
+        },
+        echo=False,
+    )
+
+    try:
+        async with engine.begin() as conn:
+            # Create notifications table if it doesn't exist
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS notifications (
+                    notification_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id UUID NOT NULL,
+                    type VARCHAR(50) NOT NULL,
+                    title VARCHAR(255) NOT NULL,
+                    message TEXT NOT NULL,
+                    related_id UUID,
+                    read BOOLEAN DEFAULT FALSE NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                );
+            """))
+            print("✓ Notifications table created")
+            
+            # Create index on user_id for faster queries
+            await conn.execute(text("""
+                CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+            """))
+            print("✓ Notifications index created")
+        
+        print("✓ Notifications setup completed successfully")
+    except Exception as e:
+        if "already exists" in str(e):
+            print("✓ Notifications table already exists")
+        else:
+            print(f"Error with notifications table: {e}")
     finally:
         await engine.dispose()
 
