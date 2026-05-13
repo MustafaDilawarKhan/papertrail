@@ -33,7 +33,7 @@ function Hero({ tweaks }) {
 
         <FadeUp delay={160}>
           <p className="lead" style={{ textAlign: "center", margin: "22px auto 0", color: "var(--ink-3)" }}>
-            Aid is the research assistant that links every answer back to the exact passage in your sources.
+            Paper Trail is the research assistant that links every answer back to the exact passage in your sources.
             Upload your library, ask anything — and trust what comes back, because you can <em style={{ color: "var(--ink-2)" }}>see where it came from.</em>
           </p>
         </FadeUp>

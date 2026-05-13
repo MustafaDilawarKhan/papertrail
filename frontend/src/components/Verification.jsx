@@ -71,7 +71,7 @@ function Verification({ tweaks }) {
                   </div>
                   {/* Answer */}
                   <div style={{ padding: 18, fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.6, position: "relative" }}>
-                    <div className="mono" style={{ fontSize: 10, color: "var(--ink-4)", marginBottom: 10 }}>AID · ANSWER</div>
+                    <div className="mono" style={{ fontSize: 10, color: "var(--ink-4)", marginBottom: 10 }}>PAPER TRAIL · ANSWER</div>
                     <p>The trial demonstrated three robust effects:</p>
                     <div className="col gap-8" style={{ marginTop: 8 }}>
                       {passages.map((p, i) => (

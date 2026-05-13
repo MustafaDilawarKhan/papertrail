@@ -147,6 +147,9 @@ function DashboardPage() {
               <p className="text-on-surface-variant font-body-main">Continue your exploration or start a new project.</p>
             </div>
             <div className="flex flex-wrap gap-3">
+              <Link to="/write" className="flex items-center gap-2 border border-border-subtle bg-white text-primary px-5 py-2.5 rounded-full font-bold text-sm hover:bg-surface-container-low transition-all">
+                <Icon name="edit_square" size={20} /> Write paper
+              </Link>
               <Link to="/upload" className="flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-full font-bold text-sm shadow-sm hover:opacity-90">
                 <Icon name="add" size={20} /> Upload doc
               </Link>
@@ -1423,4 +1426,81 @@ function IntegrationsPage() {
   );
 }
 
+// =================== WRITE PAGE (PAPER EDITOR) ===================
+export function WritePage() {
+  const [search, setSearch] = useStateP1(false);
+  const [title, setTitle] = useStateP1("Untitled Research Paper");
+  const [content, setContent] = useStateP1("");
+  const [saving, setSaving] = useStateP1(false);
+
+  const handleSave = () => {
+    setSaving(true);
+    setTimeout(() => {
+      setSaving(false);
+    }, 1000);
+  };
+
+  return (
+    <>
+      <CommandPalette open={search} onClose={() => setSearch(false)} />
+      <AppShell active="write" breadcrumbs={[{ label: "Dashboard", to: "/dashboard" }, { label: "Write" }]} onSearchOpen={() => setSearch(true)}>
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="font-section-heading text-section-heading text-primary mb-1">Paper Editor</h1>
+              <p className="text-on-surface-variant text-sm">Draft your research paper with AI assistance.</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button onClick={handleSave} className="flex items-center gap-2 px-4 py-2 border border-border-subtle rounded-lg text-xs font-bold hover:bg-surface-container-low transition-colors">
+                <Icon name={saving ? "sync" : "save"} size={16} className={saving ? "animate-spin" : ""} />
+                {saving ? "Saving..." : "Save Draft"}
+              </button>
+              <button className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg text-xs font-bold hover:opacity-90 transition-opacity">
+                <Icon name="publish" size={16} />
+                Publish
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white border border-border-subtle rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[70vh]">
+            <div className="px-8 py-6 border-b border-border-subtle">
+              <input 
+                value={title} 
+                onChange={e => setTitle(e.target.value)}
+                className="w-full text-2xl font-bold text-primary outline-none placeholder:opacity-30"
+                placeholder="Enter paper title..."
+              />
+            </div>
+            <div className="flex-1 flex">
+              <textarea 
+                value={content}
+                onChange={e => setContent(e.target.value)}
+                className="flex-1 p-8 text-body-main leading-relaxed outline-none resize-none placeholder:opacity-30"
+                placeholder="Start writing your research paper here..."
+              />
+              <aside className="w-80 border-l border-border-subtle bg-surface-container-lowest p-6 hidden lg:block">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-primary mb-4 flex items-center gap-2">
+                  <Icon name="auto_awesome" size={16} /> AI Assistant
+                </h3>
+                <div className="space-y-4">
+                  <div className="p-3 bg-white border border-border-subtle rounded-xl text-[11px] leading-relaxed">
+                    Need help with the <b>Abstract</b>? I can suggest a structure based on your title.
+                  </div>
+                  <button className="w-full py-2 bg-surface-container-low text-primary text-[11px] font-bold rounded-lg border border-border-subtle hover:bg-surface-container transition-colors">
+                    Generate Outline
+                  </button>
+                  <button className="w-full py-2 bg-surface-container-low text-primary text-[11px] font-bold rounded-lg border border-border-subtle hover:bg-surface-container transition-colors">
+                    Check Citations
+                  </button>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+      </AppShell>
+    </>
+  );
+}
+
 export { DashboardPage, LibraryPage, DocViewerPage, WorkspacesPage, WorkspaceDetailPage, IntegrationsPage };
+

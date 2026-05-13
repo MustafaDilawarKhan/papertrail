@@ -13,7 +13,7 @@ function Testimonials() {
       <div className="container">
         <FadeUp className="row between" style={{ alignItems: "flex-end", marginBottom: 40, flexWrap: "wrap", gap: 20 }}>
           <div>
-            <Eyebrow>RESEARCHERS ON AID</Eyebrow>
+            <Eyebrow>RESEARCHERS ON PAPER TRAIL</Eyebrow>
             <h2 className="h-section" style={{ marginTop: 14, maxWidth: 720 }}>
               Real labs.<br />Real <em>citations.</em>
             </h2>

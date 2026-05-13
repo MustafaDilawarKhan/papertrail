@@ -38,8 +38,8 @@ export function Icon({ name, className = "", filled = false, size }) {
 export function Brand({ small, collapsed, to = "/dashboard" }) {
   return (
     <Link to={to} className="flex items-center gap-2 group">
-      <span className={`font-hero-headline font-extrabold text-primary tracking-tight ${small || collapsed ? "text-lg" : "text-xl"}`}>Aid</span>
-      {!small && !collapsed && <span className="text-[9px] uppercase tracking-widest text-on-surface-variant font-bold">AI Research</span>}
+      <span className={`font-hero-headline font-extrabold text-primary tracking-tight ${small || collapsed ? "text-lg" : "text-xl"}`}>Paper Trail</span>
+      {!small && !collapsed && <span className="text-[9px] uppercase tracking-widest text-on-surface-variant font-bold">Research Assistant</span>}
     </Link>
   );
 }
@@ -206,6 +206,9 @@ export function TopNav({ breadcrumbs = [], onSearchOpen, collapsed }) {
       </div>
       <div className="flex items-center gap-3">
         <NotificationDropdown />
+        <Link to="/write" className="hidden md:flex items-center gap-1.5 border border-border-subtle bg-white text-primary px-3 py-1.5 rounded-full text-xs font-bold hover:bg-surface-container-low transition-all active:scale-95">
+          <Icon name="edit_square" className="text-[16px]" /> Write
+        </Link>
         <Link to="/upload" className="hidden md:flex items-center gap-1.5 bg-primary text-on-primary px-3 py-1.5 rounded-full text-xs font-bold hover:opacity-90 hover:shadow-md transition-all active:scale-95">
           <Icon name="add" className="text-[16px]" /> Upload
         </Link>
@@ -723,7 +726,7 @@ export function CommandPalette({ open, onClose }) {
             <span><kbd className="font-bold border px-1 rounded">↑↓</kbd> navigate</span>
             <span><kbd className="font-bold border px-1 rounded">↵</kbd> select</span>
           </div>
-          <span>{flatResults.length > 0 ? `${flatResults.length} results` : "Aid Search v2.4"}</span>
+          <span>{flatResults.length > 0 ? `${flatResults.length} results` : "Paper Trail Search v2.4"}</span>
         </div>
       </div>
     </div>
