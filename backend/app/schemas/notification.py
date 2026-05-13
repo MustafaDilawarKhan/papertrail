@@ -1,6 +1,7 @@
 """Notification schemas."""
 
-from pydantic import BaseModel
+import json
+from pydantic import BaseModel, field_validator
 from datetime import datetime
 from uuid import UUID
 
@@ -25,6 +26,16 @@ class NotificationResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @field_validator("data", mode="before")
+    @classmethod
+    def parse_data_json(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, TypeError):
+                return None
+        return v
 
 
 class NotificationMarkReadRequest(BaseModel):

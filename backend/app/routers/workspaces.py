@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
-from sqlalchemy.orm import noload
+from sqlalchemy.orm import noload, load_only
 from app.database import get_db
 from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember
@@ -175,9 +175,11 @@ async def add_member(
     db: AsyncSession = Depends(get_db),
 ):
     """Add a member to a workspace by email (owner only)."""
-    # Verify ownership
+    # Verify ownership — use noload to avoid async lazy-load cascade
     result = await db.execute(
-        select(Workspace).where(
+        select(Workspace)
+        .options(noload("*"))
+        .where(
             Workspace.workspace_id == workspace_id,
             Workspace.owner_id == current_user.user_id,
         )
@@ -186,14 +188,19 @@ async def add_member(
     if not workspace:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found or not authorized")
 
-    user_result = await db.execute(select(User).where(User.email == request.email))
+    # Use noload to avoid selectin cascade on User relationships
+    user_result = await db.execute(
+        select(User).options(noload("*")).where(User.email == request.email)
+    )
     invited_user = user_result.scalar_one_or_none()
     if not invited_user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No user found with that email")
 
     # Check if user is already a member
     existing = await db.execute(
-        select(WorkspaceMember).where(
+        select(WorkspaceMember)
+        .options(noload("*"))
+        .where(
             WorkspaceMember.workspace_id == workspace_id,
             WorkspaceMember.user_id == invited_user.user_id,
         )
