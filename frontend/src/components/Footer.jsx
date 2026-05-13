@@ -49,7 +49,7 @@ function Footer() {
 
         <div className="row between center" style={{ padding: "20px 0", borderTop: "1px solid var(--line)", flexWrap: "wrap", gap: 12 }}>
           <div className="mono" style={{ fontSize: 11, color: "var(--ink-4)" }}>
-            © 2026 AID, INC. · MADE WITH CARE FOR RESEARCHERS.
+            © 2026 PAPER TRAIL · MADE WITH CARE FOR RESEARCHERS.
           </div>
           <div className="row gap-16 mono" style={{ fontSize: 11, color: "var(--ink-4)" }}>
             <a href="#">TWITTER</a>
@@ -73,7 +73,7 @@ function Footer() {
             WebkitTextFillColor: "transparent",
             userSelect: "none"
           }}>
-            AID
+            Paper Trail
           </div>
         </div>
       </div>
