@@ -1,30 +1,15 @@
 services:
-  db:
-    image: postgres:15-alpine
-    container_name: aid-db-dev
-    restart: always
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-aid_research}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_dev_data:/var/lib/postgresql/data
-
   backend:
     build: ./backend
     container_name: aid-backend-dev
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-aid_research}
-      - SECRET_KEY=${SECRET_KEY:-aid-dev-secret}
-    depends_on:
-      - db
+    env_file:
+      - ./backend/.env
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
+      - ./backend/uploads:/app/uploads
 
   frontend:
     image: node:18-alpine
@@ -38,6 +23,3 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-
-volumes:
-  postgres_dev_data:
