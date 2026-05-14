@@ -52,7 +52,50 @@ export default function EditorPage() {
   const [saving, setSaving] = useState(false);
   const [rightPanelTab, setRightPanelTab] = useState('properties');
   const [leftPanelTab, setLeftPanelTab] = useState('sections');
-  
+
+  // --- AUTO-PAGINATION ---
+  const PAGE_HEIGHT = 1100; // px total page height
+  const PAGE_PADDING = 72; // px top+bottom padding
+  const PAGE_FOOTER = 40;  // px reserved for page footer
+  const USABLE_HEIGHT = PAGE_HEIGHT - PAGE_PADDING * 2 - PAGE_FOOTER;
+  const contentRef = useRef(null);
+  const [pageBreaks, setPageBreaks] = useState([]); // indices where new pages start
+
+  useEffect(() => {
+    if (!contentRef.current) return;
+    const blockEls = contentRef.current.querySelectorAll('[data-block-id]');
+    if (!blockEls.length) return;
+
+    let accHeight = 0;
+    const breaks = [];
+    blockEls.forEach((el, idx) => {
+      const h = el.getBoundingClientRect().height;
+      if (accHeight + h > USABLE_HEIGHT && idx > 0) {
+        breaks.push(idx);
+        accHeight = h;
+      } else {
+        accHeight += h;
+      }
+    });
+    // Only update if breaks changed
+    if (JSON.stringify(breaks) !== JSON.stringify(pageBreaks)) {
+      setPageBreaks(breaks);
+    }
+  });
+
+  // Split blocks into pages
+  const getPages = () => {
+    if (pageBreaks.length === 0) return [blocks];
+    const pages = [];
+    let start = 0;
+    for (const bp of pageBreaks) {
+      pages.push(blocks.slice(start, bp));
+      start = bp;
+    }
+    pages.push(blocks.slice(start));
+    return pages;
+  };
+
   // Undo/Redo (Simple)
   const [history, setHistory] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
@@ -273,151 +316,168 @@ export default function EditorPage() {
             </div>
           </div>
 
-          {/* THE PAPER CANVAS */}
-          <div 
-            className={`w-full max-w-[850px] min-h-[1100px] bg-white shadow-2xl rounded-sm border border-border-subtle relative p-[72px] flex flex-col font-serif ${layoutMode === 'ieee-2-column' ? 'columns-2 gap-12 overflow-visible' : ''}`}
-            style={{ 
-              boxShadow: '0 0 50px rgba(0,0,0,0.05), 0 0 1px rgba(0,0,0,0.1)',
-              columnFill: 'auto'
-            }}
-          >
-            {/* Column Guides (Visual Only) */}
-            {layoutMode === 'ieee-2-column' && (
-               <div className="absolute inset-0 pointer-events-none opacity-5 flex justify-center">
-                  <div className="w-px h-full bg-primary" />
-               </div>
-            )}
-
-            {/* BLOCK RENDERER */}
-            {blocks.map((block, idx) => (
-              <div 
-                key={block.id}
-                onClick={() => setActiveBlockId(block.id)}
-                className={`relative group mb-6 p-4 rounded-xl transition-all border-2 border-transparent ${activeBlockId === block.id ? 'border-primary/20 bg-primary/[0.02]' : 'hover:border-surface-container-high'}`}
-                style={{ 
-                   breakInside: block.type === 'frontmatter' ? 'avoid' : 'auto',
-                   columnSpan: block.type === 'frontmatter' || block.type === 'abstract' ? 'all' : 'none'
-                }}
-              >
-                {/* Block Actions (Floating on Hover) */}
-                <div className={`absolute -right-12 top-0 flex flex-col gap-1 transition-opacity duration-200 ${activeBlockId === block.id || 'group-hover:opacity-100 opacity-0'}`}>
-                  <button onClick={(e) => { e.stopPropagation(); moveBlock(block.id, 'up'); }} className="p-1.5 bg-white border border-border-subtle rounded-lg shadow-sm hover:text-primary"><Icon name="arrow_upward" size={14} /></button>
-                  <button onClick={(e) => { e.stopPropagation(); moveBlock(block.id, 'down'); }} className="p-1.5 bg-white border border-border-subtle rounded-lg shadow-sm hover:text-primary"><Icon name="arrow_downward" size={14} /></button>
-                  <button onClick={(e) => { e.stopPropagation(); deleteBlock(block.id); }} className="p-1.5 bg-white border border-border-subtle rounded-lg shadow-sm hover:text-error"><Icon name="delete" size={14} /></button>
-                </div>
-                <div className={`absolute -left-12 top-0 flex flex-col gap-1 transition-opacity duration-200 ${activeBlockId === block.id || 'group-hover:opacity-100 opacity-0'}`}>
-                   <div className="p-1.5 bg-white border border-border-subtle rounded-lg shadow-sm cursor-grab active:cursor-grabbing"><Icon name="drag_indicator" size={14} /></div>
-                </div>
-
-                {/* BLOCK CONTENT RENDERERS */}
-                {block.type === 'frontmatter' && (
-                  <div className="text-center space-y-4 py-8">
-                    <h1 className="text-2xl font-bold tracking-tight text-primary uppercase leading-tight px-12">{block.title}</h1>
-                    <div className="text-sm font-medium italic opacity-80">{block.authors}</div>
-                    <div className="text-xs opacity-60 leading-relaxed max-w-md mx-auto">{block.affiliations}</div>
-                    <div className="text-xs font-mono opacity-50">Email: {block.emails}</div>
-                  </div>
-                )}
-
-                {block.type === 'abstract' && (
-                  <div className="bg-surface-container-low/30 p-6 rounded-xl border border-dashed border-border-subtle mt-4">
-                    <p className="text-sm italic leading-relaxed text-on-surface">
-                      <strong className="not-italic uppercase tracking-widest text-[10px] mr-2">Abstract—</strong>
-                      {block.content}
-                    </p>
-                    <p className="mt-4 text-xs italic">
-                      <strong className="not-italic uppercase tracking-widest text-[10px] mr-2 text-primary">Index Terms—</strong>
-                      {block.keywords}
-                    </p>
-                  </div>
-                )}
-
-                {block.type === 'section' && (
-                  <div className="space-y-3">
-                    <h2 className="text-sm font-bold uppercase tracking-wider text-primary border-b border-primary/10 pb-1 flex items-center justify-between">
-                       {block.title}
-                       <Icon name="edit" size={14} className="opacity-0 group-hover:opacity-40 transition-opacity" />
-                    </h2>
-                    <p className="text-[13px] leading-[1.6] text-on-surface-variant text-justify">
-                      {block.content || <span className="opacity-30 italic">Drag content here or start typing...</span>}
-                    </p>
-                  </div>
-                )}
-
-                {block.type === 'figure' && (
-                  <div className="flex flex-col items-center gap-4 py-4">
-                    <div className="w-full aspect-video bg-surface-container-low rounded-xl border-2 border-dashed border-border-subtle flex flex-col items-center justify-center gap-2 group/upload cursor-pointer hover:bg-primary/5 transition-all">
-                       {block.url ? (
-                          <img src={block.url} alt={block.alt} className="w-full h-full object-contain p-4" />
-                       ) : (
-                          <>
-                            <Icon name="add_photo_alternate" size={32} className="text-on-surface-variant opacity-20 group-hover/upload:opacity-100 transition-opacity" />
-                            <span className="text-xs font-bold text-on-surface-variant/40 group-hover/upload:text-primary">Click to upload or drag image</span>
-                          </>
-                       )}
-                    </div>
-                    <p className="text-xs italic text-center text-on-surface-variant max-w-sm">
-                       {block.caption}
-                    </p>
-                  </div>
-                )}
-
-                {block.type === 'table' && (
-                  <div className="space-y-4 py-4">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-center text-on-surface-variant">
-                       {block.caption}
-                    </p>
-                    <div className="border border-border-subtle rounded-lg overflow-hidden bg-white">
-                       <table className="w-full text-[11px] border-collapse">
-                          <thead>
-                             <tr className="border-b border-border-subtle bg-surface-container-lowest">
-                                {block.data[0].map((h, i) => (
-                                   <th key={i} className="p-2 font-bold border-r border-border-subtle text-center">{h}</th>
-                                ))}
-                             </tr>
-                          </thead>
-                          <tbody>
-                             {block.data.slice(1).map((row, i) => (
-                                <tr key={i} className="border-b border-border-subtle">
-                                   {row.map((cell, j) => (
-                                      <td key={j} className="p-2 border-r border-border-subtle text-center">{cell}</td>
-                                   ))}
-                                </tr>
-                             ))}
-                          </tbody>
-                       </table>
-                    </div>
-                  </div>
-                )}
-
-                {block.type === 'equation' && (
-                  <div className="flex items-center justify-between py-6 group/eq">
-                     <div className="flex-1 flex justify-center text-lg font-serif italic py-4 bg-surface-container-low/20 rounded-xl border border-transparent group-hover/eq:border-primary/20 transition-all">
-                        {block.content}
-                     </div>
-                     <span className="text-xs font-bold text-on-surface-variant ml-4">{block.label}</span>
-                  </div>
-                )}
+          {/* HIDDEN MEASUREMENT CONTAINER — used to compute page breaks */}
+          <div ref={contentRef} className="absolute opacity-0 pointer-events-none" style={{ width: 850 - 144, left: -9999 }} aria-hidden="true">
+            {blocks.map((block) => (
+              <div key={block.id} data-block-id={block.id} className="mb-6 p-4">
+                {block.type === 'frontmatter' && <div className="py-8 space-y-4"><h1 className="text-2xl font-bold">{block.title}</h1><div>{block.authors}</div><div>{block.affiliations}</div></div>}
+                {block.type === 'abstract' && <div className="p-6"><p className="text-sm leading-relaxed">{block.content}</p><p className="mt-4 text-xs">{block.keywords}</p></div>}
+                {block.type === 'section' && <div className="space-y-3"><h2 className="text-sm font-bold">{block.title}</h2><p className="text-[13px] leading-[1.6]">{block.content}</p></div>}
+                {block.type === 'figure' && <div className="py-4"><div className="w-full aspect-video"></div><p className="text-xs mt-2">{block.caption}</p></div>}
+                {block.type === 'table' && <div className="py-4"><p className="text-[10px] mb-2">{block.caption}</p><table className="w-full text-[11px]"><tbody>{(block.data||[]).map((r,i)=><tr key={i}>{r.map((c,j)=><td key={j} className="p-2">{c}</td>)}</tr>)}</tbody></table></div>}
+                {block.type === 'equation' && <div className="py-6 text-lg">{block.content}</div>}
               </div>
             ))}
-
-            {/* Bottom spacer for column balancing */}
-            <div className="h-20 w-full" />
-            
-            {/* Page Footer */}
-            <div className="absolute bottom-10 left-0 w-full text-center text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">
-               Page 1 — IEEE Transactions on Artificial Intelligence
-            </div>
           </div>
+
+          {/* MULTI-PAGE PAPER CANVAS */}
+          {getPages().map((pageBlocks, pageIndex) => (
+            <div key={pageIndex} className="relative mb-12">
+              {/* Page separator label */}
+              {pageIndex > 0 && (
+                <div className="flex items-center gap-4 mb-4 px-8">
+                  <div className="flex-1 border-t border-dashed border-border-subtle" />
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/40">Page {pageIndex + 1}</span>
+                  <div className="flex-1 border-t border-dashed border-border-subtle" />
+                </div>
+              )}
+
+              <div 
+                className={`w-full max-w-[850px] bg-white shadow-2xl rounded-sm border border-border-subtle relative p-[72px] flex flex-col font-serif ${layoutMode === 'ieee-2-column' ? 'columns-2 gap-12 overflow-visible' : ''}`}
+                style={{ 
+                  minHeight: PAGE_HEIGHT,
+                  boxShadow: '0 0 50px rgba(0,0,0,0.05), 0 0 1px rgba(0,0,0,0.1)',
+                  columnFill: 'auto'
+                }}
+              >
+                {/* Column Guide */}
+                {layoutMode === 'ieee-2-column' && (
+                   <div className="absolute inset-0 pointer-events-none opacity-5 flex justify-center">
+                      <div className="w-px h-full bg-primary" />
+                   </div>
+                )}
+
+                {/* BLOCK RENDERER */}
+                {pageBlocks.map((block) => (
+                  <div 
+                    key={block.id}
+                    data-block-id={block.id}
+                    onClick={() => setActiveBlockId(block.id)}
+                    className={`relative group mb-6 p-4 rounded-xl transition-all border-2 border-transparent ${activeBlockId === block.id ? 'border-primary/20 bg-primary/[0.02]' : 'hover:border-surface-container-high'}`}
+                    style={{ 
+                       breakInside: block.type === 'frontmatter' ? 'avoid' : 'auto',
+                       columnSpan: block.type === 'frontmatter' || block.type === 'abstract' ? 'all' : 'none'
+                    }}
+                  >
+                    {/* Block Actions */}
+                    <div className={`absolute -right-12 top-0 flex flex-col gap-1 transition-opacity duration-200 ${activeBlockId === block.id || 'group-hover:opacity-100 opacity-0'}`}>
+                      <button onClick={(e) => { e.stopPropagation(); moveBlock(block.id, 'up'); }} className="p-1.5 bg-white border border-border-subtle rounded-lg shadow-sm hover:text-primary"><Icon name="arrow_upward" size={14} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); moveBlock(block.id, 'down'); }} className="p-1.5 bg-white border border-border-subtle rounded-lg shadow-sm hover:text-primary"><Icon name="arrow_downward" size={14} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); deleteBlock(block.id); }} className="p-1.5 bg-white border border-border-subtle rounded-lg shadow-sm hover:text-error"><Icon name="delete" size={14} /></button>
+                    </div>
+                    <div className={`absolute -left-12 top-0 flex flex-col gap-1 transition-opacity duration-200 ${activeBlockId === block.id || 'group-hover:opacity-100 opacity-0'}`}>
+                       <div className="p-1.5 bg-white border border-border-subtle rounded-lg shadow-sm cursor-grab active:cursor-grabbing"><Icon name="drag_indicator" size={14} /></div>
+                    </div>
+
+                    {/* BLOCK CONTENT */}
+                    {block.type === 'frontmatter' && (
+                      <div className="text-center space-y-4 py-8">
+                        <h1 className="text-2xl font-bold tracking-tight text-primary uppercase leading-tight px-12">{block.title}</h1>
+                        <div className="text-sm font-medium italic opacity-80">{block.authors}</div>
+                        <div className="text-xs opacity-60 leading-relaxed max-w-md mx-auto">{block.affiliations}</div>
+                        <div className="text-xs font-mono opacity-50">Email: {block.emails}</div>
+                      </div>
+                    )}
+                    {block.type === 'abstract' && (
+                      <div className="bg-surface-container-low/30 p-6 rounded-xl border border-dashed border-border-subtle mt-4">
+                        <p className="text-sm italic leading-relaxed text-on-surface">
+                          <strong className="not-italic uppercase tracking-widest text-[10px] mr-2">Abstract—</strong>
+                          {block.content}
+                        </p>
+                        <p className="mt-4 text-xs italic">
+                          <strong className="not-italic uppercase tracking-widest text-[10px] mr-2 text-primary">Index Terms—</strong>
+                          {block.keywords}
+                        </p>
+                      </div>
+                    )}
+                    {block.type === 'section' && (
+                      <div className="space-y-3">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-primary border-b border-primary/10 pb-1 flex items-center justify-between">
+                           {block.title}
+                           <Icon name="edit" size={14} className="opacity-0 group-hover:opacity-40 transition-opacity" />
+                        </h2>
+                        <p className="text-[13px] leading-[1.6] text-on-surface-variant text-justify">
+                          {block.content || <span className="opacity-30 italic">Drag content here or start typing...</span>}
+                        </p>
+                      </div>
+                    )}
+                    {block.type === 'figure' && (
+                      <div className="flex flex-col items-center gap-4 py-4">
+                        <div className="w-full aspect-video bg-surface-container-low rounded-xl border-2 border-dashed border-border-subtle flex flex-col items-center justify-center gap-2 group/upload cursor-pointer hover:bg-primary/5 transition-all">
+                           {block.url ? (
+                              <img src={block.url} alt={block.alt} className="w-full h-full object-contain p-4" />
+                           ) : (
+                              <>
+                                <Icon name="add_photo_alternate" size={32} className="text-on-surface-variant opacity-20 group-hover/upload:opacity-100 transition-opacity" />
+                                <span className="text-xs font-bold text-on-surface-variant/40 group-hover/upload:text-primary">Click to upload or drag image</span>
+                              </>
+                           )}
+                        </div>
+                        <p className="text-xs italic text-center text-on-surface-variant max-w-sm">{block.caption}</p>
+                      </div>
+                    )}
+                    {block.type === 'table' && (
+                      <div className="space-y-4 py-4">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-center text-on-surface-variant">{block.caption}</p>
+                        <div className="border border-border-subtle rounded-lg overflow-hidden bg-white">
+                           <table className="w-full text-[11px] border-collapse">
+                              <thead>
+                                 <tr className="border-b border-border-subtle bg-surface-container-lowest">
+                                    {block.data[0].map((h, i) => (
+                                       <th key={i} className="p-2 font-bold border-r border-border-subtle text-center">{h}</th>
+                                    ))}
+                                 </tr>
+                              </thead>
+                              <tbody>
+                                 {block.data.slice(1).map((row, i) => (
+                                    <tr key={i} className="border-b border-border-subtle">
+                                       {row.map((cell, j) => (
+                                          <td key={j} className="p-2 border-r border-border-subtle text-center">{cell}</td>
+                                       ))}
+                                    </tr>
+                                 ))}
+                              </tbody>
+                           </table>
+                        </div>
+                      </div>
+                    )}
+                    {block.type === 'equation' && (
+                      <div className="flex items-center justify-between py-6 group/eq">
+                         <div className="flex-1 flex justify-center text-lg font-serif italic py-4 bg-surface-container-low/20 rounded-xl border border-transparent group-hover/eq:border-primary/20 transition-all">
+                            {block.content}
+                         </div>
+                         <span className="text-xs font-bold text-on-surface-variant ml-4">{block.label}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Page Footer */}
+                <div className="absolute bottom-10 left-0 w-full text-center text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">
+                   Page {pageIndex + 1} — IEEE Transactions on Artificial Intelligence
+                </div>
+              </div>
+            </div>
+          ))}
 
           {/* Bottom Status Bar */}
           <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md border border-border-subtle px-6 py-2 rounded-full flex items-center gap-8 z-40 shadow-xl shadow-black/5">
              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                <span className="text-primary">Word Count:</span> 1,256
+                <span className="text-primary">Word Count:</span> {blocks.reduce((sum, b) => sum + ((b.content || '') + ' ' + (b.title || '')).split(/\s+/).filter(Boolean).length, 0).toLocaleString()}
              </div>
              <div className="w-px h-3 bg-border-subtle" />
              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                <span className="text-primary">Page:</span> 1 / 8
+                <span className="text-primary">Page:</span> {getPages().length}
              </div>
              <div className="w-px h-3 bg-border-subtle" />
              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
