@@ -14,6 +14,7 @@ import CTA from './components/CTA'
 import Footer from './components/Footer'
 import { useRoute, Icon, AppShell, Link } from './shared/components'
 import * as AppPages from './pages/appPages'
+import EditorPage from './pages/EditorPage'
 import * as AuthPages from './pages/authPages'
 import * as AdminPages from './pages/adminPages'
 import { useAuth } from './contexts/AuthContext'
@@ -74,7 +75,7 @@ function AppRouter() {
   if (route.startsWith('/workspaces')) return <AppPages.WorkspacesPage />;
   if (route.startsWith('/integrations')) return <AppPages.IntegrationsPage />;
   if (route.startsWith('/upload')) return <AppPages.LibraryPage />;
-  if (route.startsWith('/write')) return <AppPages.WritePage />;
+  if (route.startsWith('/write')) return <EditorPage />;
   if (route.startsWith('/settings')) return <AuthPages.SettingsPage />;
   if (route.startsWith('/upgrade')) return <AuthPages.UpgradePage />;
   if (route.startsWith('/help')) return <HelpPage />;
