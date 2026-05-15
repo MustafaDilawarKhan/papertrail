@@ -273,6 +273,20 @@ export default function EditorPage() {
   const [savedAgo, setSavedAgo] = useState('Saved 3s ago');
   const [showBlockToolbar, setShowBlockToolbar] = useState(null);
   const [navCollapsed, setNavCollapsed] = useState(true);
+  const [printMode, setPrintMode] = useState(false);
+
+  // When printMode flips on, render paper-only DOM, then trigger print, then reset.
+  useEffect(() => {
+    if (!printMode) return;
+    const t = setTimeout(() => window.print(), 80);
+    return () => clearTimeout(t);
+  }, [printMode]);
+
+  useEffect(() => {
+    const reset = () => setPrintMode(false);
+    window.addEventListener('afterprint', reset);
+    return () => window.removeEventListener('afterprint', reset);
+  }, []);
 
   // Auto-save simulation
   useEffect(() => {
@@ -337,6 +351,12 @@ export default function EditorPage() {
 
   const latexSource = useMemo(() => generateLaTeX(blocks, layoutMode), [blocks, layoutMode]);
 
+  // ── Print mode: render only the paper pages so window.print() captures
+  //    ONLY the document, not the editor chrome.
+  if (printMode) {
+    return <PrintPaperOnly blocks={blocks} layoutMode={layoutMode} />;
+  }
+
   return (
     <div style={{
       height: '100vh', display: 'flex', overflow: 'hidden',
@@ -369,6 +389,7 @@ export default function EditorPage() {
           savedAgo={savedAgo}
           latexSource={latexSource}
           blocks={blocks}
+          onExportPdf={() => setPrintMode(true)}
         />
 
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -573,8 +594,67 @@ function SidebarItem({ item, addBlock }) {
   );
 }
 
+// ─── PRINT-ONLY VIEW (renders only paper pages, no editor chrome) ───────────
+function PrintPaperOnly({ blocks, layoutMode }) {
+  const isTwoCol = layoutMode === 'two-column';
+  return (
+    <>
+      <style>{`
+        @page { size: letter portrait; margin: 0; }
+        html, body {
+          background: #fff !important;
+          margin: 0 !important; padding: 0 !important;
+          height: auto !important; overflow: visible !important;
+        }
+        body * { box-shadow: none !important; }
+        /* Strip the editor's pagination wrapper styles so they don't create
+           blank space (the wrapper has padding: 40px 0 200px and gap: 40px
+           which would generate phantom blank pages in print). */
+        .pagination-wrap {
+          transform: none !important;
+          padding: 0 !important;
+          gap: 0 !important;
+          display: block !important;
+        }
+        .paper-page {
+          box-shadow: none !important;
+          border: none !important;
+          border-radius: 0 !important;
+          margin: 0 !important;
+          page-break-after: always;
+          page-break-inside: avoid;
+          break-after: page;
+          break-inside: avoid;
+        }
+        .paper-page:last-child {
+          page-break-after: auto;
+          break-after: auto;
+        }
+        @media screen {
+          /* If printMode is briefly visible on screen before the print
+             dialog opens, render on white instead of the gray canvas. */
+          html, body { background: #fff; }
+        }
+      `}</style>
+      <div style={{ background: '#fff' }}>
+        <PaginationManager
+          blocks={blocks}
+          activeBlockId={null}
+          setActiveBlockId={() => {}}
+          deleteBlock={() => {}}
+          moveBlock={() => {}}
+          updateBlock={() => {}}
+          zoom={100}
+          isTwoCol={isTwoCol}
+          previewOnly
+        />
+      </div>
+    </>
+  );
+}
+
 // ─── TOP HEADER BAR ──────────────────────────────────────────────────────────
-function TopBar({ layoutMode, setLayoutMode, viewMode, setViewMode, savedAgo, latexSource, blocks }) {
+function TopBar({ layoutMode, setLayoutMode, viewMode, setViewMode, savedAgo, latexSource, blocks, onExportPdf }) {
   const [exportOpen, setExportOpen] = useState(false);
   const exportRef = useRef(null);
   useEffect(() => {
@@ -596,7 +676,7 @@ function TopBar({ layoutMode, setLayoutMode, viewMode, setViewMode, savedAgo, la
     URL.revokeObjectURL(url);
     setExportOpen(false);
   };
-  const exportPdf = () => { window.print(); setExportOpen(false); };
+  const exportPdf = () => { setExportOpen(false); onExportPdf && onExportPdf(); };
   return (
     <header style={{
       height: 48, background: '#fff', borderBottom: '1px solid #eee',
@@ -1344,8 +1424,18 @@ function PaginationManager({ blocks, activeBlockId, setActiveBlockId, deleteBloc
       const safeSplit = block.content.lastIndexOf(' ', splitIdx);
 
       if (safeSplit > 20) {
-        const part1 = { ...block, id: `${block.id}-p${currentPage.num}`, content: block.content.substring(0, safeSplit), fragmentPart: currentPage.num };
-        const part2 = { ...block, content: block.content.substring(safeSplit).trim() };
+        // CRITICAL: clear contentHtml on both parts. CanvasSection prefers
+        // contentHtml when present, but we only know how to split the plain
+        // `content` field. Without clearing contentHtml, BOTH fragments would
+        // render the full HTML body → content duplicates on every page.
+        // Trade-off: rich-text formatting is lost on sections that overflow.
+        // part1 carries the heading (handled in CanvasSection via !isCont check);
+        // strip any "trailing-only" fields (e.g., keywords) so the final fragment
+        // is the only one that renders them.
+        const part1 = { ...block, id: `${block.id}-p${currentPage.num}`, content: block.content.substring(0, safeSplit), contentHtml: '', fragmentPart: currentPage.num, keywords: '' };
+        // part2 must be flagged as a continuation so CanvasSection / CanvasAbstract
+        // don't re-render the section heading or "Abstract—" prefix.
+        const part2 = { ...block, content: block.content.substring(safeSplit).trim(), contentHtml: '', fragmentPart: (block.fragmentPart || 1) + 1 };
 
         currentPage.blocks.push(part1);
         result.push(currentPage);
@@ -1367,7 +1457,7 @@ function PaginationManager({ blocks, activeBlockId, setActiveBlockId, deleteBloc
   const pages = result;
 
   return (
-    <div style={{
+    <div className="pagination-wrap" style={{
       transform: `scale(${zoom / 100})`,
       transformOrigin: 'top center',
       padding: '40px 0 200px',
@@ -1453,7 +1543,6 @@ function PaperPage({ pageNum, blocks, allBlocks, activeBlockId, setActiveBlockId
             <div key={b.id} style={{
               breakInside: ['table', 'figure', 'equation', 'algorithm'].includes(b.type) ? 'avoid-column' : 'auto',
               display: 'block',
-              columnSpan: b.type === 'abstract' ? 'all' : 'none',
             }}>
               <CanvasBlock
                 block={b}
@@ -1583,17 +1672,20 @@ function CanvasFrontmatter({ block, isActive, onClick, onDelete, onMoveUp, onMov
 
 // ─── ABSTRACT BLOCK ────────────────────────────────────────────────────────
 function CanvasAbstract({ block, isActive, onClick, onDelete, onMoveUp, onMoveDown }) {
+  const isCont = block.fragmentPart > 1;
   return (
     <CanvasBlockShell isActive={isActive} onClick={onClick} onDelete={onDelete} onMoveUp={onMoveUp} onMoveDown={onMoveDown}>
       <div style={{ padding: '2px 0 10px', fontFamily: IEEE.fonts.body }}>
         <p style={{ fontSize: 11, lineHeight: 1.5, textAlign: 'justify', margin: 0, fontWeight: 700 }}>
-          <span style={{ fontStyle: 'italic', fontWeight: 700 }}>Abstract—</span>
+          {!isCont && <span style={{ fontStyle: 'italic', fontWeight: 700 }}>Abstract—</span>}
           {block.content}
         </p>
-        <p style={{ fontSize: 11, lineHeight: 1.5, marginTop: 4, margin: '4px 0 0', fontWeight: 700 }}>
-          <span style={{ fontStyle: 'italic', fontWeight: 700 }}>Index Terms—</span>
-          {block.keywords}
-        </p>
+        {block.keywords && (
+          <p style={{ fontSize: 11, lineHeight: 1.5, marginTop: 4, margin: '4px 0 0', fontWeight: 700 }}>
+            <span style={{ fontStyle: 'italic', fontWeight: 700 }}>Index Terms—</span>
+            {block.keywords}
+          </p>
+        )}
       </div>
     </CanvasBlockShell>
   );
