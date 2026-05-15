@@ -460,13 +460,21 @@ export function Modal({ open, onClose, title, children }) {
 }
 
 // ---- Upload Modal Component ----
+import { openTabImperative } from './docTabs';
+
+function inferFileType(filename = '') {
+  const ext = filename.split('.').pop()?.toUpperCase() || 'DOC';
+  return ext;
+}
+
 export function UploadModal({ open, onClose }) {
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const [collections, setCollections] = useState([]);
   const [selectedCollectionId, setSelectedCollectionId] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [tab, setTab] = useState("file");
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({}); // { filename: 'pending'|'uploading'|'done'|'error' }
   const [error, setError] = useState("");
   const fileInputRef = useRef(null);
 
@@ -496,41 +504,82 @@ export function UploadModal({ open, onClose }) {
   }, [open, selectedCollectionId]);
 
   const submitUpload = async () => {
-    if (!selectedFile) {
-      setError("Choose a file first.");
+    if (!selectedFiles.length) {
+      setError("Choose at least one file first.");
       return;
     }
 
-    try {
-      setUploading(true);
-      setError("");
+    setUploading(true);
+    setError("");
 
-      const formData = new FormData();
-      formData.append("file", selectedFile);
+    const uploadPath = selectedCollectionId
+      ? `/documents/upload?collection_id=${selectedCollectionId}`
+      : "/documents/upload";
 
-      const uploadPath = selectedCollectionId
-        ? `/documents/upload?collection_id=${selectedCollectionId}`
-        : "/documents/upload";
+    // Initialize progress
+    const initialProgress = {};
+    selectedFiles.forEach(f => { initialProgress[f.name] = 'pending'; });
+    setUploadProgress(initialProgress);
 
-      await apiRequest(uploadPath, {
-        method: "POST",
-        body: formData,
-      });
+    // Upload in parallel; collect results in original order.
+    const results = await Promise.all(selectedFiles.map(async (file) => {
+      setUploadProgress(p => ({ ...p, [file.name]: 'uploading' }));
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await apiRequest(uploadPath, { method: "POST", body: formData });
+        setUploadProgress(p => ({ ...p, [file.name]: 'done' }));
+        return { ok: true, file, res };
+      } catch (err) {
+        setUploadProgress(p => ({ ...p, [file.name]: 'error' }));
+        return { ok: false, file, error: err.message };
+      }
+    }));
 
-      setSelectedFile(null);
-      onClose();
-      navigate("/library");
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setUploading(false);
+    const successes = results.filter(r => r.ok);
+    const failures = results.filter(r => !r.ok);
+
+    // Open every successful upload as a tab.
+    successes.forEach(({ file, res }) => {
+      const id = res?.document_id || res?.id || res?.documentId;
+      if (id) {
+        openTabImperative({
+          id,
+          name: res?.filename || file.name,
+          type: res?.file_type || inferFileType(file.name),
+        });
+      }
+    });
+
+    setUploading(false);
+
+    if (failures.length === results.length) {
+      setError(`All uploads failed: ${failures[0].error}`);
+      return;
     }
+    if (failures.length) {
+      setError(`${failures.length} of ${results.length} uploads failed. Successful files were opened.`);
+    }
+
+    setSelectedFiles([]);
+    setUploadProgress({});
+    onClose();
+
+    // Navigate to the first successfully uploaded doc, or library.
+    const firstId = successes[0]?.res?.document_id || successes[0]?.res?.id || successes[0]?.res?.documentId;
+    if (firstId) navigate(`/library/doc/${firstId}`);
+    else navigate("/library");
   };
 
   const handleFileChange = (event) => {
-    const file = event.target.files?.[0] || null;
-    setSelectedFile(file);
+    const files = Array.from(event.target.files || []);
+    if (files.length) setSelectedFiles(prev => [...prev, ...files]);
     setError("");
+    if (event.target) event.target.value = ''; // allow re-selecting same file
+  };
+
+  const removeSelected = (name) => {
+    setSelectedFiles(prev => prev.filter(f => f.name !== name));
   };
 
   if (!open) return null;
@@ -552,15 +601,46 @@ export function UploadModal({ open, onClose }) {
 
           <div className="p-4">
             {tab === "file" && (
-              <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={e => { e.preventDefault(); setDragOver(false); const droppedFile = e.dataTransfer.files?.[0] || null; setSelectedFile(droppedFile); if (droppedFile) setError(""); }} className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${dragOver ? "border-primary bg-secondary-container/30" : "border-border-subtle bg-surface-container-lowest"}`}>
-                <div className="w-10 h-10 rounded-full bg-secondary-container mx-auto flex items-center justify-center mb-3">
-                  <Icon name="cloud_upload" filled className="text-primary" size={20} />
+              <div>
+                <div
+                  onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={e => {
+                    e.preventDefault(); setDragOver(false);
+                    const dropped = Array.from(e.dataTransfer.files || []);
+                    if (dropped.length) { setSelectedFiles(prev => [...prev, ...dropped]); setError(""); }
+                  }}
+                  className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${dragOver ? "border-primary bg-secondary-container/30" : "border-border-subtle bg-surface-container-lowest"}`}>
+                  <div className="w-10 h-10 rounded-full bg-secondary-container mx-auto flex items-center justify-center mb-3">
+                    <Icon name="cloud_upload" filled className="text-primary" size={20} />
+                  </div>
+                  <p className="font-bold text-xs mb-1">Drop files here or browse</p>
+                  <p className="text-[9px] text-on-surface-variant mb-3">Select multiple files — each opens in its own tab. PDF, DOCX, TXT up to 50MB each.</p>
+                  <input ref={fileInputRef} type="file" multiple accept=".pdf,.docx,.txt,.md" className="hidden" onChange={handleFileChange} />
+                  <button onClick={() => fileInputRef.current?.click()} className="bg-primary text-white px-4 py-1.5 rounded-full text-[10px] font-bold">Choose Files</button>
                 </div>
-                <p className="font-bold text-xs mb-1">Drop files here or browse</p>
-                <p className="text-[9px] text-on-surface-variant mb-3">PDF, DOCX, TXT up to 50MB</p>
-                <input ref={fileInputRef} type="file" accept=".pdf,.docx,.txt" className="hidden" onChange={handleFileChange} />
-                <button onClick={() => fileInputRef.current?.click()} className="bg-primary text-white px-4 py-1.5 rounded-full text-[10px] font-bold">Choose Files</button>
-                {selectedFile && <p className="mt-3 text-[10px] text-on-surface-variant">Selected: <span className="font-bold text-primary">{selectedFile.name}</span></p>}
+                {selectedFiles.length > 0 && (
+                  <div className="mt-3 max-h-44 overflow-y-auto border border-border-subtle rounded-lg divide-y divide-border-subtle">
+                    {selectedFiles.map(f => {
+                      const status = uploadProgress[f.name];
+                      return (
+                        <div key={f.name} className="flex items-center gap-2 px-3 py-2 text-[11px]">
+                          <Icon name={status === 'done' ? 'check_circle' : status === 'error' ? 'error' : 'description'} size={14} className={status === 'done' ? 'text-success' : status === 'error' ? 'text-error' : 'text-on-surface-variant'} />
+                          <span className="flex-1 truncate font-semibold">{f.name}</span>
+                          <span className="text-[10px] text-on-surface-variant">{(f.size / 1024).toFixed(0)} KB</span>
+                          {status === 'uploading' && <span className="text-[10px] text-primary font-bold">Uploading…</span>}
+                          {status === 'done' && <span className="text-[10px] text-success font-bold">Done</span>}
+                          {status === 'error' && <span className="text-[10px] text-error font-bold">Failed</span>}
+                          {!status && (
+                            <button onClick={() => removeSelected(f.name)} className="text-on-surface-variant hover:text-error">
+                              <Icon name="close" size={14} />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
             {tab === "url" && (
@@ -596,7 +676,9 @@ export function UploadModal({ open, onClose }) {
         </div>
         <div className="flex gap-2">
           <button onClick={onClose} className="px-4 py-2 rounded-lg border border-border-subtle text-[11px] font-bold hover:bg-surface-container-low">Cancel</button>
-          <button onClick={submitUpload} disabled={uploading} className="px-4 py-2 rounded-lg bg-primary text-white text-[11px] font-bold hover:opacity-90 disabled:opacity-50">{uploading ? "Uploading..." : "Done"}</button>
+          <button onClick={submitUpload} disabled={uploading || !selectedFiles.length} className="px-4 py-2 rounded-lg bg-primary text-white text-[11px] font-bold hover:opacity-90 disabled:opacity-50">
+            {uploading ? `Uploading ${selectedFiles.length}…` : selectedFiles.length > 1 ? `Upload ${selectedFiles.length} files` : selectedFiles.length === 1 ? 'Upload' : 'Done'}
+          </button>
         </div>
       </div>
     </Modal>

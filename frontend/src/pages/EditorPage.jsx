@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Icon, ProfileDropdown, navigate } from '../shared/components';
+import { Icon, ProfileDropdown, navigate, Sidebar } from '../shared/components';
 
 // ─── IEEE CONSTANTS ────────────────────────────────────────────────────────────
 const IEEE = {
@@ -140,6 +140,117 @@ const ELEMENTS_CATEGORIES = {
   ],
 };
 
+// ─── LATEX GENERATOR ─────────────────────────────────────────────────────────
+function escLatex(s = '') {
+  return String(s)
+    .replace(/\\/g, '\\textbackslash ')
+    .replace(/([&%$#_{}])/g, '\\$1')
+    .replace(/~/g, '\\textasciitilde ')
+    .replace(/\^/g, '\\textasciicircum ');
+}
+function htmlToLatex(html = '') {
+  if (!html) return '';
+  let s = String(html);
+  s = s.replace(/<br\s*\/?>/gi, '\n');
+  s = s.replace(/<\/p>\s*<p[^>]*>/gi, '\n\n');
+  s = s.replace(/<p[^>]*>/gi, '').replace(/<\/p>/gi, '');
+  s = s.replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, '\\textbf{$1}');
+  s = s.replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, '\\textbf{$1}');
+  s = s.replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, '\\textit{$1}');
+  s = s.replace(/<i[^>]*>([\s\S]*?)<\/i>/gi, '\\textit{$1}');
+  s = s.replace(/<u[^>]*>([\s\S]*?)<\/u>/gi, '\\underline{$1}');
+  s = s.replace(/<ul[^>]*>([\s\S]*?)<\/ul>/gi, (_, inner) => `\n\\begin{itemize}\n${inner}\n\\end{itemize}\n`);
+  s = s.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (_, inner) => `\n\\begin{enumerate}\n${inner}\n\\end{enumerate}\n`);
+  s = s.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, '\\item $1\n');
+  s = s.replace(/<[^>]+>/g, '');
+  s = s.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  return escLatex(s);
+}
+function plainToLatex(s = '') { return escLatex(s).replace(/\n\n+/g, '\n\n'); }
+
+function generateLaTeX(blocks, layoutMode = 'two-column') {
+  const docClass = layoutMode === 'two-column' ? 'IEEEtran' : 'article';
+  const out = [];
+  out.push(`\\documentclass[conference]{${docClass}}`);
+  out.push('\\usepackage{cite}');
+  out.push('\\usepackage{amsmath,amssymb}');
+  out.push('\\usepackage{graphicx}');
+  out.push('\\usepackage{booktabs}');
+  out.push('');
+  out.push('\\begin{document}');
+  out.push('');
+
+  let figIdx = 0, tabIdx = 0, eqIdx = 0;
+
+  for (const b of blocks) {
+    if (b.type === 'frontmatter') {
+      out.push(`\\title{${escLatex(b.title || '')}}`);
+      const authorBlock = (b.authors || [])
+        .map(a => `\\IEEEauthorblockN{${escLatex(a.name || '')}}\n\\IEEEauthorblockA{${escLatex(a.affiliation || (b.affiliations || [])[0] || '')}\\\\\n${escLatex(a.email || '')}}`)
+        .join('\n\\and\n');
+      out.push(`\\author{\n${authorBlock}\n}`);
+      out.push('\\maketitle');
+      out.push('');
+    } else if (b.type === 'abstract') {
+      out.push('\\begin{abstract}');
+      out.push(plainToLatex(b.content || ''));
+      out.push('\\end{abstract}');
+      if (b.keywords) {
+        out.push('\\begin{IEEEkeywords}');
+        out.push(plainToLatex(b.keywords));
+        out.push('\\end{IEEEkeywords}');
+      }
+      out.push('');
+    } else if (b.type === 'section') {
+      out.push(`\\section{${escLatex(b.title || '')}}`);
+      const body = b.contentHtml ? htmlToLatex(b.contentHtml) : plainToLatex(b.content || '');
+      out.push(body);
+      out.push('');
+    } else if (b.type === 'table') {
+      tabIdx++;
+      out.push('\\begin{table}[t]');
+      out.push(`\\caption{${escLatex(b.caption || '')}}`);
+      if (b.label) out.push(`\\label{${b.label}}`);
+      out.push('\\centering');
+      const cols = (b.rows?.[0]?.length) || 1;
+      out.push(`\\begin{tabular}{${'c'.repeat(cols)}}`);
+      out.push('\\toprule');
+      (b.rows || []).forEach((row, i) => {
+        out.push(row.map(escLatex).join(' & ') + ' \\\\');
+        if (i === 0) out.push('\\midrule');
+      });
+      out.push('\\bottomrule');
+      out.push('\\end{tabular}');
+      out.push('\\end{table}');
+      out.push('');
+    } else if (b.type === 'figure') {
+      figIdx++;
+      out.push('\\begin{figure}[t]');
+      out.push('\\centering');
+      out.push(`\\includegraphics[width=\\columnwidth]{${b.url ? 'figure' + figIdx : 'placeholder'}}`);
+      out.push(`\\caption{${escLatex(b.caption || '')}}`);
+      out.push('\\end{figure}');
+      out.push('');
+    } else if (b.type === 'equation') {
+      eqIdx++;
+      out.push('\\begin{equation}');
+      out.push(b.content || '');
+      out.push('\\end{equation}');
+      out.push('');
+    } else if (b.type === 'references') {
+      out.push('\\begin{thebibliography}{99}');
+      (b.entries || []).forEach((e, i) => {
+        out.push(`\\bibitem{ref${i + 1}} ${escLatex(e.replace(/^\[\d+\]\s*/, ''))}`);
+      });
+      out.push('\\end{thebibliography}');
+      out.push('');
+    }
+  }
+
+  out.push('\\end{document}');
+  return out.join('\n');
+}
+
 function getBlockIcon(type) {
   const map = {
     frontmatter: 'title', abstract: 'subject', section: 'segment',
@@ -161,6 +272,7 @@ export default function EditorPage() {
   const [zoom, setZoom] = useState(100);
   const [savedAgo, setSavedAgo] = useState('Saved 3s ago');
   const [showBlockToolbar, setShowBlockToolbar] = useState(null);
+  const [navCollapsed, setNavCollapsed] = useState(true);
 
   // Auto-save simulation
   useEffect(() => {
@@ -213,19 +325,37 @@ export default function EditorPage() {
     });
   }, []);
 
+  const reorderBlocks = useCallback((fromIdx, toIdx) => {
+    setBlocks(prev => {
+      if (fromIdx === toIdx) return prev;
+      const arr = [...prev];
+      const [moved] = arr.splice(fromIdx, 1);
+      arr.splice(toIdx > fromIdx ? toIdx - 1 : toIdx, 0, moved);
+      return arr;
+    });
+  }, []);
+
+  const latexSource = useMemo(() => generateLaTeX(blocks, layoutMode), [blocks, layoutMode]);
+
   return (
-    <div style={{ height: '100vh', display: 'flex', overflow: 'hidden', background: '#f0f0f0', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div style={{
+      height: '100vh', display: 'flex', overflow: 'hidden',
+      background: '#f0f0f0', fontFamily: 'system-ui, -apple-system, sans-serif',
+      paddingLeft: navCollapsed ? 68 : 240,
+      transition: 'padding-left 0.3s ease',
+    }}>
 
-      {/* ── 1. FAR LEFT GLOBAL NAV RAIL ─────────────────────────────────────── */}
-      <GlobalNav user={user} />
+      {/* ── 1. SHARED APP SIDEBAR (same as dashboard) ───────────────────────── */}
+      <Sidebar active="library" collapsed={navCollapsed} onToggle={() => setNavCollapsed(c => !c)} />
 
-      {/* ── 2. COMPONENTS SIDEBAR ───────────────────────────────────────────── */}
-      <ComponentsSidebar
-        leftTab={leftTab}
-        setLeftTab={setLeftTab}
-        addBlock={addBlock}
-        user={user}
-      />
+      {/* ── 2. COMPONENTS SIDEBAR (editor mode only) ───────────────────────── */}
+      {viewMode === 'editor' && (
+        <ComponentsSidebar
+          leftTab={leftTab}
+          setLeftTab={setLeftTab}
+          addBlock={addBlock}
+        />
+      )}
 
       {/* ── 3. CENTER WORKSPACE ─────────────────────────────────────────────── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -237,114 +367,121 @@ export default function EditorPage() {
           viewMode={viewMode}
           setViewMode={setViewMode}
           savedAgo={savedAgo}
+          latexSource={latexSource}
+          blocks={blocks}
         />
 
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-          {/* ── 4. BLOCK EDITOR PANEL ─────────────────────────────────────── */}
-          <BlockEditorPanel
-            blocks={blocks}
-            activeBlock={activeBlock}
-            activeBlockId={activeBlockId}
-            setActiveBlockId={setActiveBlockId}
-            updateBlock={updateBlock}
-            moveBlock={moveBlock}
-            deleteBlock={deleteBlock}
-            addBlock={addBlock}
-          />
+          {viewMode === 'editor' && (
+            <>
+              <BlockEditorPanel
+                blocks={blocks}
+                activeBlock={activeBlock}
+                activeBlockId={activeBlockId}
+                setActiveBlockId={setActiveBlockId}
+                updateBlock={updateBlock}
+                moveBlock={moveBlock}
+                deleteBlock={deleteBlock}
+                addBlock={addBlock}
+                reorderBlocks={reorderBlocks}
+              />
+              <PaperCanvas
+                blocks={blocks}
+                activeBlockId={activeBlockId}
+                setActiveBlockId={setActiveBlockId}
+                layoutMode={layoutMode}
+                setLayoutMode={setLayoutMode}
+                zoom={zoom}
+                setZoom={setZoom}
+                deleteBlock={deleteBlock}
+                moveBlock={moveBlock}
+                updateBlock={updateBlock}
+              />
+              <RightRail rightTab={rightTab} setRightTab={setRightTab} />
+            </>
+          )}
 
-          {/* ── 5. PAPER CANVAS ───────────────────────────────────────────── */}
-          <PaperCanvas
-            blocks={blocks}
-            activeBlockId={activeBlockId}
-            setActiveBlockId={setActiveBlockId}
-            layoutMode={layoutMode}
-            setLayoutMode={setLayoutMode}
-            zoom={zoom}
-            setZoom={setZoom}
-            deleteBlock={deleteBlock}
-            moveBlock={moveBlock}
-          />
+          {viewMode === 'preview' && (
+            <PaperCanvas
+              blocks={blocks}
+              activeBlockId={null}
+              setActiveBlockId={() => {}}
+              layoutMode={layoutMode}
+              setLayoutMode={setLayoutMode}
+              zoom={zoom}
+              setZoom={setZoom}
+              deleteBlock={() => {}}
+              moveBlock={() => {}}
+              updateBlock={() => {}}
+              previewOnly
+            />
+          )}
 
-          {/* ── 6. RIGHT UTILITY RAIL ─────────────────────────────────────── */}
-          <RightRail rightTab={rightTab} setRightTab={setRightTab} />
+          {viewMode === 'latex' && (
+            <LatexSourceView source={latexSource} />
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-// ─── GLOBAL NAV RAIL ─────────────────────────────────────────────────────────
-function GlobalNav({ user }) {
-  const navItems = [
-    { icon: 'home', path: '/dashboard' },
-    { icon: 'book', active: true },
-    { icon: 'groups' },
-    { icon: 'hub' },
-    { icon: 'settings' },
-  ];
+function LatexSourceView({ source }) {
+  const [copied, setCopied] = useState(false);
+  const onCopy = () => {
+    navigator.clipboard?.writeText(source);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  const onDownload = () => {
+    const blob = new Blob([source], { type: 'text/x-tex' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'paper.tex'; a.click();
+    URL.revokeObjectURL(url);
+  };
   return (
-    <aside style={{
-      width: 56, background: '#111', display: 'flex', flexDirection: 'column',
-      alignItems: 'center', padding: '20px 0 16px', gap: 0, zIndex: 50,
-      borderRight: '1px solid rgba(255,255,255,0.06)',
-    }}>
-      {/* Logo mark */}
+    <main style={{ flex: 1, background: '#1e1e1e', overflow: 'auto', position: 'relative', display: 'flex', flexDirection: 'column' }}>
       <div style={{
-        width: 32, height: 32, background: 'rgba(255,255,255,0.08)',
-        borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        marginBottom: 24,
+        position: 'sticky', top: 0, zIndex: 10,
+        background: '#252526', borderBottom: '1px solid #333',
+        padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <Icon name="auto_awesome" size={18} style={{ color: '#fff' }} />
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-        {navItems.map((item, i) => (
-          <NavRailBtn key={i} icon={item.icon} active={item.active} onClick={() => item.path && navigate(item.path)} />
-        ))}
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
-        <NavRailBtn icon="help" />
-        <div style={{
-          width: 28, height: 28, borderRadius: '50%',
-          background: 'linear-gradient(135deg,#4A7CFF,#7C3AED)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#fff', fontSize: 10, fontWeight: 700, cursor: 'pointer',
-          marginTop: 4,
-        }}>
-          SA
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#ccc', letterSpacing: '0.05em' }}>paper.tex</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={onCopy} style={latexBtnStyle}>
+            <Icon name={copied ? 'check' : 'content_copy'} size={13} style={{ color: copied ? '#22c55e' : '#ccc' }} />
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+          <button onClick={onDownload} style={latexBtnStyle}>
+            <Icon name="download" size={13} style={{ color: '#ccc' }} />
+            Download
+          </button>
         </div>
       </div>
-    </aside>
+      <pre style={{
+        flex: 1, margin: 0, padding: 24, color: '#d4d4d4',
+        fontFamily: '"JetBrains Mono", "Courier New", monospace',
+        fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre',
+      }}>{source}</pre>
+    </main>
   );
 }
 
-function NavRailBtn({ icon, active, onClick }) {
-  const [hov, setHov] = useState(false);
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        width: 40, height: 36, border: 'none', cursor: 'pointer',
-        borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: active ? 'rgba(255,255,255,0.1)' : hov ? 'rgba(255,255,255,0.06)' : 'transparent',
-        transition: 'background 0.15s',
-      }}
-    >
-      <Icon name={icon} size={20} style={{ color: active ? '#fff' : hov ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.35)' }} />
-    </button>
-  );
-}
+const latexBtnStyle = {
+  display: 'flex', alignItems: 'center', gap: 4,
+  padding: '4px 10px', background: '#3a3a3a', border: '1px solid #555',
+  borderRadius: 6, fontSize: 10, fontWeight: 600, color: '#ccc',
+  cursor: 'pointer',
+};
 
 // ─── COMPONENTS SIDEBAR ──────────────────────────────────────────────────────
-function ComponentsSidebar({ leftTab, setLeftTab, addBlock, user }) {
+function ComponentsSidebar({ leftTab, setLeftTab, addBlock }) {
   return (
     <aside style={{
       width: 220, background: '#fff', borderRight: '1px solid #e8e8e8',
-      display: 'flex', flexDirection: 'column', zIndex: 40,
+      display: 'flex', flexDirection: 'column', zIndex: 10, position: 'relative',
     }}>
       {/* Header */}
       <div style={{ padding: '16px 14px 12px' }}>
@@ -382,29 +519,6 @@ function ComponentsSidebar({ leftTab, setLeftTab, addBlock, user }) {
         )}
       </div>
 
-      {/* Upgrade card */}
-      <div style={{ padding: '10px 12px', borderTop: '1px solid #f0f0f0' }}>
-        <div style={{ background: '#fafafa', border: '1px solid #efefef', borderRadius: 12, padding: '10px 12px' }}>
-          <div style={{ fontSize: 9, fontWeight: 800, color: '#4A7CFF', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Upgrade to Pro</div>
-          <div style={{ fontSize: 10, color: '#888', lineHeight: 1.5, marginBottom: 8 }}>Unlimited citations & collaboration.</div>
-          <button style={{
-            width: '100%', padding: '6px 0', background: '#111', color: '#fff',
-            border: 'none', borderRadius: 7, fontSize: 10, fontWeight: 700, cursor: 'pointer',
-          }}>Upgrade</button>
-        </div>
-        <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{
-            width: 26, height: 26, borderRadius: '50%',
-            background: 'linear-gradient(135deg,#4A7CFF,#7C3AED)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontSize: 9, fontWeight: 700,
-          }}>SA</div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#1a1a1a' }}>Saeed ahmad</div>
-            <div style={{ fontSize: 9, color: '#aaa' }}>Free Plan</div>
-          </div>
-        </div>
-      </div>
     </aside>
   );
 }
@@ -460,15 +574,49 @@ function SidebarItem({ item, addBlock }) {
 }
 
 // ─── TOP HEADER BAR ──────────────────────────────────────────────────────────
-function TopBar({ layoutMode, setLayoutMode, viewMode, setViewMode, savedAgo }) {
+function TopBar({ layoutMode, setLayoutMode, viewMode, setViewMode, savedAgo, latexSource, blocks }) {
+  const [exportOpen, setExportOpen] = useState(false);
+  const exportRef = useRef(null);
+  useEffect(() => {
+    const onDoc = e => { if (exportRef.current && !exportRef.current.contains(e.target)) setExportOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
+  const exportLatex = () => {
+    const blob = new Blob([latexSource], { type: 'text/x-tex' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'paper.tex'; a.click();
+    URL.revokeObjectURL(url);
+    setExportOpen(false);
+  };
+  const exportJson = () => {
+    const blob = new Blob([JSON.stringify(blocks, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'paper.json'; a.click();
+    URL.revokeObjectURL(url);
+    setExportOpen(false);
+  };
+  const exportPdf = () => { window.print(); setExportOpen(false); };
   return (
     <header style={{
       height: 48, background: '#fff', borderBottom: '1px solid #eee',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '0 16px', flexShrink: 0, zIndex: 50,
+      padding: '0 16px', flexShrink: 0, zIndex: 50, position: 'relative',
     }}>
-      {/* Left: Logo + template + undo/redo */}
+      {/* Left: Back + Logo + template + undo/redo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button
+          onClick={() => navigate('/dashboard')}
+          title="Back to Dashboard"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 4,
+            padding: '5px 10px', background: '#fafafa',
+            border: '1px solid #e8e8e8', borderRadius: 7,
+            fontSize: 10, fontWeight: 700, color: '#555', cursor: 'pointer',
+          }}>
+          <Icon name="arrow_back" size={14} style={{ color: '#555' }} />
+          Back
+        </button>
         <div style={{ display: 'flex', flexDirection: 'column', marginRight: 6 }}>
           <span style={{ fontSize: 12, fontWeight: 800, color: '#111', letterSpacing: '-0.02em', lineHeight: 1 }}>PaperTrail</span>
           <span style={{ fontSize: 7, fontWeight: 700, color: '#aaa', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Research Assistant</span>
@@ -524,8 +672,38 @@ function TopBar({ layoutMode, setLayoutMode, viewMode, setViewMode, savedAgo }) 
           <Icon name="check_circle" size={12} style={{ color: '#22c55e' }} />
           {savedAgo}
         </span>
-        <TopBarTextBtn icon="share" label="Share" />
-        <TopBarTextBtn icon="download" label="Export" bordered />
+        <TopBarTextBtn icon="share" label="Share" onClick={() => {
+          const url = window.location.href;
+          navigator.clipboard?.writeText(url);
+          alert('Link copied to clipboard');
+        }} />
+        <div ref={exportRef} style={{ position: 'relative' }}>
+          <TopBarTextBtn icon="download" label="Export" bordered onClick={() => setExportOpen(o => !o)} />
+          {exportOpen && (
+            <div style={{
+              position: 'absolute', top: '100%', right: 0, marginTop: 4,
+              background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8,
+              boxShadow: '0 4px 20px rgba(0,0,0,0.1)', minWidth: 160, zIndex: 100,
+              overflow: 'hidden',
+            }}>
+              {[
+                { icon: 'description', label: 'LaTeX (.tex)', onClick: exportLatex },
+                { icon: 'picture_as_pdf', label: 'PDF (Print)', onClick: exportPdf },
+                { icon: 'data_object', label: 'JSON', onClick: exportJson },
+              ].map(it => (
+                <button key={it.label} onClick={it.onClick} style={{
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '8px 12px', background: '#fff', border: 'none',
+                  fontSize: 11, color: '#333', cursor: 'pointer', textAlign: 'left',
+                }} onMouseEnter={e => e.currentTarget.style.background = '#f5f5f5'}
+                   onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+                  <Icon name={it.icon} size={14} style={{ color: '#666' }} />
+                  {it.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <button style={{
           display: 'flex', alignItems: 'center', gap: 5,
           padding: '6px 14px', background: '#111', color: '#fff',
@@ -550,10 +728,10 @@ function TopBarIconBtn({ icon }) {
   );
 }
 
-function TopBarTextBtn({ icon, label, bordered }) {
+function TopBarTextBtn({ icon, label, bordered, onClick }) {
   const [hov, setHov] = useState(false);
   return (
-    <button onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+    <button onClick={onClick} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       style={{
         display: 'flex', alignItems: 'center', gap: 4,
         padding: '5px 10px', background: 'transparent',
@@ -569,14 +747,19 @@ function TopBarTextBtn({ icon, label, bordered }) {
 }
 
 // ─── BLOCK EDITOR PANEL ──────────────────────────────────────────────────────
-function BlockEditorPanel({ blocks, activeBlock, activeBlockId, setActiveBlockId, updateBlock, moveBlock, deleteBlock, addBlock }) {
+function BlockEditorPanel({ blocks, activeBlock, activeBlockId, setActiveBlockId, updateBlock, moveBlock, deleteBlock, addBlock, reorderBlocks }) {
+  const [dragIdx, setDragIdx] = useState(null);
+  const [overIdx, setOverIdx] = useState(null);
   return (
     <section style={{
       width: 308, background: '#fff', borderRight: '1px solid #eee',
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
-      {/* Top half: active block editor */}
-      <div style={{ padding: '14px 14px 12px', borderBottom: '1px solid #f0f0f0', background: '#fdfdfd' }}>
+      {/* Top half: active block editor (scrollable) */}
+      <div style={{
+        flex: '1 1 60%', minHeight: 0, overflowY: 'auto',
+        padding: '14px 14px 12px', borderBottom: '1px solid #f0f0f0', background: '#fdfdfd',
+      }}>
         <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', color: '#bbb', textTransform: 'uppercase', marginBottom: 12 }}>
           Block Editor
         </div>
@@ -600,24 +783,8 @@ function BlockEditorPanel({ blocks, activeBlock, activeBlockId, setActiveBlockId
               </button>
             </div>
 
-            {/* Rich text toolbar */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 1,
-              background: '#f6f6f6', borderRadius: 8, padding: 4,
-              border: '1px solid #eee', marginBottom: 10,
-            }}>
-              <select style={{ fontSize: 10, border: 'none', background: 'transparent', cursor: 'pointer', color: '#555', outline: 'none', padding: '2px 2px' }}>
-                <option>Normal</option><option>Heading 1</option><option>Heading 2</option>
-              </select>
-              <div style={{ width: 1, height: 16, background: '#ddd', margin: '0 2px' }} />
-              {[['format_bold', 'B'], ['format_italic', 'I'], ['format_underlined', 'U']].map(([icon]) => (
-                <RTBtn key={icon} icon={icon} />
-              ))}
-              <div style={{ width: 1, height: 16, background: '#ddd', margin: '0 2px' }} />
-              {['link', 'format_list_bulleted', 'format_list_numbered', 'format_indent_increase', 'format_indent_decrease', 'functions', 'format_quote', 'text_fields'].map(icon => (
-                <RTBtn key={icon} icon={icon} />
-              ))}
-            </div>
+            {/* Rich text toolbar — fully wired via document.execCommand */}
+            <RichTextToolbar />
 
             {/* Context-aware editing fields */}
             <BlockEditFields block={activeBlock} updateBlock={updateBlock} />
@@ -633,18 +800,29 @@ function BlockEditorPanel({ blocks, activeBlock, activeBlockId, setActiveBlockId
         )}
       </div>
 
-      {/* Bottom half: structure outline */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 10px' }}>
+      {/* Bottom half: structure outline (scrollable) */}
+      <div style={{ flex: '1 1 40%', minHeight: 0, overflowY: 'auto', padding: '12px 10px' }}>
         <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: '#bbb', textTransform: 'uppercase', marginBottom: 10, paddingLeft: 4 }}>
           Structure
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {blocks.map(b => (
+          {blocks.map((b, idx) => (
             <StructureItem
               key={b.id}
               block={b}
               blocks={blocks}
+              idx={idx}
               isActive={b.id === activeBlockId}
+              dragIdx={dragIdx}
+              overIdx={overIdx}
+              onDragStart={() => setDragIdx(idx)}
+              onDragOver={(e) => { e.preventDefault(); if (overIdx !== idx) setOverIdx(idx); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragIdx !== null && dragIdx !== idx) reorderBlocks(dragIdx, idx);
+                setDragIdx(null); setOverIdx(null);
+              }}
+              onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
               onClick={() => setActiveBlockId(b.id)}
               onMoveUp={() => moveBlock(b.id, 'up')}
               onMoveDown={() => moveBlock(b.id, 'down')}
@@ -672,56 +850,104 @@ function BlockEditorPanel({ blocks, activeBlock, activeBlockId, setActiveBlockId
   );
 }
 
-function RTBtn({ icon }) {
+function RTBtn({ icon, onMouseDown, title, active }) {
   const [hov, setHov] = useState(false);
   return (
-    <button onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+    <button
+      title={title}
+      onMouseDown={(e) => { e.preventDefault(); onMouseDown && onMouseDown(e); }}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       style={{
         width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center',
         border: 'none', cursor: 'pointer', borderRadius: 5,
-        background: hov ? '#fff' : 'transparent', transition: 'background 0.12s',
+        background: active ? '#dbeafe' : hov ? '#fff' : 'transparent', transition: 'background 0.12s',
       }}>
-      <Icon name={icon} size={13} style={{ color: '#555' }} />
+      <Icon name={icon} size={13} style={{ color: active ? '#4A7CFF' : '#555' }} />
     </button>
+  );
+}
+
+function RichTextToolbar() {
+  const exec = (cmd, val = null) => document.execCommand(cmd, false, val);
+  const onBlock = (e) => {
+    const v = e.target.value;
+    if (v === 'p') exec('formatBlock', 'p');
+    else if (v === 'h1') exec('formatBlock', 'h1');
+    else if (v === 'h2') exec('formatBlock', 'h2');
+    else if (v === 'h3') exec('formatBlock', 'h3');
+  };
+  const link = () => {
+    const url = prompt('URL:');
+    if (url) exec('createLink', url);
+  };
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap',
+      background: '#f6f6f6', borderRadius: 8, padding: 4,
+      border: '1px solid #eee', marginBottom: 10,
+    }}>
+      <select onChange={onBlock} onMouseDown={e => e.preventDefault()} style={{ fontSize: 10, border: 'none', background: 'transparent', cursor: 'pointer', color: '#555', outline: 'none', padding: '2px 4px' }}>
+        <option value="p">Normal</option>
+        <option value="h1">Heading 1</option>
+        <option value="h2">Heading 2</option>
+        <option value="h3">Heading 3</option>
+      </select>
+      <div style={{ width: 1, height: 16, background: '#ddd', margin: '0 2px' }} />
+      <RTBtn icon="format_bold"        title="Bold (Ctrl+B)"      onMouseDown={() => exec('bold')} />
+      <RTBtn icon="format_italic"      title="Italic (Ctrl+I)"    onMouseDown={() => exec('italic')} />
+      <RTBtn icon="format_underlined"  title="Underline (Ctrl+U)" onMouseDown={() => exec('underline')} />
+      <RTBtn icon="strikethrough_s"    title="Strikethrough"      onMouseDown={() => exec('strikeThrough')} />
+      <RTBtn icon="superscript"        title="Superscript"        onMouseDown={() => exec('superscript')} />
+      <RTBtn icon="subscript"          title="Subscript"          onMouseDown={() => exec('subscript')} />
+      <div style={{ width: 1, height: 16, background: '#ddd', margin: '0 2px' }} />
+      <RTBtn icon="format_align_left"    title="Align left"    onMouseDown={() => exec('justifyLeft')} />
+      <RTBtn icon="format_align_center"  title="Align center"  onMouseDown={() => exec('justifyCenter')} />
+      <RTBtn icon="format_align_right"   title="Align right"   onMouseDown={() => exec('justifyRight')} />
+      <RTBtn icon="format_align_justify" title="Justify"       onMouseDown={() => exec('justifyFull')} />
+      <div style={{ width: 1, height: 16, background: '#ddd', margin: '0 2px' }} />
+      <RTBtn icon="format_list_bulleted"  title="Bullet list"   onMouseDown={() => exec('insertUnorderedList')} />
+      <RTBtn icon="format_list_numbered"  title="Numbered list" onMouseDown={() => exec('insertOrderedList')} />
+      <RTBtn icon="format_indent_increase" title="Indent"   onMouseDown={() => exec('indent')} />
+      <RTBtn icon="format_indent_decrease" title="Outdent"  onMouseDown={() => exec('outdent')} />
+      <div style={{ width: 1, height: 16, background: '#ddd', margin: '0 2px' }} />
+      <RTBtn icon="link"           title="Insert link"       onMouseDown={link} />
+      <RTBtn icon="format_quote"   title="Blockquote"        onMouseDown={() => exec('formatBlock', 'blockquote')} />
+      <RTBtn icon="format_clear"   title="Clear formatting"  onMouseDown={() => exec('removeFormat')} />
+      <div style={{ width: 1, height: 16, background: '#ddd', margin: '0 2px' }} />
+      <RTBtn icon="undo" title="Undo (Ctrl+Z)" onMouseDown={() => exec('undo')} />
+      <RTBtn icon="redo" title="Redo (Ctrl+Y)" onMouseDown={() => exec('redo')} />
+    </div>
+  );
+}
+
+// Stable contentEditable wrapper that doesn't fight cursor position on each keystroke
+function RichTextArea({ html, onChange, placeholder, style }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current && ref.current.innerHTML !== (html || '')) {
+      ref.current.innerHTML = html || '';
+    }
+  }, [html]);
+  return (
+    <div
+      ref={ref}
+      contentEditable
+      suppressContentEditableWarning
+      data-placeholder={placeholder}
+      onInput={(e) => onChange(e.currentTarget.innerHTML)}
+      style={{
+        minHeight: 140, padding: '8px 10px', border: '1px solid #e8e8e8',
+        borderRadius: 7, fontSize: 11, outline: 'none', background: '#fff',
+        color: '#333', lineHeight: 1.6,
+        ...style,
+      }}
+    />
   );
 }
 
 function BlockEditFields({ block, updateBlock }) {
   if (block.type === 'frontmatter') {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <EditField label="Paper Title">
-          <textarea
-            value={block.title}
-            onChange={e => updateBlock(block.id, { title: e.target.value })}
-            rows={3}
-            style={textareaStyle}
-          />
-        </EditField>
-        <EditField label="Authors">
-          <input
-            value={block.authors?.map(a => a.name + (a.sup ? `^${a.sup}` : '')).join(', ') || ''}
-            onChange={e => updateBlock(block.id, { authorsRaw: e.target.value })}
-            style={inputStyle}
-          />
-        </EditField>
-        <EditField label="Affiliations">
-          <textarea
-            value={block.affiliations?.join('\n') || ''}
-            onChange={e => updateBlock(block.id, { affiliations: e.target.value.split('\n') })}
-            rows={3}
-            style={textareaStyle}
-          />
-        </EditField>
-        <EditField label="Emails">
-          <input
-            value={block.emails}
-            onChange={e => updateBlock(block.id, { emails: e.target.value })}
-            style={inputStyle}
-          />
-        </EditField>
-      </div>
-    );
+    return <FrontmatterEditor block={block} updateBlock={updateBlock} />;
   }
 
   if (block.type === 'abstract') {
@@ -747,6 +973,12 @@ function BlockEditFields({ block, updateBlock }) {
   }
 
   if (block.type === 'table') {
+    const rows = block.rows || [['']];
+    const cols = rows[0]?.length || 1;
+    const addRow = () => updateBlock(block.id, { rows: [...rows, Array(cols).fill('')] });
+    const removeRow = () => rows.length > 1 && updateBlock(block.id, { rows: rows.slice(0, -1) });
+    const addCol = () => updateBlock(block.id, { rows: rows.map(r => [...r, '']) });
+    const removeCol = () => cols > 1 && updateBlock(block.id, { rows: rows.map(r => r.slice(0, -1)) });
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <EditField label="Caption">
@@ -755,7 +987,50 @@ function BlockEditFields({ block, updateBlock }) {
         <EditField label="Label (optional)">
           <input value={block.label} onChange={e => updateBlock(block.id, { label: e.target.value })} style={inputStyle} />
         </EditField>
-        <div style={{ fontSize: 9, color: '#aaa', fontStyle: 'italic' }}>Edit table in the canvas by clicking cells.</div>
+        <div>
+          <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#aaa', marginBottom: 4 }}>
+            Structure ({rows.length} rows × {cols} cols)
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+            <button onClick={addRow} style={tableEditBtn}>+ Row</button>
+            <button onClick={removeRow} style={tableEditBtn}>− Row</button>
+            <button onClick={addCol} style={tableEditBtn}>+ Column</button>
+            <button onClick={removeCol} style={tableEditBtn}>− Column</button>
+          </div>
+        </div>
+        <div style={{ fontSize: 9, color: '#aaa', fontStyle: 'italic' }}>Click any cell on the paper to edit inline.</div>
+      </div>
+    );
+  }
+
+  if (block.type === 'figure') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <EditField label="Caption">
+          <input value={block.caption || ''} onChange={e => updateBlock(block.id, { caption: e.target.value })} style={inputStyle} />
+        </EditField>
+        <div style={{ fontSize: 9, color: '#aaa', fontStyle: 'italic' }}>
+          Click the figure on the paper to upload an image (or drag/paste one in).
+        </div>
+      </div>
+    );
+  }
+
+  if (block.type === 'equation') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <EditField label="LaTeX Source">
+          <textarea
+            value={block.content || ''}
+            onChange={e => updateBlock(block.id, { content: e.target.value })}
+            rows={3}
+            placeholder="E = mc^2"
+            style={{ ...textareaStyle, fontFamily: '"JetBrains Mono", monospace' }}
+          />
+        </EditField>
+        <div style={{ fontSize: 9, color: '#aaa', fontStyle: 'italic' }}>
+          Renders with KaTeX in the preview. Use standard LaTeX math syntax.
+        </div>
       </div>
     );
   }
@@ -777,12 +1052,96 @@ function BlockEditFields({ block, updateBlock }) {
         </EditField>
       )}
       <EditField label="Content">
-        <textarea
-          value={block.content || ''}
-          onChange={e => updateBlock(block.id, { content: e.target.value })}
-          rows={8}
+        <RichTextArea
+          html={block.contentHtml || (block.content ? block.content.split('\n').filter(Boolean).map(p => `<p>${p}</p>`).join('') : '')}
+          onChange={(html) => updateBlock(block.id, { contentHtml: html, content: html.replace(/<[^>]+>/g, '\n').replace(/\n+/g, '\n').trim() })}
           placeholder="Start writing..."
-          style={{ ...textareaStyle, height: 140 }}
+        />
+      </EditField>
+    </div>
+  );
+}
+
+function FrontmatterEditor({ block, updateBlock }) {
+  const authors = block.authors || [];
+  const updateAuthor = (i, patch) => {
+    const next = authors.map((a, idx) => idx === i ? { ...a, ...patch } : a);
+    updateBlock(block.id, { authors: next });
+  };
+  const addAuthor = () => {
+    const next = [...authors, { name: 'New Author', sup: String(authors.length + 1), affiliation: '', email: '' }];
+    updateBlock(block.id, { authors: next });
+  };
+  const removeAuthor = (i) => {
+    const next = authors.filter((_, idx) => idx !== i).map((a, idx) => ({ ...a, sup: String(idx + 1) }));
+    updateBlock(block.id, { authors: next });
+  };
+  const moveAuthor = (i, dir) => {
+    const j = dir === 'up' ? i - 1 : i + 1;
+    if (j < 0 || j >= authors.length) return;
+    const next = [...authors];
+    [next[i], next[j]] = [next[j], next[i]];
+    updateBlock(block.id, { authors: next.map((a, idx) => ({ ...a, sup: String(idx + 1) })) });
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <EditField label="Paper Title">
+        <textarea
+          value={block.title}
+          onChange={e => updateBlock(block.id, { title: e.target.value })}
+          rows={3}
+          style={textareaStyle}
+        />
+      </EditField>
+
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#aaa' }}>
+            Authors ({authors.length})
+          </div>
+          <button onClick={addAuthor} style={{
+            display: 'flex', alignItems: 'center', gap: 3,
+            fontSize: 9, fontWeight: 700, padding: '3px 8px',
+            background: '#4A7CFF', color: '#fff', border: 'none', borderRadius: 6,
+            cursor: 'pointer',
+          }}>
+            <Icon name="add" size={11} style={{ color: '#fff' }} /> Add Author
+          </button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {authors.map((a, i) => (
+            <div key={i} style={{
+              border: '1px solid #e8e8e8', borderRadius: 8, padding: 8, background: '#fafafa',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 9, fontWeight: 700, color: '#4A7CFF' }}>#{i + 1}</span>
+                <div style={{ display: 'flex', gap: 2 }}>
+                  <StructureBtn icon="arrow_upward"   onClick={() => moveAuthor(i, 'up')} />
+                  <StructureBtn icon="arrow_downward" onClick={() => moveAuthor(i, 'down')} />
+                  <StructureBtn icon="delete" danger  onClick={() => removeAuthor(i)} />
+                </div>
+              </div>
+              <input placeholder="Full Name" value={a.name || ''}
+                onChange={e => updateAuthor(i, { name: e.target.value })}
+                style={{ ...inputStyle, marginBottom: 4 }} />
+              <input placeholder="Affiliation (Department, University)" value={a.affiliation || ''}
+                onChange={e => updateAuthor(i, { affiliation: e.target.value })}
+                style={{ ...inputStyle, marginBottom: 4 }} />
+              <input placeholder="Email" value={a.email || ''}
+                onChange={e => updateAuthor(i, { email: e.target.value })}
+                style={inputStyle} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <EditField label="Affiliations (legacy lines, optional)">
+        <textarea
+          value={block.affiliations?.join('\n') || ''}
+          onChange={e => updateBlock(block.id, { affiliations: e.target.value.split('\n') })}
+          rows={3}
+          style={textareaStyle}
         />
       </EditField>
     </div>
@@ -809,24 +1168,38 @@ const textareaStyle = {
   resize: 'none', lineHeight: 1.5,
   fontFamily: 'system-ui, sans-serif',
 };
+const tableEditBtn = {
+  padding: '5px 8px', fontSize: 10, fontWeight: 700,
+  background: '#fff', border: '1px solid #e8e8e8', borderRadius: 6,
+  cursor: 'pointer', color: '#333',
+};
 
-function StructureItem({ block, blocks, isActive, onClick, onMoveUp, onMoveDown, onDelete }) {
+function StructureItem({ block, blocks, idx, isActive, dragIdx, overIdx, onDragStart, onDragOver, onDrop, onDragEnd, onClick, onMoveUp, onMoveDown, onDelete }) {
   const [hov, setHov] = useState(false);
   const num = block.type === 'section' ? getSectionNumber(blocks, block.id) : '';
   const label = block.type === 'section'
     ? `${num}. ${block.title}`
     : block.title || block.type.charAt(0).toUpperCase() + block.type.slice(1);
+  const isDragging = dragIdx === idx;
+  const isOver = overIdx === idx && dragIdx !== null && dragIdx !== idx;
 
   return (
     <div
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
       onClick={onClick}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '6px 8px', borderRadius: 8, cursor: 'pointer',
+        padding: '6px 8px', borderRadius: 8, cursor: 'grab',
+        opacity: isDragging ? 0.4 : 1,
         background: isActive ? 'rgba(74,124,255,0.06)' : hov ? '#f8f8f8' : 'transparent',
         border: isActive ? '1px solid rgba(74,124,255,0.15)' : '1px solid transparent',
+        borderTop: isOver ? '2px solid #4A7CFF' : (isActive ? '1px solid rgba(74,124,255,0.15)' : '1px solid transparent'),
         transition: 'all 0.12s',
       }}
     >
@@ -862,7 +1235,7 @@ function StructureBtn({ icon, onClick, danger }) {
 }
 
 // ─── PAPER CANVAS ─────────────────────────────────────────────────────────────
-function PaperCanvas({ blocks, activeBlockId, setActiveBlockId, layoutMode, setLayoutMode, zoom, setZoom, deleteBlock, moveBlock }) {
+function PaperCanvas({ blocks, activeBlockId, setActiveBlockId, layoutMode, setLayoutMode, zoom, setZoom, deleteBlock, moveBlock, updateBlock, previewOnly }) {
   const isTwoCol = layoutMode === 'two-column';
 
   return (
@@ -915,14 +1288,16 @@ function PaperCanvas({ blocks, activeBlockId, setActiveBlockId, layoutMode, setL
         setActiveBlockId={setActiveBlockId}
         deleteBlock={deleteBlock}
         moveBlock={moveBlock}
+        updateBlock={updateBlock}
         zoom={zoom}
         isTwoCol={isTwoCol}
+        previewOnly={previewOnly}
       />
     </main>
   );
 }
 
-function PaginationManager({ blocks, activeBlockId, setActiveBlockId, deleteBlock, moveBlock, zoom, isTwoCol }) {
+function PaginationManager({ blocks, activeBlockId, setActiveBlockId, deleteBlock, moveBlock, updateBlock, zoom, isTwoCol, previewOnly }) {
   const TOTAL_CONTENT_HEIGHT = 912;
   const HEADER_ESTIMATE = 220;
 
@@ -1012,14 +1387,16 @@ function PaginationManager({ blocks, activeBlockId, setActiveBlockId, deleteBloc
           setActiveBlockId={setActiveBlockId}
           deleteBlock={deleteBlock}
           moveBlock={moveBlock}
+          updateBlock={updateBlock}
           isTwoCol={isTwoCol}
+          previewOnly={previewOnly}
         />
       ))}
     </div>
   );
 }
 
-function PaperPage({ pageNum, blocks, allBlocks, activeBlockId, setActiveBlockId, deleteBlock, moveBlock, isTwoCol }) {
+function PaperPage({ pageNum, blocks, allBlocks, activeBlockId, setActiveBlockId, deleteBlock, moveBlock, updateBlock, isTwoCol, previewOnly }) {
   const frontmatter = blocks.filter(b => b.type === 'frontmatter');
   const body = blocks.filter(b => b.type !== 'frontmatter');
 
@@ -1033,7 +1410,9 @@ function PaperPage({ pageNum, blocks, allBlocks, activeBlockId, setActiveBlockId
       width: 816,
       height: 1056,
       background: '#fff',
-      boxShadow: '0 15px 50px rgba(0,0,0,0.12)',
+      boxShadow: '0 35px 60px -15px rgba(0,0,0,0.08)',
+      border: '1px solid #e8e8e8',
+      borderRadius: 2,
       padding: '72px 60px',
       boxSizing: 'border-box',
       position: 'relative',
@@ -1073,7 +1452,8 @@ function PaperPage({ pageNum, blocks, allBlocks, activeBlockId, setActiveBlockId
           {body.map(b => (
             <div key={b.id} style={{
               breakInside: ['table', 'figure', 'equation', 'algorithm'].includes(b.type) ? 'avoid-column' : 'auto',
-              display: 'block'
+              display: 'block',
+              columnSpan: b.type === 'abstract' ? 'all' : 'none',
             }}>
               <CanvasBlock
                 block={b}
@@ -1083,6 +1463,8 @@ function PaperPage({ pageNum, blocks, allBlocks, activeBlockId, setActiveBlockId
                 onDelete={() => deleteBlock(b.id)}
                 onMoveUp={() => moveBlock(b.id, 'up')}
                 onMoveDown={() => moveBlock(b.id, 'down')}
+                updateBlock={updateBlock}
+                previewOnly={previewOnly}
               />
             </div>
           ))}
@@ -1115,24 +1497,24 @@ const zoomBtnStyle = {
 // Legacy layout components removed
 
 // ─── CANVAS BLOCK WRAPPER ─────────────────────────────────────────────────────
-function CanvasBlockShell({ isActive, onClick, onMoveUp, onMoveDown, onDelete, children, fullWidth }) {
+function CanvasBlockShell({ isActive, onClick, onMoveUp, onMoveDown, onDelete, children, fullWidth, previewOnly }) {
   const [hov, setHov] = useState(false);
   return (
     <div
-      onClick={onClick}
+      onClick={previewOnly ? undefined : onClick}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        position: 'relative', cursor: 'pointer', marginBottom: 6,
+        position: 'relative', cursor: previewOnly ? 'default' : 'pointer', marginBottom: 6,
         borderRadius: 4, padding: '3px 4px', width: '100%', boxSizing: 'border-box',
-        overflow: 'hidden',
-        border: `2px solid ${isActive ? 'rgba(74,124,255,0.3)' : hov ? 'rgba(74,124,255,0.1)' : 'transparent'}`,
-        background: isActive ? 'rgba(74,124,255,0.02)' : 'transparent',
+        overflow: 'visible',
+        border: `2px solid ${previewOnly ? 'transparent' : isActive ? 'rgba(74,124,255,0.3)' : hov ? 'rgba(74,124,255,0.1)' : 'transparent'}`,
+        background: !previewOnly && isActive ? 'rgba(74,124,255,0.02)' : 'transparent',
         transition: 'border-color 0.15s, background 0.15s',
       }}
     >
       {/* Hover toolbar — floats to the left */}
-      {(isActive || hov) && (
+      {!previewOnly && (isActive || hov) && (
         <div style={{
           position: 'absolute', left: -52, top: 2,
           display: 'flex', flexDirection: 'column', gap: 3,
@@ -1166,6 +1548,10 @@ function FloatBtn({ icon, onClick, primary, danger }) {
 
 // ─── FRONTMATTER BLOCK ────────────────────────────────────────────────────────
 function CanvasFrontmatter({ block, isActive, onClick, onDelete, onMoveUp, onMoveDown }) {
+  const authors = block.authors || [];
+  // Aggregate affiliations: prefer per-author when present; fallback to block.affiliations
+  const perAuthorAffil = authors.some(a => a.affiliation);
+  const emailsFromAuthors = authors.filter(a => a.email).map(a => a.email).join(', ');
   return (
     <CanvasBlockShell isActive={isActive} onClick={onClick} onDelete={onDelete} onMoveUp={onMoveUp} onMoveDown={onMoveDown} fullWidth>
       <div style={{ textAlign: 'center', padding: '24px 40px 16px', fontFamily: IEEE.fonts.body }}>
@@ -1174,19 +1560,21 @@ function CanvasFrontmatter({ block, isActive, onClick, onDelete, onMoveUp, onMov
           marginBottom: 14, fontFamily: IEEE.fonts.body, textTransform: 'none',
           color: '#111',
         }}>{block.title}</h1>
-        <div style={{ fontSize: 13, marginBottom: 8, fontFamily: IEEE.fonts.body }}>
-          {block.authors?.map((a, i) => (
+        <div style={{ fontSize: 13, marginBottom: 8, fontFamily: IEEE.fonts.body, lineHeight: 1.5 }}>
+          {authors.map((a, i) => (
             <span key={i}>
               {a.name}<sup style={{ fontSize: 8 }}>{a.sup}</sup>
-              {i < block.authors.length - 1 ? ', ' : ''}
+              {i < authors.length - 1 ? ', ' : ''}
             </span>
           ))}
         </div>
         <div style={{ fontSize: 10, fontStyle: 'italic', color: '#555', lineHeight: 1.6, marginBottom: 4 }}>
-          {block.affiliations?.map((a, i) => <div key={i}>{a}</div>)}
+          {perAuthorAffil
+            ? authors.map((a, i) => a.affiliation ? <div key={i}><sup style={{ fontSize: 7 }}>{a.sup}</sup>{a.affiliation}</div> : null)
+            : block.affiliations?.map((a, i) => <div key={i}>{a}</div>)}
         </div>
         <div style={{ fontFamily: IEEE.fonts.mono, fontSize: 9, color: '#555' }}>
-          Email: {block.emails}
+          Email: {emailsFromAuthors || block.emails}
         </div>
       </div>
     </CanvasBlockShell>
@@ -1212,14 +1600,14 @@ function CanvasAbstract({ block, isActive, onClick, onDelete, onMoveUp, onMoveDo
 }
 
 // ─── GENERIC CANVAS BLOCK ────────────────────────────────────────────────────
-function CanvasBlock({ block, blocks, isActive, onClick, onDelete, onMoveUp, onMoveDown }) {
+function CanvasBlock({ block, blocks, isActive, onClick, onDelete, onMoveUp, onMoveDown, updateBlock, previewOnly }) {
   return (
-    <CanvasBlockShell isActive={isActive} onClick={onClick} onDelete={onDelete} onMoveUp={onMoveUp} onMoveDown={onMoveDown}>
-      {block.type === 'abstract' && <CanvasAbstract block={block} isActive={isActive} onClick={onClick} onDelete={onDelete} onMoveUp={onMoveUp} onMoveDown={onMoveDown} />}
+    <CanvasBlockShell isActive={isActive} onClick={onClick} onDelete={onDelete} onMoveUp={onMoveUp} onMoveDown={onMoveDown} previewOnly={previewOnly}>
+      {block.type === 'abstract' && <CanvasAbstract block={block} isActive={isActive} onClick={onClick} onDelete={onDelete} onMoveUp={onMoveUp} onMoveDown={onMoveDown} previewOnly={previewOnly} />}
       {block.type === 'section' && <CanvasSection block={block} blocks={blocks} />}
-      {block.type === 'table' && <CanvasTable block={block} blocks={blocks} />}
-      {block.type === 'figure' && <CanvasFigure block={block} blocks={blocks} />}
-      {block.type === 'equation' && <CanvasEquation block={block} blocks={blocks} />}
+      {block.type === 'table' && <CanvasTable block={block} blocks={blocks} updateBlock={updateBlock} previewOnly={previewOnly} />}
+      {block.type === 'figure' && <CanvasFigure block={block} blocks={blocks} updateBlock={updateBlock} previewOnly={previewOnly} />}
+      {block.type === 'equation' && <CanvasEquation block={block} blocks={blocks} updateBlock={updateBlock} previewOnly={previewOnly} />}
       {block.type === 'references' && <CanvasReferences block={block} />}
       {block.type === 'algorithm' && <CanvasAlgorithm block={block} />}
       {block.type === 'code' && <CanvasCode block={block} />}
@@ -1249,27 +1637,42 @@ function CanvasSection({ block, blocks }) {
           {heading}
         </div>
       )}
-      {block.content?.split('\n').filter(Boolean).map((para, i) => (
-        <p key={i} style={{
-          fontSize: IEEE.sizes.body, lineHeight: IEEE.leading.body,
-          textAlign: 'justify', margin: 0,
-          textIndent: (i === 0 && !isCont) ? 0 : '3.5mm',
-          hyphens: 'auto', color: '#111',
-        }}>{para}</p>
-      ))}
+      {block.contentHtml ? (
+        <div
+          className="ieee-section-body"
+          style={{
+            fontSize: IEEE.sizes.body, lineHeight: IEEE.leading.body,
+            textAlign: 'justify', color: '#111', hyphens: 'auto',
+          }}
+          dangerouslySetInnerHTML={{ __html: block.contentHtml }}
+        />
+      ) : (
+        block.content?.split('\n').filter(Boolean).map((para, i) => (
+          <p key={i} style={{
+            fontSize: IEEE.sizes.body, lineHeight: IEEE.leading.body,
+            textAlign: 'justify', margin: 0,
+            textIndent: (i === 0 && !isCont) ? 0 : '3.5mm',
+            hyphens: 'auto', color: '#111',
+          }}>{para}</p>
+        ))
+      )}
     </div>
   );
 }
 
-function CanvasTable({ block, blocks }) {
-  // Count tables before this one
+function CanvasTable({ block, blocks, updateBlock, previewOnly }) {
   const tablesBefore = blocks.filter(b => b.type === 'table');
   const idx = tablesBefore.findIndex(b => b.id === block.id);
   const numLabel = `TABLE ${ROMAN[idx] || 'I'}`;
   const rows = block.rows || [];
+  const editable = !previewOnly && updateBlock;
+  const setCell = (ri, ci, val) => {
+    if (!editable) return;
+    const next = rows.map((r, i) => i === ri ? r.map((c, j) => j === ci ? val : c) : r);
+    updateBlock(block.id, { rows: next });
+  };
   return (
     <div style={{ fontFamily: IEEE.fonts.body, margin: '8px 0' }}>
-      {/* Caption ABOVE */}
       <div style={{
         fontSize: IEEE.sizes.caption, fontVariant: 'small-caps',
         fontWeight: 700, textAlign: 'center', marginBottom: 4, color: '#111',
@@ -1281,10 +1684,16 @@ function CanvasTable({ block, blocks }) {
         <thead>
           <tr style={{ borderTop: '1.5px solid #111', borderBottom: '0.5px solid #111' }}>
             {(rows[0] || []).map((h, i) => (
-              <th key={i} style={{
-                padding: '3px 6px', fontWeight: 700, textAlign: 'center',
-                fontFamily: IEEE.fonts.body, fontSize: 11,
-              }}>{h}</th>
+              <th key={i}
+                contentEditable={!!editable}
+                suppressContentEditableWarning
+                onBlur={(e) => setCell(0, i, e.currentTarget.textContent)}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  padding: '3px 6px', fontWeight: 700, textAlign: 'center',
+                  fontFamily: IEEE.fonts.body, fontSize: 11,
+                  outline: 'none', cursor: editable ? 'text' : 'default',
+                }}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -1292,11 +1701,17 @@ function CanvasTable({ block, blocks }) {
           {rows.slice(1).map((row, ri) => (
             <tr key={ri} style={{ borderBottom: ri === rows.length - 2 ? '1.5px solid #111' : 'none' }}>
               {row.map((cell, ci) => (
-                <td key={ci} style={{
-                  padding: '3px 6px', textAlign: 'center',
-                  fontFamily: IEEE.fonts.body, fontSize: 11,
-                  fontWeight: cell === 'Proposed' || (parseFloat(cell) > 95) ? 700 : 400,
-                }}>{cell}</td>
+                <td key={ci}
+                  contentEditable={!!editable}
+                  suppressContentEditableWarning
+                  onBlur={(e) => setCell(ri + 1, ci, e.currentTarget.textContent)}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    padding: '3px 6px', textAlign: 'center',
+                    fontFamily: IEEE.fonts.body, fontSize: 11,
+                    fontWeight: cell === 'Proposed' || (parseFloat(cell) > 95) ? 700 : 400,
+                    outline: 'none', cursor: editable ? 'text' : 'default',
+                  }}>{cell}</td>
               ))}
             </tr>
           ))}
@@ -1306,17 +1721,68 @@ function CanvasTable({ block, blocks }) {
   );
 }
 
-function CanvasFigure({ block, blocks }) {
+function CanvasFigure({ block, blocks, updateBlock, previewOnly }) {
   const figsBefore = blocks.filter(b => b.type === 'figure');
   const idx = figsBefore.findIndex(b => b.id === block.id) + 1;
+  const fileInputRef = useRef(null);
+  const [dragOver, setDragOver] = useState(false);
+  const editable = !previewOnly && updateBlock;
+
+  const handleFile = (file) => {
+    if (!file || !file.type?.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = (e) => updateBlock(block.id, { url: e.target.result });
+    reader.readAsDataURL(file);
+  };
+  const onDrop = (e) => {
+    e.preventDefault(); e.stopPropagation(); setDragOver(false);
+    if (!editable) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFile(file);
+  };
+  const onPaste = (e) => {
+    if (!editable) return;
+    const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith('image/'));
+    if (item) handleFile(item.getAsFile());
+  };
+
   return (
     <div style={{ fontFamily: IEEE.fonts.body, margin: '8px 0', textAlign: 'center' }}>
-      <div style={{
-        width: '100%', height: 100, background: '#f8f8f8',
-        border: '1px solid #eee', borderRadius: 4, display: 'flex',
-        alignItems: 'center', justifyContent: 'center', marginBottom: 4,
-      }}>
-        <Icon name="image" size={28} style={{ color: '#ccc' }} />
+      <div
+        onClick={(e) => { if (editable) { e.stopPropagation(); fileInputRef.current?.click(); } }}
+        onDragOver={editable ? (e) => { e.preventDefault(); setDragOver(true); } : undefined}
+        onDragLeave={editable ? () => setDragOver(false) : undefined}
+        onDrop={editable ? onDrop : undefined}
+        onPaste={editable ? onPaste : undefined}
+        tabIndex={editable ? 0 : -1}
+        style={{
+          width: '100%', minHeight: 100, background: dragOver ? '#eff6ff' : '#f8f8f8',
+          border: `${dragOver ? 2 : 1}px ${block.url ? 'solid' : 'dashed'} ${dragOver ? '#4A7CFF' : '#ddd'}`,
+          borderRadius: 4, display: 'flex',
+          alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+          cursor: editable ? 'pointer' : 'default', position: 'relative', overflow: 'hidden',
+        }}>
+        {block.url ? (
+          <img src={block.url} alt={block.caption || `Figure ${idx}`} style={{ maxWidth: '100%', maxHeight: 320, display: 'block' }} />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: '#aaa' }}>
+            <Icon name="add_photo_alternate" size={28} style={{ color: '#bbb' }} />
+            <span style={{ fontSize: 10, fontWeight: 600 }}>{editable ? 'Click, drop, or paste an image' : 'No image'}</span>
+          </div>
+        )}
+        {editable && block.url && (
+          <button onClick={(e) => { e.stopPropagation(); updateBlock(block.id, { url: '' }); }} style={{
+            position: 'absolute', top: 4, right: 4, padding: 4,
+            background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: 4,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }} title="Remove image">
+            <Icon name="close" size={12} style={{ color: '#fff' }} />
+          </button>
+        )}
+        {editable && (
+          <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }}
+            onChange={(e) => handleFile(e.target.files?.[0])} />
+        )}
       </div>
       <div style={{ fontSize: IEEE.sizes.caption, textAlign: 'center', color: '#111' }}>
         <strong>Fig. {idx}.</strong> {block.caption}
@@ -1328,9 +1794,29 @@ function CanvasFigure({ block, blocks }) {
 function CanvasEquation({ block, blocks }) {
   const eqsBefore = blocks.filter(b => b.type === 'equation');
   const idx = eqsBefore.findIndex(b => b.id === block.id) + 1;
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current) return;
+    const tryRender = () => {
+      if (window.katex && ref.current) {
+        try {
+          window.katex.render(block.content || '', ref.current, {
+            throwOnError: false, displayMode: true,
+          });
+        } catch (e) {
+          ref.current.textContent = block.content || '';
+        }
+      } else if (ref.current) {
+        // KaTeX hasn't loaded yet — show raw, then retry
+        ref.current.textContent = block.content || '';
+        setTimeout(tryRender, 250);
+      }
+    };
+    tryRender();
+  }, [block.content]);
   return (
-    <div style={{ fontFamily: IEEE.fonts.body, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', margin: '8px 0', minHeight: 30 }}>
-      <div style={{ fontSize: IEEE.sizes.body, fontStyle: 'italic' }}>{block.content}</div>
+    <div style={{ fontFamily: IEEE.fonts.body, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', margin: '12px 0', minHeight: 30 }}>
+      <div ref={ref} style={{ fontSize: IEEE.sizes.body, fontStyle: 'italic', flex: 1, textAlign: 'center' }} />
       <div style={{ position: 'absolute', right: 0, fontSize: IEEE.sizes.body }}>({idx})</div>
     </div>
   );

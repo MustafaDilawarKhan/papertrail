@@ -1,0 +1,1822 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PaperTrail — Architecture Flows</title>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --bg-2: #11141b;
+    --panel: #161a23;
+    --panel-2: #1d222d;
+    --border: #262c39;
+    --border-strong: #3a4252;
+    --text: #e6e8ee;
+    --text-dim: #8a93a4;
+    --text-muted: #5a6273;
+    --accent: #4A7CFF;
+    --accent-soft: rgba(74,124,255,0.12);
+    --accent-line: rgba(74,124,255,0.55);
+    --warn: #f59e0b;
+    --ok: #22c55e;
+    --danger: #ef4444;
+    --col-client: #64748b;
+    --col-frontend: #3b82f6;
+    --col-api: #8b5cf6;
+    --col-data: #10b981;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif; height: 100%; overflow: hidden; }
+
+  /* ── App layout ───────────────────────────────────────────── */
+  .app { display: grid; grid-template-rows: auto 1fr; height: 100vh; }
+  header.topbar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 10px 18px; background: var(--bg-2); border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-mark {
+    width: 26px; height: 26px; border-radius: 6px;
+    background: linear-gradient(135deg, #4A7CFF, #7C3AED);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 13px; font-weight: 800;
+  }
+  .brand-title { font-weight: 800; font-size: 14px; letter-spacing: -0.01em; }
+  .brand-sub { font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; }
+
+  .topbar .search { flex: 1; max-width: 360px; }
+  .topbar .search input {
+    width: 100%; padding: 6px 10px; font-size: 12px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); outline: none;
+  }
+  .topbar .search input:focus { border-color: var(--accent); }
+  .topbar .actions { display: flex; gap: 8px; margin-left: auto; }
+  .top-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 5px 10px; font-size: 11px; font-weight: 600;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text-dim); cursor: pointer; transition: all 0.15s ease;
+  }
+  .top-btn:hover { background: var(--panel-2); color: var(--text); border-color: var(--border-strong); }
+  .top-btn.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-line); }
+
+  main.layout {
+    display: grid; grid-template-columns: 280px 1fr 360px;
+    overflow: hidden; min-height: 0;
+  }
+
+  /* ── Flow list (left sidebar) ───────────────────────────────── */
+  aside.flows {
+    background: var(--bg-2); border-right: 1px solid var(--border);
+    overflow-y: auto; padding: 14px 12px;
+  }
+  .flows h2 { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin: 0 0 8px 4px; }
+  .flow-cat { margin-bottom: 18px; }
+  .flow-cat-title {
+    font-size: 9px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--text-dim); padding: 0 6px 6px;
+  }
+  .flow-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px; border-radius: 6px; cursor: pointer;
+    font-size: 12px; color: var(--text-dim);
+    transition: all 0.12s ease;
+  }
+  .flow-item:hover { background: var(--panel); color: var(--text); }
+  .flow-item.active {
+    background: var(--accent-soft); color: var(--accent); font-weight: 600;
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+  .flow-item .step-count {
+    margin-left: auto; font-size: 10px; color: var(--text-muted);
+    background: var(--panel-2); padding: 1px 6px; border-radius: 8px; font-weight: 600;
+  }
+  .flow-item.active .step-count { background: var(--accent); color: #fff; }
+
+  /* ── Canvas (center) ────────────────────────────────────────── */
+  section.canvas-wrap {
+    position: relative; overflow: auto; background: var(--bg);
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(255,255,255,0.04) 1px, transparent 0);
+    background-size: 24px 24px;
+  }
+  /* Stage wraps canvas + edges so a single transform scales them together. */
+  .canvas-stage {
+    position: relative;
+    display: inline-block;
+    transform-origin: 0 0;
+    will-change: transform;
+  }
+  .canvas {
+    position: relative;
+    display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr));
+    gap: 32px; padding: 28px 32px 80px;
+    min-width: 1100px;
+  }
+  /* Floating zoom toolbar */
+  .zoom-bar {
+    position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+    z-index: 100; display: flex; align-items: center; gap: 2px;
+    background: var(--panel); border: 1px solid var(--border-strong); border-radius: 10px;
+    padding: 4px; box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+    user-select: none;
+  }
+  .zoom-btn {
+    width: 30px; height: 30px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; border: none; border-radius: 6px;
+    color: var(--text-dim); cursor: pointer; font-size: 16px; font-weight: 600;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .zoom-btn:hover { background: var(--panel-2); color: var(--text); }
+  .zoom-label {
+    min-width: 48px; text-align: center; font-size: 11px; font-weight: 700;
+    color: var(--text); padding: 0 4px; cursor: pointer;
+  }
+  .zoom-divider { width: 1px; height: 18px; background: var(--border); margin: 0 2px; }
+  .zoom-text-btn {
+    padding: 0 8px; height: 30px;
+    display: inline-flex; align-items: center;
+    background: transparent; border: none; border-radius: 6px;
+    color: var(--text-dim); cursor: pointer; font-size: 10px; font-weight: 700;
+    letter-spacing: 0.04em;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+  .zoom-text-btn:hover { background: var(--panel-2); color: var(--text); }
+  .col {
+    display: flex; flex-direction: column; gap: 14px;
+    position: relative; z-index: 2;
+  }
+  .col-header {
+    font-size: 9px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--text-muted); padding: 4px 8px; border-bottom: 1px solid var(--border);
+    margin-bottom: 6px;
+  }
+  .col-header[data-col="client"]   { color: var(--col-client); }
+  .col-header[data-col="frontend"] { color: var(--col-frontend); }
+  .col-header[data-col="api"]      { color: var(--col-api); }
+  .col-header[data-col="data"]     { color: var(--col-data); }
+
+  /* ── Group ──────────────────────────────────────────────────── */
+  .group {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    overflow: hidden; transition: border-color 0.2s ease, background 0.2s ease;
+  }
+  .group.dim { opacity: 0.35; }
+  .group.hot { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-line), 0 4px 16px rgba(74,124,255,0.1); }
+  .group-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; cursor: pointer; user-select: none;
+    background: var(--panel-2); border-bottom: 1px solid var(--border);
+  }
+  .group-chevron {
+    width: 14px; height: 14px; flex-shrink: 0;
+    transition: transform 0.18s ease;
+    opacity: 0.7;
+  }
+  .group.collapsed .group-chevron { transform: rotate(-90deg); }
+  .group.collapsed .group-body { display: none; }
+  .group.collapsed .group-head { border-bottom: none; }
+  .group-title { font-size: 11px; font-weight: 700; color: var(--text); flex: 1; }
+  .group-meta { font-size: 9px; color: var(--text-muted); font-weight: 600; }
+  .group-body { padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+  .node {
+    padding: 6px 9px; font-size: 11px; color: var(--text-dim);
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 6px;
+    transition: all 0.18s ease; position: relative;
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  }
+  .node .name { font-weight: 600; color: var(--text); }
+  .node .file { font-size: 9px; color: var(--text-muted); font-family: "SF Mono", Menlo, monospace; }
+  .node.dim { opacity: 0.35; }
+  .node.hot {
+    background: var(--accent-soft); border-color: var(--accent);
+    color: var(--accent); box-shadow: 0 0 0 1px var(--accent-line);
+  }
+  .node.hot .name { color: var(--accent); }
+  .node.hot .file { color: var(--accent); opacity: 0.7; }
+  .node-step-badge {
+    position: absolute; top: -7px; left: -7px;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: 10px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 6px rgba(74,124,255,0.4);
+    z-index: 5;
+  }
+
+  /* ── SVG edges overlay ──────────────────────────────────────── */
+  svg.edges {
+    position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1;
+    overflow: visible;
+  }
+  svg.edges path {
+    fill: none; stroke: var(--border-strong); stroke-width: 1.5;
+    opacity: 0.25; transition: opacity 0.2s ease;
+  }
+  svg.edges path.hot {
+    stroke: var(--accent); stroke-width: 2; opacity: 1;
+    stroke-dasharray: 6 4;
+    animation: dash 1s linear infinite;
+    filter: drop-shadow(0 0 4px rgba(74,124,255,0.5));
+  }
+  @keyframes dash { to { stroke-dashoffset: -20; } }
+
+  svg.edges .arrow-head { fill: var(--border-strong); }
+  svg.edges .arrow-head.hot { fill: var(--accent); }
+
+  /* Step number bubbles on edges */
+  svg.edges .step-num {
+    fill: #fff;
+    font-size: 10px; font-weight: 800; font-family: -apple-system, system-ui, sans-serif;
+    pointer-events: none;
+  }
+  svg.edges .step-bg {
+    fill: var(--accent); stroke: var(--bg); stroke-width: 2;
+  }
+
+  /* ── Info panel (right) ─────────────────────────────────────── */
+  aside.info {
+    background: var(--bg-2); border-left: 1px solid var(--border);
+    overflow-y: auto;
+  }
+  .info-empty {
+    height: 100%; display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); font-size: 12px; text-align: center; padding: 0 24px;
+  }
+  .info-head {
+    padding: 16px 18px 12px; border-bottom: 1px solid var(--border);
+  }
+  .info-cat {
+    font-size: 9px; font-weight: 800; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 4px;
+  }
+  .info-title { font-size: 16px; font-weight: 700; margin: 0 0 8px; }
+  .info-summary { font-size: 12px; color: var(--text-dim); line-height: 1.55; }
+
+  .info-controls { display: flex; gap: 6px; padding: 12px 18px; border-bottom: 1px solid var(--border); }
+  .info-controls button {
+    flex: 1; padding: 6px 0; font-size: 11px; font-weight: 700;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); cursor: pointer; transition: all 0.12s ease;
+  }
+  .info-controls button:hover:not(:disabled) { background: var(--panel-2); border-color: var(--border-strong); }
+  .info-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .info-controls .play { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .info-controls .play:hover:not(:disabled) { background: #5b8aff; }
+
+  .info-steps { padding: 8px 12px 24px; }
+  .step-card {
+    display: grid; grid-template-columns: 24px 1fr; gap: 10px;
+    padding: 10px 8px; border-radius: 7px;
+    transition: background 0.15s ease;
+  }
+  .step-card:hover { background: var(--panel); }
+  .step-card.current {
+    background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent);
+  }
+  .step-num-circle {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--panel-2); color: var(--text-dim);
+    border: 1px solid var(--border);
+    font-size: 11px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s ease;
+  }
+  .step-card.current .step-num-circle { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .step-text { min-width: 0; }
+  .step-route {
+    font-size: 11px; color: var(--text); margin-bottom: 3px; line-height: 1.4;
+  }
+  .step-route .from { color: var(--text-dim); }
+  .step-route .arr { color: var(--accent); margin: 0 4px; }
+  .step-route .to { color: var(--text); font-weight: 600; }
+  .step-label { font-size: 11px; color: var(--text-dim); line-height: 1.5; margin-bottom: 4px; }
+  .step-payload {
+    font-family: "SF Mono", "JetBrains Mono", Menlo, monospace;
+    font-size: 10px; padding: 5px 8px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+    color: var(--text-dim); overflow-x: auto; white-space: pre-wrap;
+  }
+
+  .legend {
+    padding: 12px 18px; border-top: 1px solid var(--border);
+    font-size: 10px; color: var(--text-muted);
+  }
+  .legend-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .legend-swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  /* small responsive */
+  @media (max-width: 1100px) {
+    main.layout { grid-template-columns: 220px 1fr 300px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">PT</div>
+      <div>
+        <div class="brand-title">PaperTrail — Architecture Flows</div>
+        <div class="brand-sub">Click a flow on the left to trace its path</div>
+      </div>
+    </div>
+    <div class="search">
+      <input id="search" placeholder="Search flows…" />
+    </div>
+    <div class="actions">
+      <button class="top-btn" id="btn-expand-all">Expand all</button>
+      <button class="top-btn" id="btn-collapse-all">Collapse all</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="flows" id="flows-list"></aside>
+
+    <section class="canvas-wrap" id="canvas-wrap">
+      <div class="canvas-stage" id="canvas-stage">
+        <div class="canvas" id="canvas"></div>
+        <svg class="edges" id="edges" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" class="arrow-head" />
+            </marker>
+            <marker id="arrow-hot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" class="arrow-head hot" />
+            </marker>
+          </defs>
+        </svg>
+      </div>
+      <div class="zoom-bar" id="zoom-bar">
+        <button class="zoom-btn"      id="zoom-out"  title="Zoom out (−)">−</button>
+        <div    class="zoom-label"    id="zoom-label" title="Click to reset (0)">100%</div>
+        <button class="zoom-btn"      id="zoom-in"   title="Zoom in (+)">+</button>
+        <div    class="zoom-divider"></div>
+        <button class="zoom-text-btn" id="zoom-100"  title="Reset to 100% (0)">100%</button>
+        <button class="zoom-text-btn" id="zoom-fit"  title="Fit to screen (1)">FIT</button>
+      </div>
+    </section>
+
+    <aside class="info" id="info">
+      <div class="info-empty">Select a flow on the left to see its step-by-step trace.</div>
+    </aside>
+  </main>
+</div>
+
+<script>
+/* ============================================================================
+   FLOW DATA — every node, edge, and flow lives here.
+   To add a new flow: append to DATA.flows. Steps reference node IDs from
+   DATA.groups[*].nodes. Add new nodes by appending to the right group.
+   ============================================================================ */
+const DATA = {
+  columns: [
+    { id: "client",   label: "Client" },
+    { id: "frontend", label: "Frontend (React + Vite)" },
+    { id: "api",      label: "API (FastAPI)" },
+    { id: "data",     label: "Data" }
+  ],
+
+  /* ── GROUPS & NODES ─────────────────────────────────────────────────── */
+  groups: [
+    /* CLIENT COLUMN */
+    {
+      id: "g.browser", column: "client", label: "Browser",
+      nodes: [{ id: "n.user", label: "User", file: "" }]
+    },
+    {
+      id: "g.fe.storage", column: "client", label: "Browser Storage",
+      nodes: [
+        { id: "n.localstorage",   label: "localStorage",   file: "aid_token, pt.openTabs.v1" },
+        { id: "n.sessionstorage", label: "sessionStorage", file: "aid_bootstrap" },
+        { id: "n.doccache",       label: "docCache (JS)",  file: "Map<id, doc>" }
+      ]
+    },
+
+    /* FRONTEND COLUMN */
+    {
+      id: "g.fe.pages", column: "frontend", label: "User Pages",
+      nodes: [
+        { id: "n.LoginPage",         label: "LoginPage",         file: "pages/authPages.jsx" },
+        { id: "n.RegisterPage",      label: "RegisterPage",      file: "pages/authPages.jsx" },
+        { id: "n.VerifyPage",        label: "VerifyPage",        file: "pages/authPages.jsx" },
+        { id: "n.SettingsPage",      label: "SettingsPage",      file: "pages/authPages.jsx" },
+        { id: "n.UpgradePage",       label: "UpgradePage",       file: "pages/authPages.jsx" },
+        { id: "n.DashboardPage",     label: "DashboardPage",     file: "pages/appPages.jsx" },
+        { id: "n.LibraryPage",       label: "LibraryPage",       file: "pages/appPages.jsx" },
+        { id: "n.DocViewerPage",     label: "DocViewerPage",     file: "pages/appPages.jsx" },
+        { id: "n.WorkspacesPage",    label: "WorkspacesPage",    file: "pages/appPages.jsx" },
+        { id: "n.WorkspaceDetail",   label: "WorkspaceDetailPage", file: "pages/appPages.jsx" },
+        { id: "n.IntegrationsPage",  label: "IntegrationsPage",  file: "pages/appPages.jsx" },
+        { id: "n.HelpPage",          label: "HelpPage",          file: "pages/HelpPage.jsx" },
+        { id: "n.EditorPage",        label: "EditorPage",        file: "pages/EditorPage.jsx" }
+      ]
+    },
+    {
+      id: "g.fe.admin", column: "frontend", label: "Admin Pages (UI-only)",
+      nodes: [
+        { id: "n.AdminOverview", label: "AdminOverviewPage", file: "pages/adminPages.jsx" },
+        { id: "n.AdminUsers",    label: "AdminUsersPage",    file: "pages/adminPages.jsx" },
+        { id: "n.AdminModels",   label: "AdminModelsPage",   file: "pages/adminPages.jsx" },
+        { id: "n.AdminFlags",    label: "AdminFlagsPage",    file: "pages/adminPages.jsx" },
+        { id: "n.AdminLogs",     label: "AdminLogsPage",     file: "pages/adminPages.jsx" },
+        { id: "n.AdminHealth",   label: "AdminHealthPage",   file: "pages/adminPages.jsx" }
+      ]
+    },
+    {
+      id: "g.fe.shared", column: "frontend", label: "Shared Components",
+      nodes: [
+        { id: "n.Sidebar",          label: "Sidebar",            file: "shared/components.jsx" },
+        { id: "n.UploadModal",      label: "UploadModal",        file: "shared/components.jsx" },
+        { id: "n.NotifDropdown",    label: "NotificationDropdown", file: "shared/components.jsx" },
+        { id: "n.ProfileDropdown",  label: "ProfileDropdown",    file: "shared/components.jsx" },
+        { id: "n.DocTabBar",        label: "DocTabBar",          file: "shared/docTabs.jsx" },
+        { id: "n.useDocTabs",       label: "useDocTabs / openTabImperative", file: "shared/docTabs.jsx" }
+      ]
+    },
+    {
+      id: "g.fe.core", column: "frontend", label: "Core",
+      nodes: [
+        { id: "n.AuthContext",   label: "AuthContext",      file: "contexts/AuthContext.jsx" },
+        { id: "n.apiRequest",    label: "apiRequest()",     file: "apiConfig.js" },
+        { id: "n.AppRouter",     label: "AppRouter",        file: "App.jsx" }
+      ]
+    },
+
+    /* API COLUMN */
+    {
+      id: "g.api.middleware", column: "api", label: "Middleware",
+      nodes: [
+        { id: "n.cors",         label: "CORS",            file: "main.py" },
+        { id: "n.logging_mw",   label: "Logging",         file: "main.py" },
+        { id: "n.get_current_user", label: "get_current_user", file: "middleware/auth.py" }
+      ]
+    },
+    {
+      id: "g.api.routers", column: "api", label: "Routers",
+      nodes: [
+        { id: "n.r_auth",          label: "auth",          file: "routers/auth.py" },
+        { id: "n.r_users",         label: "users",         file: "routers/users.py" },
+        { id: "n.r_documents",     label: "documents",     file: "routers/documents.py" },
+        { id: "n.r_collections",   label: "collections",   file: "routers/collections.py" },
+        { id: "n.r_workspaces",    label: "workspaces",    file: "routers/workspaces.py" },
+        { id: "n.r_notifications", label: "notifications", file: "routers/notifications.py" },
+        { id: "n.r_chat",          label: "chat",          file: "routers/chat.py" },
+        { id: "n.r_annotations",   label: "annotations",   file: "routers/annotations.py" },
+        { id: "n.r_citations",     label: "citations",     file: "routers/citations.py" },
+        { id: "n.r_subscriptions", label: "subscriptions", file: "routers/subscriptions.py" }
+      ]
+    },
+    {
+      id: "g.api.services", column: "api", label: "Services",
+      nodes: [
+        { id: "n.auth_service",     label: "auth_service",     file: "hash, verify, JWT encode/decode" },
+        { id: "n.document_service", label: "document_service", file: "save_upload, view_url, delete" },
+        { id: "n.session_cache",    label: "session_cache",    file: "TTL in-memory cache" },
+        { id: "n.get_db",           label: "get_db()",         file: "database.py — async session" }
+      ]
+    },
+
+    /* DATA COLUMN */
+    {
+      id: "g.db.models", column: "data", label: "Models (SQLAlchemy)",
+      nodes: [
+        { id: "n.m_User",            label: "User",            file: "models/user.py" },
+        { id: "n.m_Document",        label: "Document",        file: "models/document.py" },
+        { id: "n.m_Collection",      label: "Collection",      file: "models/collection.py" },
+        { id: "n.m_Workspace",       label: "Workspace",       file: "models/workspace.py" },
+        { id: "n.m_WorkspaceMember", label: "WorkspaceMember", file: "models/workspace.py" },
+        { id: "n.m_Notification",    label: "Notification",    file: "models/notification.py" },
+        { id: "n.m_ChatSession",     label: "ChatSession",     file: "models/chat.py" },
+        { id: "n.m_ChatMessage",     label: "ChatMessage",     file: "models/chat.py" },
+        { id: "n.m_Annotation",      label: "Annotation",      file: "models/annotation.py" },
+        { id: "n.m_Citation",        label: "Citation",        file: "models/citation.py" },
+        { id: "n.m_SourceHighlight", label: "SourceHighlight", file: "models/source_highlight.py" },
+        { id: "n.m_SubPlan",         label: "SubscriptionPlan", file: "models/subscription.py" },
+        { id: "n.m_UserSub",         label: "UserSubscription", file: "models/subscription.py" }
+      ]
+    },
+    {
+      id: "g.ext", column: "data", label: "External",
+      nodes: [
+        { id: "n.postgres", label: "Postgres (Supabase)", file: "via SQLAlchemy async (PgBouncer)" },
+        { id: "n.storage",  label: "Supabase Storage",    file: "bucket: uploads/" }
+      ]
+    },
+    {
+      id: "g.ops", column: "data", label: "Ops / Infra",
+      nodes: [
+        { id: "n.lifespan",     label: "FastAPI lifespan",   file: "main.py @asynccontextmanager" },
+        { id: "n.alter_db",     label: "alter_db.py",        file: "ensure_user_profile_columns()" },
+        { id: "n.check_db",     label: "check_db.py",        file: "dev-only invite simulator" },
+        { id: "n.docker",       label: "docker-compose",     file: "backend:8000 + frontend:3000/5173" },
+        { id: "n.dockerfile",   label: "Dockerfile",         file: "python:3.11-slim + uvicorn" },
+        { id: "n.vercel",       label: "vercel.json",        file: "@vercel/python serverless" }
+      ]
+    }
+  ],
+
+  /* ── FLOWS ──────────────────────────────────────────────────────────── */
+  flows: [
+    /* ===== AUTH ===== */
+    {
+      id: "login", title: "Login", category: "Auth",
+      summary: "User submits email + password, receives a JWT, app loads bootstrap data.",
+      steps: [
+        { from: "n.user", to: "n.LoginPage", label: "submit form", payload: "{ email, password }" },
+        { from: "n.LoginPage", to: "n.apiRequest", label: "call API client", payload: "POST /auth/login" },
+        { from: "n.apiRequest", to: "n.cors", label: "HTTP request (no auth header)" },
+        { from: "n.cors", to: "n.r_auth", label: "/auth/login handler" },
+        { from: "n.r_auth", to: "n.m_User", label: "query by email", payload: "SELECT WHERE email = ?" },
+        { from: "n.m_User", to: "n.postgres", label: "SQL" },
+        { from: "n.r_auth", to: "n.auth_service", label: "verify_password()", payload: "bcrypt.checkpw" },
+        { from: "n.r_auth", to: "n.auth_service", label: "create_access_token()", payload: "JWT { sub: user_id }" },
+        { from: "n.r_auth", to: "n.apiRequest", label: "200 OK", payload: "{ access_token, user }" },
+        { from: "n.apiRequest", to: "n.LoginPage", label: "resolve promise" },
+        { from: "n.LoginPage", to: "n.AuthContext", label: "login(token)" },
+        { from: "n.AuthContext", to: "n.localstorage", label: "persist", payload: "aid_token = <jwt>" },
+        { from: "n.AuthContext", to: "n.AppRouter", label: "navigate('/dashboard')" }
+      ]
+    },
+    {
+      id: "register", title: "Register", category: "Auth",
+      summary: "New user creates account; backend hashes password, issues JWT, frontend logs them in.",
+      steps: [
+        { from: "n.user", to: "n.RegisterPage", label: "submit form", payload: "{ name, email, password }" },
+        { from: "n.RegisterPage", to: "n.apiRequest", label: "POST /auth/register" },
+        { from: "n.apiRequest", to: "n.cors", label: "HTTP request" },
+        { from: "n.cors", to: "n.r_auth", label: "/auth/register" },
+        { from: "n.r_auth", to: "n.auth_service", label: "hash_password()", payload: "bcrypt.hashpw" },
+        { from: "n.r_auth", to: "n.m_User", label: "INSERT new user" },
+        { from: "n.m_User", to: "n.postgres", label: "INSERT users" },
+        { from: "n.r_auth", to: "n.auth_service", label: "create_access_token()", payload: "JWT" },
+        { from: "n.r_auth", to: "n.apiRequest", label: "201 Created", payload: "{ access_token, user }" },
+        { from: "n.apiRequest", to: "n.RegisterPage", label: "resolve" },
+        { from: "n.RegisterPage", to: "n.AuthContext", label: "login(token)" },
+        { from: "n.AuthContext", to: "n.localstorage", label: "persist token" },
+        { from: "n.AuthContext", to: "n.AppRouter", label: "navigate('/dashboard')" }
+      ]
+    },
+    {
+      id: "verify-email", title: "Verify Email", category: "Auth",
+      summary: "Email verification UI exists in the frontend (VerifyPage) but no backend endpoint is implemented yet — this flow is a stub. Currently registration does not require verification before login.",
+      steps: [
+        { from: "n.user", to: "n.RegisterPage", label: "submit registration" },
+        { from: "n.RegisterPage", to: "n.AppRouter", label: "(would) navigate('/verify')", payload: "Stub: backend has no /auth/verify endpoint yet" }
+      ]
+    },
+    {
+      id: "logout", title: "Logout", category: "Auth",
+      summary: "Pure client-side: clears stored token + caches and routes to login. No API call.",
+      steps: [
+        { from: "n.user", to: "n.ProfileDropdown", label: "click 'Log out'" },
+        { from: "n.ProfileDropdown", to: "n.AuthContext", label: "logout()" },
+        { from: "n.AuthContext", to: "n.localstorage", label: "remove aid_token" },
+        { from: "n.AuthContext", to: "n.sessionstorage", label: "remove aid_bootstrap" },
+        { from: "n.AuthContext", to: "n.AppRouter", label: "navigate('/')" }
+      ]
+    },
+    {
+      id: "bootstrap", title: "App Bootstrap", category: "Auth",
+      summary: "On app load (or after login) the AuthContext fetches /auth/me and /auth/bootstrap in parallel to hydrate user, recent docs, collections, and workspaces.",
+      steps: [
+        { from: "n.AppRouter", to: "n.AuthContext", label: "mount provider" },
+        { from: "n.AuthContext", to: "n.localstorage", label: "read aid_token" },
+        { from: "n.AuthContext", to: "n.apiRequest", label: "GET /auth/me" },
+        { from: "n.apiRequest", to: "n.get_current_user", label: "Authorization: Bearer <jwt>" },
+        { from: "n.get_current_user", to: "n.auth_service", label: "decode_access_token()" },
+        { from: "n.get_current_user", to: "n.m_User", label: "lookup by sub claim" },
+        { from: "n.m_User", to: "n.postgres", label: "SELECT user" },
+        { from: "n.AuthContext", to: "n.apiRequest", label: "GET /auth/bootstrap" },
+        { from: "n.apiRequest", to: "n.get_current_user", label: "auth check" },
+        { from: "n.get_current_user", to: "n.r_auth", label: "/bootstrap handler" },
+        { from: "n.r_auth", to: "n.session_cache", label: "get('bootstrap:{user_id}', ttl=30s)" },
+        { from: "n.r_auth", to: "n.m_Document",   label: "(cache miss) recent docs" },
+        { from: "n.r_auth", to: "n.m_Collection", label: "user collections" },
+        { from: "n.r_auth", to: "n.m_Workspace",  label: "owned + member workspaces" },
+        { from: "n.r_auth", to: "n.session_cache", label: "set bootstrap cache" },
+        { from: "n.r_auth", to: "n.apiRequest", label: "200 OK", payload: "{ user, documents, collections, workspaces }" },
+        { from: "n.apiRequest", to: "n.AuthContext", label: "resolve" },
+        { from: "n.AuthContext", to: "n.sessionstorage", label: "persist aid_bootstrap" }
+      ]
+    },
+    {
+      id: "change-password", title: "Change Password", category: "Auth",
+      summary: "User submits old + new password from Settings → Account tab. Backend verifies old hash, writes new one.",
+      steps: [
+        { from: "n.user", to: "n.SettingsPage", label: "submit password form" },
+        { from: "n.SettingsPage", to: "n.apiRequest", label: "POST /auth/password" },
+        { from: "n.apiRequest", to: "n.get_current_user", label: "auth check" },
+        { from: "n.get_current_user", to: "n.r_auth", label: "/password handler" },
+        { from: "n.r_auth", to: "n.auth_service", label: "verify_password(old)" },
+        { from: "n.r_auth", to: "n.auth_service", label: "hash_password(new)" },
+        { from: "n.r_auth", to: "n.m_User", label: "UPDATE password_hash" },
+        { from: "n.m_User", to: "n.postgres", label: "UPDATE users" },
+        { from: "n.r_auth", to: "n.apiRequest", label: "200 OK" },
+        { from: "n.apiRequest", to: "n.SettingsPage", label: "resolve → clear form" }
+      ]
+    },
+
+    /* ===== DOCUMENTS ===== */
+    {
+      id: "upload-single", title: "Upload Single Document", category: "Documents",
+      summary: "User picks one file in UploadModal. File goes to Supabase Storage, metadata to Postgres, then the new doc is registered as a tab and the user navigates to it.",
+      steps: [
+        { from: "n.user", to: "n.UploadModal", label: "drop or pick file" },
+        { from: "n.UploadModal", to: "n.apiRequest", label: "POST /documents/upload (FormData)" },
+        { from: "n.apiRequest", to: "n.get_current_user", label: "auth check" },
+        { from: "n.get_current_user", to: "n.r_documents", label: "/upload handler" },
+        { from: "n.r_documents", to: "n.document_service", label: "validate_file() + save_upload()" },
+        { from: "n.document_service", to: "n.storage", label: "PUT object", payload: "uploads/{user_id}/{uuid}.pdf" },
+        { from: "n.r_documents", to: "n.m_Document", label: "INSERT document row" },
+        { from: "n.m_Document", to: "n.postgres", label: "INSERT documents" },
+        { from: "n.r_documents", to: "n.session_cache", label: "invalidate document_list_cache" },
+        { from: "n.r_documents", to: "n.apiRequest", label: "201 Created", payload: "{ document_id, filename, file_type }" },
+        { from: "n.apiRequest", to: "n.UploadModal", label: "resolve" },
+        { from: "n.UploadModal", to: "n.useDocTabs", label: "openTabImperative(doc)" },
+        { from: "n.useDocTabs", to: "n.localstorage", label: "write pt.openTabs.v1" },
+        { from: "n.UploadModal", to: "n.AppRouter", label: "navigate('/library/doc/{id}')" }
+      ]
+    },
+    {
+      id: "upload-multi", title: "Upload Multiple Documents", category: "Documents",
+      summary: "User selects N files. UploadModal fires N parallel POSTs, opens a tab for each success, navigates to the first.",
+      steps: [
+        { from: "n.user", to: "n.UploadModal", label: "select 3 files" },
+        { from: "n.UploadModal", to: "n.apiRequest", label: "Promise.all(3× POST /documents/upload)" },
+        { from: "n.apiRequest", to: "n.r_documents", label: "/upload × 3 (parallel)" },
+        { from: "n.r_documents", to: "n.document_service", label: "save_upload() × 3" },
+        { from: "n.document_service", to: "n.storage", label: "PUT × 3 objects" },
+        { from: "n.r_documents", to: "n.m_Document", label: "INSERT × 3 rows" },
+        { from: "n.m_Document", to: "n.postgres", label: "INSERT documents" },
+        { from: "n.r_documents", to: "n.apiRequest", label: "201 × 3" },
+        { from: "n.apiRequest", to: "n.UploadModal", label: "all 3 resolved" },
+        { from: "n.UploadModal", to: "n.useDocTabs", label: "openTabImperative(d) × 3" },
+        { from: "n.useDocTabs", to: "n.localstorage", label: "write tabs (3 entries)" },
+        { from: "n.useDocTabs", to: "n.DocTabBar", label: "dispatch pt:tabs-changed event" },
+        { from: "n.UploadModal", to: "n.AppRouter", label: "navigate('/library/doc/{firstId}')" }
+      ]
+    },
+    {
+      id: "open-doc-cold", title: "Open Document (cache miss)", category: "Documents",
+      summary: "First time opening a document: DocViewerPage fetches metadata + signed view URL in parallel, writes to docCache, then renders the iframe.",
+      steps: [
+        { from: "n.user", to: "n.LibraryPage", label: "click document card" },
+        { from: "n.LibraryPage", to: "n.AppRouter", label: "navigate('/library/doc/{id}')" },
+        { from: "n.AppRouter", to: "n.DocViewerPage", label: "mount with documentId" },
+        { from: "n.DocViewerPage", to: "n.doccache", label: "lookup → MISS" },
+        { from: "n.DocViewerPage", to: "n.apiRequest", label: "Promise.all([GET /documents/{id}, GET /documents/{id}/view-url])" },
+        { from: "n.apiRequest", to: "n.get_current_user", label: "auth check (×2)" },
+        { from: "n.get_current_user", to: "n.r_documents", label: "/{id} + /{id}/view-url" },
+        { from: "n.r_documents", to: "n.m_Document", label: "ensure_document_access()" },
+        { from: "n.m_Document", to: "n.postgres", label: "SELECT WHERE id = ?" },
+        { from: "n.r_documents", to: "n.document_service", label: "get_view_url(storage_path)" },
+        { from: "n.document_service", to: "n.storage", label: "create signed URL (60s TTL)" },
+        { from: "n.r_documents", to: "n.apiRequest", label: "200 ×2", payload: "{ documentData }, { view_url }" },
+        { from: "n.apiRequest", to: "n.DocViewerPage", label: "resolve both" },
+        { from: "n.DocViewerPage", to: "n.doccache", label: "write { documentData, viewUrl }" },
+        { from: "n.DocViewerPage", to: "n.useDocTabs", label: "openTab(doc) — register tab" },
+        { from: "n.useDocTabs", to: "n.localstorage", label: "write pt.openTabs.v1" },
+        { from: "n.DocViewerPage", to: "n.user", label: "render iframe + AI panel" }
+      ]
+    },
+    {
+      id: "open-doc-warm", title: "Switch Tab (cache hit)", category: "Documents",
+      summary: "Switching to a previously-opened tab: DocViewerPage hydrates state synchronously from docCache. No spinner, no API call.",
+      steps: [
+        { from: "n.user", to: "n.DocTabBar", label: "click tab" },
+        { from: "n.DocTabBar", to: "n.AppRouter", label: "navigate('/library/doc/{id}')" },
+        { from: "n.AppRouter", to: "n.DocViewerPage", label: "re-mount with new id" },
+        { from: "n.DocViewerPage", to: "n.doccache", label: "lookup → HIT", payload: "{ documentData, viewUrl, textContent }" },
+        { from: "n.DocViewerPage", to: "n.user", label: "render instantly (no fetch)" }
+      ]
+    },
+    {
+      id: "download-doc", title: "Download Document", category: "Documents",
+      summary: "Reader header → Download button → fetches a signed URL (cached 60s) and opens it in a new browser tab.",
+      steps: [
+        { from: "n.user", to: "n.DocViewerPage", label: "click Download" },
+        { from: "n.DocViewerPage", to: "n.apiRequest", label: "GET /documents/{id}/view-url" },
+        { from: "n.apiRequest", to: "n.r_documents", label: "/view-url handler" },
+        { from: "n.r_documents", to: "n.session_cache", label: "get(view_url:{id}, ttl=60s)" },
+        { from: "n.r_documents", to: "n.document_service", label: "(miss) get_view_url()" },
+        { from: "n.document_service", to: "n.storage", label: "createSignedUrl()" },
+        { from: "n.r_documents", to: "n.apiRequest", label: "{ view_url }" },
+        { from: "n.apiRequest", to: "n.DocViewerPage", label: "resolve" },
+        { from: "n.DocViewerPage", to: "n.user", label: "window.open(view_url)" }
+      ]
+    },
+    {
+      id: "delete-doc", title: "Delete Document", category: "Documents",
+      summary: "Removes the storage object, deletes the row, and invalidates the document list cache.",
+      steps: [
+        { from: "n.user", to: "n.LibraryPage", label: "click 'Delete' in doc menu" },
+        { from: "n.LibraryPage", to: "n.apiRequest", label: "DELETE /documents/{id}" },
+        { from: "n.apiRequest", to: "n.get_current_user", label: "auth" },
+        { from: "n.get_current_user", to: "n.r_documents", label: "DELETE handler" },
+        { from: "n.r_documents", to: "n.m_Document", label: "load row, check ownership" },
+        { from: "n.r_documents", to: "n.document_service", label: "delete_file(storage_path)" },
+        { from: "n.document_service", to: "n.storage", label: "DELETE object" },
+        { from: "n.r_documents", to: "n.m_Document", label: "DELETE row" },
+        { from: "n.m_Document", to: "n.postgres", label: "DELETE documents WHERE id = ?" },
+        { from: "n.r_documents", to: "n.session_cache", label: "invalidate document_list_cache" },
+        { from: "n.r_documents", to: "n.apiRequest", label: "204 No Content" },
+        { from: "n.apiRequest", to: "n.LibraryPage", label: "resolve → remove from state" }
+      ]
+    },
+    {
+      id: "share-doc", title: "Share Document", category: "Documents",
+      summary: "Currently client-only: copies the current URL to the clipboard. No backend share-link endpoint yet.",
+      steps: [
+        { from: "n.user", to: "n.DocViewerPage", label: "click Share" },
+        { from: "n.DocViewerPage", to: "n.user", label: "navigator.clipboard.writeText(window.location.href)" },
+        { from: "n.DocViewerPage", to: "n.user", label: "alert('Document link copied.')", payload: "Note: no /documents/{id}/share endpoint exists. Real shareable links are not yet implemented." }
+      ]
+    },
+    {
+      id: "cite-doc", title: "Cite Document", category: "Documents",
+      summary: "Citation manager exists in the backend (Citation model + /citations CRUD). The reader's 'Cite' button is currently a placeholder — no UI is wired to /citations yet.",
+      steps: [
+        { from: "n.user", to: "n.DocViewerPage", label: "click Cite (UI stub)" },
+        { from: "n.DocViewerPage", to: "n.apiRequest", label: "(would) POST /citations" },
+        { from: "n.apiRequest", to: "n.r_citations", label: "/citations create" },
+        { from: "n.r_citations", to: "n.m_Citation", label: "INSERT citation" },
+        { from: "n.m_Citation", to: "n.postgres", label: "INSERT citations", payload: "Stub: button exists, handler not wired in frontend yet." }
+      ]
+    },
+
+    /* ===== WORKSPACES ===== */
+    {
+      id: "create-workspace", title: "Create Workspace", category: "Workspaces",
+      summary: "User submits new-workspace form. Backend creates Workspace row + WorkspaceMember row (owner). Caches cleared.",
+      steps: [
+        { from: "n.user", to: "n.WorkspacesPage", label: "submit Create form" },
+        { from: "n.WorkspacesPage", to: "n.apiRequest", label: "POST /workspaces" },
+        { from: "n.apiRequest", to: "n.get_current_user", label: "auth" },
+        { from: "n.get_current_user", to: "n.r_workspaces", label: "create handler" },
+        { from: "n.r_workspaces", to: "n.m_Workspace", label: "INSERT workspace" },
+        { from: "n.r_workspaces", to: "n.m_WorkspaceMember", label: "INSERT (owner role)" },
+        { from: "n.m_WorkspaceMember", to: "n.postgres", label: "INSERT × 2" },
+        { from: "n.r_workspaces", to: "n.session_cache", label: "clear workspaces + bootstrap caches" },
+        { from: "n.r_workspaces", to: "n.apiRequest", label: "201", payload: "{ workspace_id, ... }" },
+        { from: "n.apiRequest", to: "n.WorkspacesPage", label: "resolve" },
+        { from: "n.WorkspacesPage", to: "n.AppRouter", label: "navigate('/workspaces/{id}')" }
+      ]
+    },
+    {
+      id: "invite-member", title: "Invite Member to Workspace", category: "Workspaces",
+      summary: "Owner enters an email + role. Backend looks up the user, creates a Notification of type 'workspace_invite' (NOT a WorkspaceMember yet — that happens on accept).",
+      steps: [
+        { from: "n.user", to: "n.WorkspaceDetail", label: "type email in Invite modal" },
+        { from: "n.WorkspaceDetail", to: "n.apiRequest", label: "GET /users?q={email}" },
+        { from: "n.apiRequest", to: "n.r_users", label: "search users" },
+        { from: "n.r_users", to: "n.m_User", label: "ILIKE email/name" },
+        { from: "n.m_User", to: "n.postgres", label: "SELECT users WHERE email LIKE ?" },
+        { from: "n.r_users", to: "n.WorkspaceDetail", label: "autocomplete suggestions" },
+        { from: "n.user", to: "n.WorkspaceDetail", label: "click Send Invite" },
+        { from: "n.WorkspaceDetail", to: "n.apiRequest", label: "POST /workspaces/{id}/members", payload: "{ email, role }" },
+        { from: "n.apiRequest", to: "n.r_workspaces", label: "add_member handler" },
+        { from: "n.r_workspaces", to: "n.m_User", label: "find invitee by email" },
+        { from: "n.r_workspaces", to: "n.m_Notification", label: "INSERT 'workspace_invite'", payload: "{ type, related_id, data: { workspace_id, role } }" },
+        { from: "n.m_Notification", to: "n.postgres", label: "INSERT notifications" },
+        { from: "n.r_workspaces", to: "n.apiRequest", label: "200 OK" },
+        { from: "n.apiRequest", to: "n.WorkspaceDetail", label: "show 'Invite sent'" }
+      ]
+    },
+    {
+      id: "accept-invite", title: "Accept Workspace Invite", category: "Workspaces",
+      summary: "Invitee opens NotificationDropdown, clicks Accept on the workspace_invite. Backend creates the WorkspaceMember row and marks the notification read.",
+      steps: [
+        { from: "n.user", to: "n.NotifDropdown", label: "click bell icon" },
+        { from: "n.NotifDropdown", to: "n.apiRequest", label: "GET /notifications" },
+        { from: "n.apiRequest", to: "n.r_notifications", label: "list handler" },
+        { from: "n.r_notifications", to: "n.m_Notification", label: "SELECT WHERE user_id = ?" },
+        { from: "n.m_Notification", to: "n.postgres", label: "SELECT notifications" },
+        { from: "n.r_notifications", to: "n.NotifDropdown", label: "[notifications]" },
+        { from: "n.user", to: "n.NotifDropdown", label: "click Accept on invite" },
+        { from: "n.NotifDropdown", to: "n.apiRequest", label: "POST /notifications/{id}/accept", payload: "{ workspace_id }" },
+        { from: "n.apiRequest", to: "n.r_notifications", label: "accept handler" },
+        { from: "n.r_notifications", to: "n.m_Notification", label: "load + parse data JSON" },
+        { from: "n.r_notifications", to: "n.m_WorkspaceMember", label: "INSERT (role from invite)" },
+        { from: "n.m_WorkspaceMember", to: "n.postgres", label: "INSERT workspace_members" },
+        { from: "n.r_notifications", to: "n.m_Notification", label: "UPDATE read = true" },
+        { from: "n.r_notifications", to: "n.session_cache", label: "clear_user_bootstrap_cache(invitee)" },
+        { from: "n.r_notifications", to: "n.apiRequest", label: "200 OK" },
+        { from: "n.apiRequest", to: "n.NotifDropdown", label: "remove from list" }
+      ]
+    },
+    {
+      id: "add-doc-to-workspace", title: "Add Document to Workspace", category: "Workspaces",
+      summary: "Drop files onto a workspace's documents section — uploads them with workspace_id query so the new docs are scoped to that workspace.",
+      steps: [
+        { from: "n.user", to: "n.WorkspaceDetail", label: "drag files onto pane" },
+        { from: "n.WorkspaceDetail", to: "n.apiRequest", label: "POST /documents/upload?workspace_id={wid}" },
+        { from: "n.apiRequest", to: "n.r_documents", label: "/upload handler" },
+        { from: "n.r_documents", to: "n.m_WorkspaceMember", label: "has_workspace_access(user, wid)" },
+        { from: "n.r_documents", to: "n.document_service", label: "save_upload()" },
+        { from: "n.document_service", to: "n.storage", label: "PUT object" },
+        { from: "n.r_documents", to: "n.m_Document", label: "INSERT (workspace_id set)" },
+        { from: "n.m_Document", to: "n.postgres", label: "INSERT documents" },
+        { from: "n.r_documents", to: "n.session_cache", label: "invalidate doc list" },
+        { from: "n.r_documents", to: "n.apiRequest", label: "201" },
+        { from: "n.apiRequest", to: "n.WorkspaceDetail", label: "refresh doc list" }
+      ]
+    },
+    {
+      id: "remove-member", title: "Remove Member", category: "Workspaces",
+      summary: "Owner removes another member. Owner-only check enforced server-side; both users' bootstrap caches cleared.",
+      steps: [
+        { from: "n.user", to: "n.WorkspaceDetail", label: "click 'Remove' on member row" },
+        { from: "n.WorkspaceDetail", to: "n.apiRequest", label: "DELETE /workspaces/{wid}/members/{user_id}" },
+        { from: "n.apiRequest", to: "n.r_workspaces", label: "remove_member handler" },
+        { from: "n.r_workspaces", to: "n.m_Workspace", label: "verify caller is owner" },
+        { from: "n.r_workspaces", to: "n.m_WorkspaceMember", label: "DELETE row" },
+        { from: "n.m_WorkspaceMember", to: "n.postgres", label: "DELETE workspace_members" },
+        { from: "n.r_workspaces", to: "n.session_cache", label: "clear bootstrap for both users" },
+        { from: "n.r_workspaces", to: "n.apiRequest", label: "204" },
+        { from: "n.apiRequest", to: "n.WorkspaceDetail", label: "refresh members list" }
+      ]
+    },
+
+    /* ===== NOTIFICATIONS ===== */
+    {
+      id: "list-notifications", title: "Open Notifications", category: "Notifications",
+      summary: "Bell-icon click fetches the list. Re-fetches every time the dropdown opens (no caching).",
+      steps: [
+        { from: "n.user", to: "n.NotifDropdown", label: "click bell" },
+        { from: "n.NotifDropdown", to: "n.apiRequest", label: "GET /notifications?unread_only=false" },
+        { from: "n.apiRequest", to: "n.get_current_user", label: "auth" },
+        { from: "n.get_current_user", to: "n.r_notifications", label: "list handler" },
+        { from: "n.r_notifications", to: "n.m_Notification", label: "SELECT for user, ORDER BY created_at DESC" },
+        { from: "n.m_Notification", to: "n.postgres", label: "SELECT notifications" },
+        { from: "n.r_notifications", to: "n.apiRequest", label: "[notifications]" },
+        { from: "n.apiRequest", to: "n.NotifDropdown", label: "render list" }
+      ]
+    },
+    {
+      id: "mark-read", title: "Mark Notification Read", category: "Notifications",
+      summary: "Toggle the read flag on a single notification. Optimistic UI update happens client-side.",
+      steps: [
+        { from: "n.user", to: "n.NotifDropdown", label: "click 'mark read'" },
+        { from: "n.NotifDropdown", to: "n.apiRequest", label: "PATCH /notifications/{id}", payload: "{ read: true }" },
+        { from: "n.apiRequest", to: "n.r_notifications", label: "patch handler" },
+        { from: "n.r_notifications", to: "n.m_Notification", label: "UPDATE read = true" },
+        { from: "n.m_Notification", to: "n.postgres", label: "UPDATE notifications" },
+        { from: "n.r_notifications", to: "n.apiRequest", label: "200" },
+        { from: "n.apiRequest", to: "n.NotifDropdown", label: "resolve (UI was already optimistic)" }
+      ]
+    },
+
+    /* ===== OTHER ===== */
+    {
+      id: "create-collection", title: "Create Collection", category: "Other",
+      summary: "Library → New Collection form. Creates a top-level (or nested) folder for the user.",
+      steps: [
+        { from: "n.user", to: "n.LibraryPage", label: "submit name" },
+        { from: "n.LibraryPage", to: "n.apiRequest", label: "POST /collections", payload: "{ name }" },
+        { from: "n.apiRequest", to: "n.get_current_user", label: "auth" },
+        { from: "n.get_current_user", to: "n.r_collections", label: "create handler" },
+        { from: "n.r_collections", to: "n.m_Collection", label: "INSERT" },
+        { from: "n.m_Collection", to: "n.postgres", label: "INSERT collections" },
+        { from: "n.r_collections", to: "n.session_cache", label: "clear collections cache" },
+        { from: "n.r_collections", to: "n.apiRequest", label: "201" },
+        { from: "n.apiRequest", to: "n.LibraryPage", label: "prepend to state" }
+      ]
+    },
+    {
+      id: "update-profile", title: "Update Profile", category: "Other",
+      summary: "Settings → Profile tab → Save. PATCH /users/profile updates name + affiliation + bio. Special: backend may ALTER TABLE on first call to add new profile columns.",
+      steps: [
+        { from: "n.user", to: "n.SettingsPage", label: "edit + Save" },
+        { from: "n.SettingsPage", to: "n.apiRequest", label: "PATCH /users/profile" },
+        { from: "n.apiRequest", to: "n.get_current_user", label: "auth" },
+        { from: "n.get_current_user", to: "n.r_users", label: "patch handler" },
+        { from: "n.r_users", to: "n.m_User", label: "ensure_profile_columns() (one-time ALTER)" },
+        { from: "n.r_users", to: "n.m_User", label: "UPDATE user" },
+        { from: "n.m_User", to: "n.postgres", label: "UPDATE users" },
+        { from: "n.r_users", to: "n.apiRequest", label: "200" },
+        { from: "n.apiRequest", to: "n.SettingsPage", label: "resolve" },
+        { from: "n.SettingsPage", to: "n.AuthContext", label: "refreshUser() → re-GET /auth/me" }
+      ]
+    },
+    {
+      id: "search-users", title: "Search Users (autocomplete)", category: "Other",
+      summary: "Used in the Invite Member modal. Hits /users?q= for live suggestions.",
+      steps: [
+        { from: "n.user", to: "n.WorkspaceDetail", label: "type in invite field (debounced)" },
+        { from: "n.WorkspaceDetail", to: "n.apiRequest", label: "GET /users?q={q}&limit=8" },
+        { from: "n.apiRequest", to: "n.get_current_user", label: "auth" },
+        { from: "n.get_current_user", to: "n.r_users", label: "list handler with q filter" },
+        { from: "n.r_users", to: "n.m_User", label: "SELECT WHERE email/name ILIKE ?" },
+        { from: "n.m_User", to: "n.postgres", label: "SELECT users" },
+        { from: "n.r_users", to: "n.apiRequest", label: "[matches]" },
+        { from: "n.apiRequest", to: "n.WorkspaceDetail", label: "render dropdown" }
+      ]
+    },
+    {
+      id: "send-chat", title: "Send AI Chat Message", category: "Other",
+      summary: "Document reader's chat panel sends a message in the chat session. Backend creates two ChatMessage rows (user + AI stub). Real LLM call is not yet wired — AI response is currently a stub string.",
+      steps: [
+        { from: "n.user", to: "n.DocViewerPage", label: "type + send" },
+        { from: "n.DocViewerPage", to: "n.apiRequest", label: "POST /chat/sessions/{sid}/messages", payload: "{ role: 'user', content }" },
+        { from: "n.apiRequest", to: "n.get_current_user", label: "auth" },
+        { from: "n.get_current_user", to: "n.r_chat", label: "post message handler" },
+        { from: "n.r_chat", to: "n.m_ChatSession", label: "verify session ownership" },
+        { from: "n.r_chat", to: "n.m_ChatMessage", label: "INSERT user message" },
+        { from: "n.r_chat", to: "n.m_ChatMessage", label: "INSERT AI stub response" },
+        { from: "n.m_ChatMessage", to: "n.postgres", label: "INSERT × 2" },
+        { from: "n.r_chat", to: "n.apiRequest", label: "{ user_message, ai_message }" },
+        { from: "n.apiRequest", to: "n.DocViewerPage", label: "append to messages state", payload: "AI text is currently a fixed stub — real LLM call TODO." }
+      ]
+    },
+    {
+      id: "subscribe", title: "Subscribe to Plan", category: "Subscriptions",
+      summary: "Upgrade page lists plans, user picks one. Backend creates a UserSubscription row valid for 30 days. No real billing integration.",
+      steps: [
+        { from: "n.user", to: "n.UpgradePage", label: "open /upgrade" },
+        { from: "n.UpgradePage", to: "n.apiRequest", label: "GET /subscriptions/plans" },
+        { from: "n.apiRequest", to: "n.r_subscriptions", label: "list plans" },
+        { from: "n.r_subscriptions", to: "n.m_SubPlan", label: "SELECT plans ORDER BY price" },
+        { from: "n.m_SubPlan", to: "n.postgres", label: "SELECT subscription_plans" },
+        { from: "n.r_subscriptions", to: "n.UpgradePage", label: "[plans]" },
+        { from: "n.user", to: "n.UpgradePage", label: "click Subscribe" },
+        { from: "n.UpgradePage", to: "n.apiRequest", label: "POST /subscriptions/subscribe", payload: "{ plan_id }" },
+        { from: "n.apiRequest", to: "n.r_subscriptions", label: "subscribe handler" },
+        { from: "n.r_subscriptions", to: "n.m_UserSub", label: "INSERT user_subscription (30-day period)" },
+        { from: "n.m_UserSub", to: "n.postgres", label: "INSERT user_subscriptions" },
+        { from: "n.r_subscriptions", to: "n.apiRequest", label: "201", payload: "Note: no real billing integration yet." }
+      ]
+    },
+    {
+      id: "current-subscription", title: "Get Current Subscription", category: "Subscriptions",
+      summary: "Lookup the user's currently-active subscription (status='active'). Returns null if none.",
+      steps: [
+        { from: "n.user", to: "n.SettingsPage", label: "open Settings" },
+        { from: "n.SettingsPage", to: "n.apiRequest", label: "GET /subscriptions/current" },
+        { from: "n.apiRequest", to: "n.get_current_user", label: "auth" },
+        { from: "n.get_current_user", to: "n.r_subscriptions", label: "current handler" },
+        { from: "n.r_subscriptions", to: "n.m_UserSub", label: "SELECT WHERE user_id, status='active'" },
+        { from: "n.m_UserSub", to: "n.postgres", label: "SELECT user_subscriptions" },
+        { from: "n.r_subscriptions", to: "n.SettingsPage", label: "{ subscription | null }" }
+      ]
+    },
+
+    /* ===== ANNOTATIONS ===== */
+    {
+      id: "create-annotation", title: "Create Annotation", category: "Annotations",
+      summary: "User highlights / comments on a page in the document viewer. Backend stores it linked to the document + page number.",
+      steps: [
+        { from: "n.user", to: "n.DocViewerPage", label: "select text + add note" },
+        { from: "n.DocViewerPage", to: "n.apiRequest", label: "POST /annotations", payload: "{ document_id, page_number, content }" },
+        { from: "n.apiRequest", to: "n.get_current_user", label: "auth" },
+        { from: "n.get_current_user", to: "n.r_annotations", label: "create handler" },
+        { from: "n.r_annotations", to: "n.m_Annotation", label: "INSERT annotation" },
+        { from: "n.m_Annotation", to: "n.postgres", label: "INSERT annotations" },
+        { from: "n.r_annotations", to: "n.apiRequest", label: "201", payload: "{ annotation_id, ... }" },
+        { from: "n.apiRequest", to: "n.DocViewerPage", label: "append to annotations state" }
+      ]
+    },
+    {
+      id: "list-annotations", title: "List Annotations", category: "Annotations",
+      summary: "On document open, fetch all annotations for that doc, sorted by page_number.",
+      steps: [
+        { from: "n.DocViewerPage", to: "n.apiRequest", label: "GET /annotations?document_id={id}" },
+        { from: "n.apiRequest", to: "n.get_current_user", label: "auth" },
+        { from: "n.get_current_user", to: "n.r_annotations", label: "list handler" },
+        { from: "n.r_annotations", to: "n.m_Annotation", label: "SELECT WHERE user_id + document_id ORDER BY page_number" },
+        { from: "n.m_Annotation", to: "n.postgres", label: "SELECT annotations" },
+        { from: "n.r_annotations", to: "n.DocViewerPage", label: "[annotations]" }
+      ]
+    },
+    {
+      id: "update-annotation", title: "Update Annotation", category: "Annotations",
+      summary: "Edit an existing annotation's content. Owner-scoped.",
+      steps: [
+        { from: "n.user", to: "n.DocViewerPage", label: "edit annotation note" },
+        { from: "n.DocViewerPage", to: "n.apiRequest", label: "PATCH /annotations/{id}", payload: "{ content }" },
+        { from: "n.apiRequest", to: "n.r_annotations", label: "patch handler" },
+        { from: "n.r_annotations", to: "n.m_Annotation", label: "UPDATE WHERE user_id + id" },
+        { from: "n.m_Annotation", to: "n.postgres", label: "UPDATE annotations" },
+        { from: "n.r_annotations", to: "n.apiRequest", label: "200" }
+      ]
+    },
+    {
+      id: "delete-annotation", title: "Delete Annotation", category: "Annotations",
+      summary: "Remove an annotation by id (owner-scoped).",
+      steps: [
+        { from: "n.user", to: "n.DocViewerPage", label: "click trash on annotation" },
+        { from: "n.DocViewerPage", to: "n.apiRequest", label: "DELETE /annotations/{id}" },
+        { from: "n.apiRequest", to: "n.r_annotations", label: "delete handler" },
+        { from: "n.r_annotations", to: "n.m_Annotation", label: "DELETE WHERE user_id + id" },
+        { from: "n.m_Annotation", to: "n.postgres", label: "DELETE annotations" },
+        { from: "n.r_annotations", to: "n.apiRequest", label: "204" }
+      ]
+    },
+
+    /* ===== CITATIONS ===== */
+    {
+      id: "create-citation", title: "Create Citation", category: "Citations",
+      summary: "Adds a formatted citation entry. Backend stores it scoped to the user (and optionally a document). UI to trigger this is not yet wired.",
+      steps: [
+        { from: "n.user", to: "n.DocViewerPage", label: "click Cite (UI stub)" },
+        { from: "n.DocViewerPage", to: "n.apiRequest", label: "POST /citations", payload: "{ document_id?, formatted_text }" },
+        { from: "n.apiRequest", to: "n.get_current_user", label: "auth" },
+        { from: "n.get_current_user", to: "n.r_citations", label: "create handler" },
+        { from: "n.r_citations", to: "n.m_Citation", label: "INSERT citation" },
+        { from: "n.m_Citation", to: "n.postgres", label: "INSERT citations" },
+        { from: "n.r_citations", to: "n.apiRequest", label: "201", payload: "Stub: backend ready, frontend button not wired yet." }
+      ]
+    },
+    {
+      id: "list-citations", title: "List Citations", category: "Citations",
+      summary: "Fetch citations, optionally filtered by document. Sorted by created_at DESC.",
+      steps: [
+        { from: "n.DocViewerPage", to: "n.apiRequest", label: "GET /citations?document_id={id}" },
+        { from: "n.apiRequest", to: "n.get_current_user", label: "auth" },
+        { from: "n.get_current_user", to: "n.r_citations", label: "list handler" },
+        { from: "n.r_citations", to: "n.m_Citation", label: "SELECT WHERE user_id (+document_id?) ORDER BY created_at DESC" },
+        { from: "n.m_Citation", to: "n.postgres", label: "SELECT citations" },
+        { from: "n.r_citations", to: "n.DocViewerPage", label: "[citations]" }
+      ]
+    },
+    {
+      id: "delete-citation", title: "Delete Citation", category: "Citations",
+      summary: "Remove a citation entry (owner-scoped).",
+      steps: [
+        { from: "n.user", to: "n.DocViewerPage", label: "remove citation" },
+        { from: "n.DocViewerPage", to: "n.apiRequest", label: "DELETE /citations/{id}" },
+        { from: "n.apiRequest", to: "n.r_citations", label: "delete handler" },
+        { from: "n.r_citations", to: "n.m_Citation", label: "DELETE WHERE user_id + id" },
+        { from: "n.m_Citation", to: "n.postgres", label: "DELETE citations" },
+        { from: "n.r_citations", to: "n.apiRequest", label: "204" }
+      ]
+    },
+
+    /* ===== CHAT (full CRUD) ===== */
+    {
+      id: "create-chat-session", title: "Create Chat Session", category: "Chat",
+      summary: "First message in the AI panel creates a chat session bound to a context (document, workspace, or null).",
+      steps: [
+        { from: "n.user", to: "n.DocViewerPage", label: "type first message" },
+        { from: "n.DocViewerPage", to: "n.apiRequest", label: "POST /chat/sessions", payload: "{ context_type, context_id }" },
+        { from: "n.apiRequest", to: "n.get_current_user", label: "auth" },
+        { from: "n.get_current_user", to: "n.r_chat", label: "create_session handler" },
+        { from: "n.r_chat", to: "n.m_ChatSession", label: "INSERT session" },
+        { from: "n.m_ChatSession", to: "n.postgres", label: "INSERT chat_sessions" },
+        { from: "n.r_chat", to: "n.DocViewerPage", label: "{ session_id }" }
+      ]
+    },
+    {
+      id: "list-chat-sessions", title: "List Chat Sessions", category: "Chat",
+      summary: "Sidebar / picker fetches the user's recent chat sessions, sorted by updated_at DESC.",
+      steps: [
+        { from: "n.DocViewerPage", to: "n.apiRequest", label: "GET /chat/sessions" },
+        { from: "n.apiRequest", to: "n.r_chat", label: "list handler" },
+        { from: "n.r_chat", to: "n.m_ChatSession", label: "SELECT WHERE user_id ORDER BY updated_at DESC" },
+        { from: "n.m_ChatSession", to: "n.postgres", label: "SELECT chat_sessions" },
+        { from: "n.r_chat", to: "n.DocViewerPage", label: "[sessions]" }
+      ]
+    },
+    {
+      id: "delete-chat-session", title: "Delete Chat Session", category: "Chat",
+      summary: "User clears a chat. Cascade deletes all messages tied to it.",
+      steps: [
+        { from: "n.user", to: "n.DocViewerPage", label: "delete chat thread" },
+        { from: "n.DocViewerPage", to: "n.apiRequest", label: "DELETE /chat/sessions/{id}" },
+        { from: "n.apiRequest", to: "n.r_chat", label: "delete handler" },
+        { from: "n.r_chat", to: "n.m_ChatSession", label: "DELETE WHERE user_id + id (cascades messages)" },
+        { from: "n.m_ChatSession", to: "n.postgres", label: "DELETE chat_sessions" },
+        { from: "n.r_chat", to: "n.apiRequest", label: "204" }
+      ]
+    },
+
+    /* ===== MISSING CRUD ===== */
+    {
+      id: "update-workspace", title: "Update Workspace Settings", category: "Workspaces",
+      summary: "Owner edits workspace name / description / privacy. Caches cleared.",
+      steps: [
+        { from: "n.user", to: "n.WorkspaceDetail", label: "save settings modal" },
+        { from: "n.WorkspaceDetail", to: "n.apiRequest", label: "PATCH /workspaces/{id}", payload: "{ name, description, privacy }" },
+        { from: "n.apiRequest", to: "n.r_workspaces", label: "patch handler" },
+        { from: "n.r_workspaces", to: "n.m_Workspace", label: "verify owner; UPDATE row" },
+        { from: "n.m_Workspace", to: "n.postgres", label: "UPDATE workspaces" },
+        { from: "n.r_workspaces", to: "n.session_cache", label: "clear workspaces + bootstrap caches" },
+        { from: "n.r_workspaces", to: "n.apiRequest", label: "200" }
+      ]
+    },
+    {
+      id: "delete-workspace", title: "Delete Workspace", category: "Workspaces",
+      summary: "Owner-only. Deletes workspace and clears member caches.",
+      steps: [
+        { from: "n.user", to: "n.WorkspaceDetail", label: "click Delete (confirm)" },
+        { from: "n.WorkspaceDetail", to: "n.apiRequest", label: "DELETE /workspaces/{id}" },
+        { from: "n.apiRequest", to: "n.r_workspaces", label: "delete handler" },
+        { from: "n.r_workspaces", to: "n.m_Workspace", label: "verify owner; DELETE" },
+        { from: "n.m_Workspace", to: "n.postgres", label: "DELETE workspaces" },
+        { from: "n.r_workspaces", to: "n.session_cache", label: "clear caches for all members" },
+        { from: "n.r_workspaces", to: "n.AppRouter", label: "204 → navigate('/workspaces')" }
+      ]
+    },
+    {
+      id: "update-collection", title: "Update Collection", category: "Other",
+      summary: "Rename / re-describe a collection. Owner-scoped.",
+      steps: [
+        { from: "n.user", to: "n.LibraryPage", label: "rename collection" },
+        { from: "n.LibraryPage", to: "n.apiRequest", label: "PATCH /collections/{id}", payload: "{ name?, description? }" },
+        { from: "n.apiRequest", to: "n.r_collections", label: "patch handler" },
+        { from: "n.r_collections", to: "n.m_Collection", label: "UPDATE WHERE user_id + id" },
+        { from: "n.m_Collection", to: "n.postgres", label: "UPDATE collections" },
+        { from: "n.r_collections", to: "n.session_cache", label: "clear collections cache" },
+        { from: "n.r_collections", to: "n.apiRequest", label: "200" }
+      ]
+    },
+    {
+      id: "delete-collection", title: "Delete Collection", category: "Other",
+      summary: "Removes a collection (and its docs cascade behaviour depends on the model definition).",
+      steps: [
+        { from: "n.user", to: "n.LibraryPage", label: "click Delete on collection" },
+        { from: "n.LibraryPage", to: "n.apiRequest", label: "DELETE /collections/{id}" },
+        { from: "n.apiRequest", to: "n.r_collections", label: "delete handler" },
+        { from: "n.r_collections", to: "n.m_Collection", label: "DELETE WHERE user_id + id" },
+        { from: "n.m_Collection", to: "n.postgres", label: "DELETE collections" },
+        { from: "n.r_collections", to: "n.session_cache", label: "clear caches" },
+        { from: "n.r_collections", to: "n.apiRequest", label: "204" }
+      ]
+    },
+    {
+      id: "rename-document", title: "Rename / Move Document", category: "Documents",
+      summary: "Edit filename or move a doc into a different collection. Caches invalidated.",
+      steps: [
+        { from: "n.user", to: "n.LibraryPage", label: "rename or change collection" },
+        { from: "n.LibraryPage", to: "n.apiRequest", label: "PATCH /documents/{id}", payload: "{ filename?, collection_id? }" },
+        { from: "n.apiRequest", to: "n.r_documents", label: "patch handler" },
+        { from: "n.r_documents", to: "n.m_Document", label: "UPDATE row" },
+        { from: "n.m_Document", to: "n.postgres", label: "UPDATE documents" },
+        { from: "n.r_documents", to: "n.session_cache", label: "invalidate document_list_cache" },
+        { from: "n.r_documents", to: "n.apiRequest", label: "200" }
+      ]
+    },
+    {
+      id: "delete-notification", title: "Delete Notification", category: "Notifications",
+      summary: "Removes a notification entirely (vs. mark-read which keeps it).",
+      steps: [
+        { from: "n.user", to: "n.NotifDropdown", label: "click × on notification" },
+        { from: "n.NotifDropdown", to: "n.apiRequest", label: "DELETE /notifications/{id}" },
+        { from: "n.apiRequest", to: "n.r_notifications", label: "delete handler" },
+        { from: "n.r_notifications", to: "n.m_Notification", label: "DELETE WHERE user_id + id" },
+        { from: "n.m_Notification", to: "n.postgres", label: "DELETE notifications" },
+        { from: "n.r_notifications", to: "n.apiRequest", label: "204" }
+      ]
+    },
+    {
+      id: "unread-count", title: "Notifications Unread Count", category: "Notifications",
+      summary: "Lightweight endpoint for the bell-badge counter.",
+      steps: [
+        { from: "n.NotifDropdown", to: "n.apiRequest", label: "GET /notifications/unread-count" },
+        { from: "n.apiRequest", to: "n.r_notifications", label: "count handler" },
+        { from: "n.r_notifications", to: "n.m_Notification", label: "COUNT WHERE user_id + read=false" },
+        { from: "n.m_Notification", to: "n.postgres", label: "SELECT COUNT(*)" },
+        { from: "n.r_notifications", to: "n.NotifDropdown", label: "{ count }" }
+      ]
+    },
+
+    /* ===== ADMIN (UI-ONLY STUBS) ===== */
+    {
+      id: "admin-overview", title: "Admin Overview", category: "Admin (UI stubs)",
+      summary: "STUB: admin pages are currently 100% UI mockups with hardcoded data. There are no /api/admin endpoints in the backend. Building any admin feature requires net-new routers + admin role checks (no `is_admin` exists today).",
+      steps: [
+        { from: "n.user", to: "n.AdminOverview", label: "open /admin" },
+        { from: "n.AdminOverview", to: "n.user", label: "render hardcoded metrics", payload: "Mock: DAU 12.8K, docs 2.4M, queries 184K/24h, p95 1.4s. No API call." }
+      ]
+    },
+    {
+      id: "admin-users", title: "Admin · Users Table", category: "Admin (UI stubs)",
+      summary: "STUB: shows a mock user table. To make real, add `GET /admin/users` with admin guard, then wire AdminUsersPage to apiRequest.",
+      steps: [
+        { from: "n.user", to: "n.AdminUsers", label: "open /admin/users" },
+        { from: "n.AdminUsers", to: "n.user", label: "render hardcoded user list", payload: "Mock data. Real version would call GET /admin/users (does not exist)." }
+      ]
+    },
+    {
+      id: "admin-models", title: "Admin · Model Routing", category: "Admin (UI stubs)",
+      summary: "STUB: lists 4 mock AI models with traffic %, p95 latency, error rate. Configure / Add Model buttons not wired.",
+      steps: [
+        { from: "n.user", to: "n.AdminModels", label: "open /admin/models" },
+        { from: "n.AdminModels", to: "n.user", label: "render mock model list", payload: "Models: Aid Balanced (default 62%), Aid Rigor, Aid Fast, Aid Experimental (canary 0.5%). Mock only." }
+      ]
+    },
+    {
+      id: "admin-flags", title: "Admin · Feature Flags", category: "Admin (UI stubs)",
+      summary: "STUB: lists 5 mock feature flags. Toggle/Edit not wired. Real version needs a flag service + persistence.",
+      steps: [
+        { from: "n.user", to: "n.AdminFlags", label: "open /admin/flags" },
+        { from: "n.AdminFlags", to: "n.user", label: "render mock flags", payload: "Flags: hierarchical-rag-v2 (On 100%), agent-mentions (35%), annotation-suggestions (Off), team-billing-portal (Lab only), experimental-canary (0.5%)." }
+      ]
+    },
+    {
+      id: "admin-logs", title: "Admin · Audit Logs", category: "Admin (UI stubs)",
+      summary: "STUB: mock audit log table. Time range selector + Export button not wired.",
+      steps: [
+        { from: "n.user", to: "n.AdminLogs", label: "open /admin/logs" },
+        { from: "n.AdminLogs", to: "n.user", label: "render mock audit rows", payload: "Examples: feature_flag.update, model.canary_promote, user.suspend, billing.invoice_failed, user.role_grant. No real audit log table exists." }
+      ]
+    },
+    {
+      id: "admin-health", title: "Admin · System Health", category: "Admin (UI stubs)",
+      summary: "STUB: shows 6 mock service status rows + an alert. Real version would poll /admin/health (does not exist).",
+      steps: [
+        { from: "n.user", to: "n.AdminHealth", label: "open /admin/health" },
+        { from: "n.AdminHealth", to: "n.user", label: "render mock service status", payload: "Services: API Gateway, Inference, Vector DB, Embedding Pipeline (degraded), S3, Auth. Mock 30-day uptime + active alert." }
+      ]
+    },
+
+    /* ===== INTEGRATIONS (UI STUB) ===== */
+    {
+      id: "integrations-list", title: "Integrations Page", category: "Integrations (UI stubs)",
+      summary: "STUB: 6 integrations rendered as cards (Zotero, Mendeley, Google Scholar, Notion, Google Drive, Overleaf). Connect/Configure buttons present but not wired. Real version would do OAuth dance per provider + persist tokens server-side.",
+      steps: [
+        { from: "n.user", to: "n.IntegrationsPage", label: "open /integrations" },
+        { from: "n.IntegrationsPage", to: "n.user", label: "render hardcoded cards", payload: "No fetch / apiRequest. Click handlers do nothing." }
+      ]
+    },
+    {
+      id: "integration-connect", title: "Connect Integration (planned)", category: "Integrations (UI stubs)",
+      summary: "PLANNED: pressing Connect should kick off an OAuth redirect, receive a callback, exchange for tokens, persist on a new model. None of this is implemented.",
+      steps: [
+        { from: "n.user", to: "n.IntegrationsPage", label: "click Connect" },
+        { from: "n.IntegrationsPage", to: "n.user", label: "(planned) window.location → OAuth provider" },
+        { from: "n.user", to: "n.AppRouter", label: "(planned) /integrations/callback" },
+        { from: "n.AppRouter", to: "n.apiRequest", label: "(planned) POST /integrations/{provider}/exchange" }
+      ]
+    },
+
+    /* ===== AUTH ERROR PATHS ===== */
+    {
+      id: "auth-401", title: "Auth Failure (401 Unauthorized)", category: "Auth",
+      summary: "Any authed request with a missing/invalid/expired token. get_current_user raises 401; frontend should treat it as a logout signal and route to /login.",
+      steps: [
+        { from: "n.user", to: "n.DashboardPage", label: "(token expired)" },
+        { from: "n.DashboardPage", to: "n.apiRequest", label: "GET /any/authed/route" },
+        { from: "n.apiRequest", to: "n.localstorage", label: "read aid_token" },
+        { from: "n.apiRequest", to: "n.cors", label: "Authorization: Bearer <stale>" },
+        { from: "n.cors", to: "n.get_current_user", label: "decode_access_token() → None / expired" },
+        { from: "n.get_current_user", to: "n.apiRequest", label: "401 Unauthorized", payload: "{ detail: 'Invalid or expired token' }" },
+        { from: "n.apiRequest", to: "n.DashboardPage", label: "throw Error('Invalid or expired token')" },
+        { from: "n.DashboardPage", to: "n.AuthContext", label: "(handler should) logout()" },
+        { from: "n.AuthContext", to: "n.AppRouter", label: "navigate('/login')" }
+      ]
+    },
+    {
+      id: "forgot-password", title: "Forgot / Reset Password (NOT implemented)", category: "Auth",
+      summary: "STUB: no /auth/forgot or /auth/reset endpoint exists. Change Password (POST /auth/password) requires the user to be logged in and know their current password.",
+      steps: [
+        { from: "n.user", to: "n.LoginPage", label: "click 'Forgot password?'" },
+        { from: "n.LoginPage", to: "n.user", label: "(no flow yet)", payload: "Backend has no email service, no reset-token table, no /auth/forgot endpoint. Add SMTP + token model + 2 endpoints to enable." }
+      ]
+    },
+
+    /* ===== OPS / INFRA ===== */
+    {
+      id: "startup-lifespan", title: "Server Startup (lifespan)", category: "Ops",
+      summary: "FastAPI's @asynccontextmanager lifespan creates missing tables and runs the column-add migrations before the app starts taking requests.",
+      steps: [
+        { from: "n.dockerfile", to: "n.lifespan", label: "uvicorn boots app" },
+        { from: "n.lifespan", to: "n.postgres", label: "Base.metadata.create_all() — create missing tables" },
+        { from: "n.lifespan", to: "n.alter_db", label: "ensure_user_profile_columns()" },
+        { from: "n.alter_db", to: "n.postgres", label: "ALTER users ADD affiliation, bio" },
+        { from: "n.alter_db", to: "n.postgres", label: "ALTER documents ADD workspace_id" },
+        { from: "n.alter_db", to: "n.postgres", label: "ALTER workspaces ADD description, privacy" },
+        { from: "n.alter_db", to: "n.postgres", label: "CREATE notifications + index (if missing)" },
+        { from: "n.lifespan", to: "n.cors", label: "register middleware (CORS outermost, logging inner)" },
+        { from: "n.lifespan", to: "n.r_auth", label: "mount routers under /api" }
+      ]
+    },
+    {
+      id: "request-pipeline", title: "Generic Request Pipeline", category: "Ops",
+      summary: "How any HTTP request flows through middleware → router → service → DB → response. Useful as the canonical baseline for all other flows.",
+      steps: [
+        { from: "n.user", to: "n.apiRequest", label: "fetch()" },
+        { from: "n.apiRequest", to: "n.cors", label: "OPTIONS preflight (if cross-origin)" },
+        { from: "n.cors", to: "n.logging_mw", label: "logged (passwords/tokens redacted)" },
+        { from: "n.logging_mw", to: "n.get_current_user", label: "if route depends on auth" },
+        { from: "n.get_current_user", to: "n.r_documents", label: "router handler" },
+        { from: "n.r_documents", to: "n.get_db", label: "AsyncSession (auto-commit on 2xx, rollback on exception)" },
+        { from: "n.r_documents", to: "n.m_Document", label: "ORM ops" },
+        { from: "n.m_Document", to: "n.postgres", label: "SQL via PgBouncer pooler" },
+        { from: "n.r_documents", to: "n.logging_mw", label: "response", payload: "JSON body" },
+        { from: "n.logging_mw", to: "n.cors", label: "response → CORS headers attached" },
+        { from: "n.cors", to: "n.apiRequest", label: "HTTP response" }
+      ]
+    },
+    {
+      id: "deploy-docker-dev", title: "Local Dev (docker-compose.dev.yml)", category: "Ops",
+      summary: "Spin up backend (uvicorn --reload, port 8000) and frontend (Vite dev, port 5173) with shared uploads volume.",
+      steps: [
+        { from: "n.user", to: "n.docker", label: "docker compose -f docker-compose.dev.yml up" },
+        { from: "n.docker", to: "n.dockerfile", label: "build backend image (python:3.11-slim)" },
+        { from: "n.docker", to: "n.lifespan", label: "start backend (uvicorn --reload)" },
+        { from: "n.docker", to: "n.user", label: "frontend on :5173, backend on :8000" }
+      ]
+    },
+    {
+      id: "deploy-docker-prod", title: "Prod-style (docker-compose.yml)", category: "Ops",
+      summary: "Restart=always for both services. Backend on 8000, frontend on 3000. Frontend depends on backend.",
+      steps: [
+        { from: "n.user", to: "n.docker", label: "docker compose up -d" },
+        { from: "n.docker", to: "n.dockerfile", label: "build backend" },
+        { from: "n.docker", to: "n.lifespan", label: "start uvicorn (no reload)" },
+        { from: "n.docker", to: "n.user", label: "frontend :3000 → backend :8000" }
+      ]
+    },
+    {
+      id: "deploy-vercel", title: "Vercel Serverless Deploy", category: "Ops",
+      summary: "vercel.json builds backend with @vercel/python and routes all paths to app/main.py as a serverless function. Note: lifespan startup runs per cold start; the in-memory session_cache resets per invocation.",
+      steps: [
+        { from: "n.user", to: "n.vercel", label: "git push (Vercel build hook)" },
+        { from: "n.vercel", to: "n.lifespan", label: "@vercel/python builds main.py" },
+        { from: "n.vercel", to: "n.cors", label: "all routes → main.py serverless fn" },
+        { from: "n.cors", to: "n.user", label: "API live on https://ai-doc-mocha.vercel.app", payload: "Caveat: session_cache (in-memory TTL) resets per cold start. Use Redis for production-grade caching." }
+      ]
+    },
+    {
+      id: "migration-run", title: "Manual Migration (alter_db.py)", category: "Ops",
+      summary: "Standalone migration script invoked by lifespan. Idempotent — safe to re-run. Adds missing columns, creates the notifications table if absent.",
+      steps: [
+        { from: "n.user", to: "n.alter_db", label: "python -m app.alter_db (or auto on startup)" },
+        { from: "n.alter_db", to: "n.postgres", label: "ALTER users ADD COLUMN IF NOT EXISTS affiliation, bio" },
+        { from: "n.alter_db", to: "n.postgres", label: "ALTER documents ADD COLUMN IF NOT EXISTS workspace_id" },
+        { from: "n.alter_db", to: "n.postgres", label: "ALTER workspaces ADD COLUMN IF NOT EXISTS description, privacy" },
+        { from: "n.alter_db", to: "n.postgres", label: "CREATE TABLE IF NOT EXISTS notifications + INDEX on user_id" }
+      ]
+    },
+    {
+      id: "check-db", title: "Dev Sanity Check (check_db.py)", category: "Ops",
+      summary: "DEV ONLY. Standalone Python script that simulates the workspace-invite flow against the DB to verify the model relationships work.",
+      steps: [
+        { from: "n.user", to: "n.check_db", label: "python check_db.py" },
+        { from: "n.check_db", to: "n.m_Workspace", label: "load workspace + verify owner" },
+        { from: "n.check_db", to: "n.m_User", label: "find invitee by email" },
+        { from: "n.check_db", to: "n.m_WorkspaceMember", label: "check existing membership" },
+        { from: "n.check_db", to: "n.m_Notification", label: "create test invite notification" },
+        { from: "n.check_db", to: "n.user", label: "print results to console" }
+      ]
+    }
+  ]
+};
+
+/* ============================================================================
+   RENDERING
+   ============================================================================ */
+const $ = sel => document.querySelector(sel);
+const groupCollapsed = {}; // id -> bool
+
+/* ── Zoom state ─────────────────────────────────────────────── */
+const ZOOM_MIN = 0.3, ZOOM_MAX = 2.5, ZOOM_STEP = 0.1;
+let zoom = 1;
+
+function applyZoom() {
+  const stage = document.getElementById('canvas-stage');
+  if (stage) stage.style.transform = `scale(${zoom})`;
+  const lbl = document.getElementById('zoom-label');
+  if (lbl) lbl.textContent = Math.round(zoom * 100) + '%';
+}
+function setZoomAt(newZoom, anchorClientX, anchorClientY) {
+  newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, newZoom));
+  if (newZoom === zoom) return;
+  const wrap = document.getElementById('canvas-wrap');
+  const wrapRect = wrap.getBoundingClientRect();
+  const ax = anchorClientX != null ? anchorClientX : wrapRect.left + wrapRect.width / 2;
+  const ay = anchorClientY != null ? anchorClientY : wrapRect.top  + wrapRect.height / 2;
+  const mx = ax - wrapRect.left;
+  const my = ay - wrapRect.top;
+  const stageX = (mx + wrap.scrollLeft) / zoom;
+  const stageY = (my + wrap.scrollTop)  / zoom;
+  zoom = newZoom;
+  applyZoom();
+  wrap.scrollLeft = stageX * zoom - mx;
+  wrap.scrollTop  = stageY * zoom - my;
+  drawEdges();
+}
+function fitZoom() {
+  const wrap = document.getElementById('canvas-wrap');
+  const stage = document.getElementById('canvas-stage');
+  if (!wrap || !stage) return;
+  const sr = stage.getBoundingClientRect();
+  const naturalW = sr.width  / zoom;
+  const naturalH = sr.height / zoom;
+  const padding = 40;
+  const fit = Math.max(ZOOM_MIN, Math.min(1, Math.min(
+    (wrap.clientWidth  - padding) / naturalW,
+    (wrap.clientHeight - padding) / naturalH,
+  )));
+  zoom = fit;
+  applyZoom();
+  requestAnimationFrame(() => {
+    const r = stage.getBoundingClientRect();
+    wrap.scrollLeft = Math.max(0, (r.width  - wrap.clientWidth)  / 2);
+    wrap.scrollTop  = Math.max(0, (r.height - wrap.clientHeight) / 2);
+    drawEdges();
+  });
+}
+
+function init() {
+  // Default: all groups expanded.
+  DATA.groups.forEach(g => groupCollapsed[g.id] = false);
+
+  buildCanvas();
+  buildFlowsList();
+  bindGlobalEvents();
+  bindZoomEvents();
+  // Auto-select first flow
+  selectFlow(DATA.flows[0].id);
+  // Re-draw on resize
+  window.addEventListener('resize', () => { drawEdges(); });
+  document.getElementById('canvas-wrap').addEventListener('scroll', drawEdges);
+}
+
+function bindZoomEvents() {
+  const wrap = document.getElementById('canvas-wrap');
+  document.getElementById('zoom-in').addEventListener('click',  () => setZoomAt(zoom + ZOOM_STEP));
+  document.getElementById('zoom-out').addEventListener('click', () => setZoomAt(zoom - ZOOM_STEP));
+  document.getElementById('zoom-100').addEventListener('click', () => setZoomAt(1));
+  document.getElementById('zoom-label').addEventListener('click', () => setZoomAt(1));
+  document.getElementById('zoom-fit').addEventListener('click',  () => fitZoom());
+
+  // Ctrl/Cmd + wheel = zoom (cursor-anchored)
+  wrap.addEventListener('wheel', (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    setZoomAt(zoom + (e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP), e.clientX, e.clientY);
+  }, { passive: false });
+
+  // Keyboard shortcuts (skip when typing in the search box)
+  window.addEventListener('keydown', (e) => {
+    const tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if      (e.key === '+' || e.key === '=') { e.preventDefault(); setZoomAt(zoom + ZOOM_STEP); }
+    else if (e.key === '-' || e.key === '_') { e.preventDefault(); setZoomAt(zoom - ZOOM_STEP); }
+    else if (e.key === '0') { e.preventDefault(); setZoomAt(1); }
+    else if (e.key === '1') { e.preventDefault(); fitZoom(); }
+  });
+
+  // Drag to pan (middle mouse, or left-click on empty canvas background)
+  let panning = false, panStart = null, scrollStart = null;
+  wrap.addEventListener('mousedown', (e) => {
+    const onBg = e.target === wrap || e.target.id === 'canvas-stage' || e.target.classList.contains('canvas');
+    if (e.button !== 1 && !onBg) return;
+    panning = true;
+    panStart = { x: e.clientX, y: e.clientY };
+    scrollStart = { x: wrap.scrollLeft, y: wrap.scrollTop };
+    wrap.style.cursor = 'grabbing';
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!panning) return;
+    wrap.scrollLeft = scrollStart.x - (e.clientX - panStart.x);
+    wrap.scrollTop  = scrollStart.y - (e.clientY - panStart.y);
+  });
+  window.addEventListener('mouseup', () => {
+    if (!panning) return;
+    panning = false;
+    wrap.style.cursor = '';
+  });
+}
+
+function buildCanvas() {
+  const canvas = document.getElementById('canvas');
+  canvas.innerHTML = '';
+  DATA.columns.forEach(col => {
+    const colEl = document.createElement('div');
+    colEl.className = 'col';
+    colEl.dataset.col = col.id;
+    const head = document.createElement('div');
+    head.className = 'col-header';
+    head.dataset.col = col.id;
+    head.textContent = col.label;
+    colEl.appendChild(head);
+
+    DATA.groups.filter(g => g.column === col.id).forEach(g => {
+      colEl.appendChild(buildGroup(g));
+    });
+    canvas.appendChild(colEl);
+  });
+  // After DOM is in place, draw edges next frame.
+  requestAnimationFrame(drawEdges);
+}
+
+function buildGroup(g) {
+  const el = document.createElement('div');
+  el.className = 'group' + (groupCollapsed[g.id] ? ' collapsed' : '');
+  el.dataset.groupId = g.id;
+  el.innerHTML = `
+    <div class="group-head">
+      <svg class="group-chevron" viewBox="0 0 12 12">
+        <path d="M3 4 L6 8 L9 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div class="group-title">${escapeHtml(g.label)}</div>
+      <div class="group-meta">${g.nodes.length}</div>
+    </div>
+    <div class="group-body"></div>
+  `;
+  const body = el.querySelector('.group-body');
+  g.nodes.forEach(n => {
+    const node = document.createElement('div');
+    node.className = 'node';
+    node.dataset.nodeId = n.id;
+    node.innerHTML = `
+      <div class="text">
+        <div class="name">${escapeHtml(n.label)}</div>
+        ${n.file ? `<div class="file">${escapeHtml(n.file)}</div>` : ''}
+      </div>
+    `;
+    body.appendChild(node);
+  });
+  el.querySelector('.group-head').addEventListener('click', () => {
+    groupCollapsed[g.id] = !groupCollapsed[g.id];
+    el.classList.toggle('collapsed');
+    requestAnimationFrame(drawEdges);
+  });
+  return el;
+}
+
+function buildFlowsList() {
+  const list = document.getElementById('flows-list');
+  list.innerHTML = '<h2>Flows</h2>';
+  const byCat = {};
+  DATA.flows.forEach(f => { (byCat[f.category] = byCat[f.category] || []).push(f); });
+  Object.entries(byCat).forEach(([cat, flows]) => {
+    const catWrap = document.createElement('div');
+    catWrap.className = 'flow-cat';
+    catWrap.innerHTML = `<div class="flow-cat-title">${escapeHtml(cat)}</div>`;
+    flows.forEach(f => {
+      const item = document.createElement('div');
+      item.className = 'flow-item';
+      item.dataset.flowId = f.id;
+      item.innerHTML = `
+        <span class="flow-name">${escapeHtml(f.title)}</span>
+        <span class="step-count">${f.steps.length}</span>
+      `;
+      item.addEventListener('click', () => selectFlow(f.id));
+      catWrap.appendChild(item);
+    });
+    list.appendChild(catWrap);
+  });
+}
+
+let currentFlowId = null;
+let currentStep = -1; // -1 = show all steps; otherwise highlight just that step
+
+function selectFlow(id) {
+  currentFlowId = id;
+  currentStep = -1;
+  document.querySelectorAll('.flow-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.flowId === id);
+  });
+  renderInfo();
+  drawEdges();
+}
+
+function renderInfo() {
+  const flow = DATA.flows.find(f => f.id === currentFlowId);
+  const info = document.getElementById('info');
+  if (!flow) { info.innerHTML = '<div class="info-empty">Select a flow.</div>'; return; }
+
+  info.innerHTML = `
+    <div class="info-head">
+      <div class="info-cat">${escapeHtml(flow.category)}</div>
+      <h2 class="info-title">${escapeHtml(flow.title)}</h2>
+      <div class="info-summary">${escapeHtml(flow.summary)}</div>
+    </div>
+    <div class="info-controls">
+      <button id="btn-prev">‹ Prev</button>
+      <button id="btn-play" class="play">▶ Play</button>
+      <button id="btn-next">Next ›</button>
+      <button id="btn-all">All</button>
+    </div>
+    <div class="info-steps" id="info-steps"></div>
+    <div class="legend">
+      <div class="legend-row"><span class="legend-swatch" style="background:var(--col-client)"></span> Client</div>
+      <div class="legend-row"><span class="legend-swatch" style="background:var(--col-frontend)"></span> Frontend</div>
+      <div class="legend-row"><span class="legend-swatch" style="background:var(--col-api)"></span> API</div>
+      <div class="legend-row"><span class="legend-swatch" style="background:var(--col-data)"></span> Data</div>
+    </div>
+  `;
+  const stepsEl = document.getElementById('info-steps');
+  flow.steps.forEach((s, i) => {
+    const fromName = nodeLabel(s.from);
+    const toName = nodeLabel(s.to);
+    const card = document.createElement('div');
+    card.className = 'step-card' + (i === currentStep ? ' current' : '');
+    card.dataset.step = i;
+    card.innerHTML = `
+      <div class="step-num-circle">${i + 1}</div>
+      <div class="step-text">
+        <div class="step-route">
+          <span class="from">${escapeHtml(fromName)}</span>
+          <span class="arr">→</span>
+          <span class="to">${escapeHtml(toName)}</span>
+        </div>
+        <div class="step-label">${escapeHtml(s.label || '')}</div>
+        ${s.payload ? `<div class="step-payload">${escapeHtml(s.payload)}</div>` : ''}
+      </div>
+    `;
+    card.addEventListener('click', () => { currentStep = i; renderInfo(); drawEdges(); });
+    stepsEl.appendChild(card);
+  });
+
+  document.getElementById('btn-prev').onclick = () => { currentStep = Math.max(0, (currentStep < 0 ? 0 : currentStep) - 1); renderInfo(); drawEdges(); };
+  document.getElementById('btn-next').onclick = () => { currentStep = Math.min(flow.steps.length - 1, (currentStep < 0 ? -1 : currentStep) + 1); renderInfo(); drawEdges(); };
+  document.getElementById('btn-all').onclick  = () => { currentStep = -1; renderInfo(); drawEdges(); };
+  document.getElementById('btn-play').onclick = () => playFlow(flow);
+}
+
+function playFlow(flow) {
+  let i = 0;
+  currentStep = i; renderInfo(); drawEdges();
+  const tick = () => {
+    i++;
+    if (i >= flow.steps.length) return;
+    currentStep = i; renderInfo(); drawEdges();
+    setTimeout(tick, 850);
+  };
+  setTimeout(tick, 850);
+}
+
+function nodeLabel(id) {
+  for (const g of DATA.groups) {
+    const n = g.nodes.find(n => n.id === id);
+    if (n) return n.label;
+  }
+  return id;
+}
+
+function nodeGroup(id) {
+  for (const g of DATA.groups) {
+    if (g.nodes.find(n => n.id === id)) return g.id;
+  }
+  return null;
+}
+
+/* ── Edge rendering ───────────────────────────────────────────────────── */
+function drawEdges() {
+  const svg = document.getElementById('edges');
+  const canvas = document.getElementById('canvas');
+  // SVG sits inside .canvas-stage which is what gets scaled, so we use the
+  // canvas's pre-transform offset size and keep all edge math in unscaled coords.
+  const cw = canvas.offsetWidth;
+  const ch = canvas.offsetHeight;
+  svg.setAttribute('width', cw);
+  svg.setAttribute('height', ch);
+  svg.setAttribute('viewBox', `0 0 ${cw} ${ch}`);
+
+  // Clear non-defs children
+  [...svg.childNodes].forEach(n => { if (n.tagName !== 'defs') svg.removeChild(n); });
+
+  // Reset all node + group highlights
+  document.querySelectorAll('.node, .group').forEach(el => el.classList.remove('hot', 'dim'));
+  document.querySelectorAll('.node-step-badge').forEach(b => b.remove());
+
+  if (!currentFlowId) return;
+  const flow = DATA.flows.find(f => f.id === currentFlowId);
+  if (!flow) return;
+
+  // Dim everything that's not part of the flow.
+  const involvedNodes = new Set();
+  const involvedGroups = new Set();
+  flow.steps.forEach(s => {
+    [s.from, s.to].forEach(id => {
+      involvedNodes.add(id);
+      const gid = nodeGroup(id); if (gid) involvedGroups.add(gid);
+    });
+  });
+  document.querySelectorAll('.node').forEach(el => {
+    if (!involvedNodes.has(el.dataset.nodeId)) el.classList.add('dim');
+  });
+  document.querySelectorAll('.group').forEach(el => {
+    if (!involvedGroups.has(el.dataset.groupId)) el.classList.add('dim');
+  });
+
+  // Highlight active step participants
+  const activeStepIdxs = currentStep < 0 ? flow.steps.map((_, i) => i) : [currentStep];
+  const hotNodes = new Set();
+  activeStepIdxs.forEach(i => {
+    const s = flow.steps[i];
+    hotNodes.add(s.from); hotNodes.add(s.to);
+  });
+  hotNodes.forEach(id => {
+    const el = document.querySelector(`.node[data-node-id="${id}"]`);
+    if (el) { el.classList.remove('dim'); el.classList.add('hot'); }
+    const gid = nodeGroup(id);
+    const gEl = document.querySelector(`.group[data-group-id="${gid}"]`);
+    if (gEl) { gEl.classList.remove('dim'); gEl.classList.add('hot'); }
+  });
+
+  // Build position map in pre-transform (unscaled) canvas coords. We divide
+  // by zoom because getBoundingClientRect returns post-transform pixel values.
+  const canvasRect = canvas.getBoundingClientRect();
+  const z = zoom || 1;
+  const rectToUnscaled = (r) => ({
+    left:   (r.left   - canvasRect.left) / z,
+    right:  (r.right  - canvasRect.left) / z,
+    top:    (r.top    - canvasRect.top)  / z,
+    bottom: (r.bottom - canvasRect.top)  / z,
+    x:      (r.left   - canvasRect.left) / z + (r.width  / z) / 2,
+    y:      (r.top    - canvasRect.top)  / z + (r.height / z) / 2,
+  });
+  const pos = (id) => {
+    const gid = nodeGroup(id);
+    const gEl = document.querySelector(`.group[data-group-id="${gid}"]`);
+    if (!gEl) return null;
+    if (gEl.classList.contains('collapsed')) return rectToUnscaled(gEl.getBoundingClientRect());
+    const el = document.querySelector(`.node[data-node-id="${id}"]`);
+    if (!el) return null;
+    return rectToUnscaled(el.getBoundingClientRect());
+  };
+
+  // Decide entry/exit point on each box for a smoother edge: side-anchored.
+  const sidePoint = (p, otherX) => {
+    if (!p) return null;
+    if (otherX > p.x) return { x: p.right + 4, y: p.y };
+    if (otherX < p.x) return { x: p.left - 4, y: p.y };
+    return { x: p.x, y: p.y };
+  };
+
+  // Draw each step. If currentStep >= 0, draw only that one (with full hot
+  // styling). Otherwise draw all flow steps as hot.
+  const stepsToDraw = currentStep < 0 ? flow.steps : [flow.steps[currentStep]];
+  const baseIdx = currentStep < 0 ? 0 : currentStep;
+
+  stepsToDraw.forEach((s, idx) => {
+    const stepNumber = (currentStep < 0 ? idx : currentStep) + 1;
+    const p1 = pos(s.from);
+    const p2 = pos(s.to);
+    if (!p1 || !p2) return;
+    const a = sidePoint(p1, p2.x);
+    const b = sidePoint(p2, p1.x);
+    if (!a || !b) return;
+
+    // Cubic Bezier curve with horizontal control offsets.
+    const dx = Math.abs(b.x - a.x);
+    const cOff = Math.max(40, Math.min(140, dx * 0.45));
+    const c1x = a.x + (b.x > a.x ? cOff : -cOff);
+    const c2x = b.x + (b.x > a.x ? -cOff : cOff);
+    const d = `M ${a.x} ${a.y} C ${c1x} ${a.y}, ${c2x} ${b.y}, ${b.x} ${b.y}`;
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('class', 'hot');
+    path.setAttribute('marker-end', 'url(#arrow-hot)');
+    svg.appendChild(path);
+
+    // Step number bubble at midpoint
+    const mx = (a.x + b.x) / 2;
+    const my = (a.y + b.y) / 2;
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    bg.setAttribute('cx', mx); bg.setAttribute('cy', my);
+    bg.setAttribute('r', 11); bg.setAttribute('class', 'step-bg');
+    svg.appendChild(bg);
+    const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    txt.setAttribute('x', mx); txt.setAttribute('y', my + 3.5);
+    txt.setAttribute('text-anchor', 'middle'); txt.setAttribute('class', 'step-num');
+    txt.textContent = stepNumber;
+    svg.appendChild(txt);
+  });
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+function bindGlobalEvents() {
+  document.getElementById('search').addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase().trim();
+    document.querySelectorAll('.flow-item').forEach(el => {
+      const flow = DATA.flows.find(f => f.id === el.dataset.flowId);
+      const hit = !q || flow.title.toLowerCase().includes(q) || flow.category.toLowerCase().includes(q) || flow.summary.toLowerCase().includes(q);
+      el.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('.flow-cat').forEach(cat => {
+      const visible = [...cat.querySelectorAll('.flow-item')].some(it => it.style.display !== 'none');
+      cat.style.display = visible ? '' : 'none';
+    });
+  });
+  document.getElementById('btn-expand-all').addEventListener('click', () => {
+    DATA.groups.forEach(g => groupCollapsed[g.id] = false);
+    buildCanvas(); requestAnimationFrame(drawEdges);
+  });
+  document.getElementById('btn-collapse-all').addEventListener('click', () => {
+    DATA.groups.forEach(g => groupCollapsed[g.id] = true);
+    buildCanvas(); requestAnimationFrame(drawEdges);
+  });
+}
+
+// Boot
+init();
+</script>
+</body>
+</html>

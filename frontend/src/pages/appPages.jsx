@@ -1,6 +1,7 @@
 // Dashboard, Library, Document Viewer, Workspaces pages
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, Icon, Brand, Sidebar, TopNav, AppShell, CommandPalette, EmptyState, Modal, navigate, useRoute } from '../shared/components';
+import { DocTabBar, useDocTabs } from '../shared/docTabs';
 import { useAuth } from '../contexts/AuthContext';
 import { apiRequest } from '../apiConfig';
 
@@ -8,6 +9,10 @@ const useStateP1 = useState;
 const useEffectP1 = useEffect;
 const useRefP1 = useRef;
 const useMemoP1 = useMemo;
+
+// Module-level cache for documents so switching tabs is instant.
+// Keyed by documentId. Survives the lifetime of the app instance.
+const docCache = new Map(); // id -> { documentData, viewUrl, textContent }
 const BOOTSTRAP_MAX_AGE_SECONDS = 60;
 
 function readBootstrapCache() {
@@ -484,12 +489,13 @@ function LibraryPage() {
 // =================== DOCUMENT VIEWER ===================
 function DocViewerPage({ params }) {
   const documentId = params?.[1] || "";
+  const cached = documentId ? docCache.get(documentId) : null;
   const [length, setLength] = useStateP1("Med");
-  const [loadingDocument, setLoadingDocument] = useStateP1(true);
+  const [loadingDocument, setLoadingDocument] = useStateP1(!cached);
   const [viewerError, setViewerError] = useStateP1("");
-  const [documentData, setDocumentData] = useStateP1(null);
-  const [viewUrl, setViewUrl] = useStateP1("");
-  const [textContent, setTextContent] = useStateP1("");
+  const [documentData, setDocumentData] = useStateP1(cached?.documentData || null);
+  const [viewUrl, setViewUrl] = useStateP1(cached?.viewUrl || "");
+  const [textContent, setTextContent] = useStateP1(cached?.textContent || "");
   const [messages, setMessages] = useStateP1([
     { role: "user", text: "What is RAG architecture?", time: "10:42 AM" },
     {
@@ -520,38 +526,54 @@ function DocViewerPage({ params }) {
   const [contextOpen, setContextOpen] = useStateP1(false);
   const [context, setContext] = useStateP1("Current Document");
 
+  const { tabs, openTab, closeTab, reorderTab } = useDocTabs(documentId);
+
   useEffectP1(() => {
     let active = true;
 
-    const loadDocument = async () => {
-      if (!documentId) {
-        setViewerError("No document selected.");
-        setLoadingDocument(false);
-        return;
-      }
+    if (!documentId) {
+      setViewerError("No document selected.");
+      setLoadingDocument(false);
+      return;
+    }
 
+    // Cache hit: hydrate instantly, no spinner.
+    const hit = docCache.get(documentId);
+    if (hit) {
+      setViewerError("");
+      setDocumentData(hit.documentData);
+      setViewUrl(hit.viewUrl);
+      setTextContent(hit.textContent || "");
+      setLoadingDocument(false);
+      return;
+    }
+
+    // Cache miss: fetch.
+    setViewerError("");
+    setLoadingDocument(true);
+    setDocumentData(null);
+    setViewUrl("");
+    setTextContent("");
+
+    (async () => {
       try {
-        setViewerError("");
-        setLoadingDocument(true);
         const [doc, view] = await Promise.all([
           apiRequest(`/documents/${documentId}`),
           apiRequest(`/documents/${documentId}/view-url`),
         ]);
-
         if (!active) return;
-        setDocumentData(doc);
-        setViewUrl(view?.view_url || "");
+        const next = { documentData: doc, viewUrl: view?.view_url || "", textContent: "" };
+        docCache.set(documentId, next);
+        setDocumentData(next.documentData);
+        setViewUrl(next.viewUrl);
       } catch (err) {
         if (active) setViewerError(err.message);
       } finally {
         if (active) setLoadingDocument(false);
       }
-    };
+    })();
 
-    loadDocument();
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [documentId]);
 
   useEffectP1(() => {
@@ -562,11 +584,17 @@ function DocViewerPage({ params }) {
         setTextContent("");
         return;
       }
+      // Cache hit?
+      const hit = docCache.get(documentId);
+      if (hit?.textContent) { setTextContent(hit.textContent); return; }
 
       try {
         const response = await fetch(viewUrl);
         const text = await response.text();
-        if (active) setTextContent(text);
+        if (active) {
+          setTextContent(text);
+          if (hit) docCache.set(documentId, { ...hit, textContent: text });
+        }
       } catch {
         if (active) setTextContent("");
       }
@@ -579,6 +607,12 @@ function DocViewerPage({ params }) {
   }, [viewUrl, documentData?.file_type]);
 
   const docName = documentData?.filename || "Document";
+
+  // Register this document as an open tab as soon as we know its name + type.
+  useEffectP1(() => {
+    if (!documentId || !documentData) return;
+    openTab({ id: documentId, name: documentData.filename || 'Document', type: documentData.file_type || 'DOC' });
+  }, [documentId, documentData, openTab]);
 
   const send = () => {
     if (!draft.trim()) return;
@@ -680,7 +714,18 @@ function DocViewerPage({ params }) {
         </div>
       </header>
 
-      <main className="ml-sidebar-width pt-16 h-screen flex">
+      <div className="ml-sidebar-width pt-16 fixed top-0 right-0 left-0 z-20" style={{ pointerEvents: 'none' }}>
+        <div style={{ pointerEvents: 'auto' }}>
+          <DocTabBar
+            activeId={documentId}
+            tabs={tabs}
+            onClose={closeTab}
+            onReorder={reorderTab}
+          />
+        </div>
+      </div>
+
+      <main className="ml-sidebar-width h-screen flex" style={{ paddingTop: 64 + (tabs.length ? 44 : 0) }}>
         {/* PDF pane */}
         <section className="flex-1 bg-surface-container-low overflow-y-auto p-8 flex flex-col items-center">
           <div className="sticky top-0 mb-8 bg-white/90 backdrop-blur-md border border-border-subtle px-3 py-2 rounded-xl flex items-center gap-4 z-10 shadow-sm">
