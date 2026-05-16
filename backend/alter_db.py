@@ -11,6 +11,31 @@ async def main():
     await ensure_user_profile_columns()
     await ensure_workspace_columns()
     await ensure_notifications_table()
+    await ensure_document_text_column()
+
+
+async def ensure_document_text_column():
+    """Add the `extracted_text` column to documents for the AI chat feature."""
+    print("Adding documents.extracted_text column…")
+    engine = create_async_engine(
+        DATABASE_URL,
+        connect_args={
+            "prepared_statement_cache_size": 0,
+            "statement_cache_size": 0,
+        },
+        echo=False,
+    )
+
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text(
+                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS extracted_text TEXT;"
+            ))
+        print("✓ documents.extracted_text ensured")
+    except Exception as e:
+        print(f"Error adding documents.extracted_text: {e}")
+    finally:
+        await engine.dispose()
 
 
 async def ensure_user_profile_columns():

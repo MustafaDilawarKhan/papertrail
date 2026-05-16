@@ -16,6 +16,7 @@ from app.models.collection import Collection
 from app.schemas.document import DocumentResponse, DocumentViewUrlResponse
 from app.services.document_service import save_upload, get_file_type, validate_file, delete_file, get_view_url, get_local_file_url
 from app.services.session_cache import clear_user_bootstrap_cache
+from app.services.text_extraction import extract_text
 from app.middleware.auth import get_current_user
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -99,7 +100,7 @@ async def upload_document(
             raise HTTPException(status_code=403, detail="You do not have access to this workspace")
 
     try:
-        storage_path, file_size = await save_upload(
+        storage_path, file_size, raw_content = await save_upload(
             file,
             str(current_user.user_id),
             str(resolved_workspace_id) if resolved_workspace_id else None,
@@ -107,15 +108,25 @@ async def upload_document(
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    # Extract plain text from the uploaded file so the AI chat can ground
+    # answers in its content. Best-effort: a failure here must not block
+    # the upload itself (chat router falls back to lazy extraction).
+    file_type = get_file_type(filename)
+    try:
+        extracted_text = extract_text(raw_content, file_type) or None
+    except Exception:  # noqa: BLE001 — never fail an upload because of extraction
+        extracted_text = None
+
     document = Document(
         user_id=current_user.user_id,
         workspace_id=resolved_workspace_id,
         collection_id=collection_id,
         filename=filename,
-        file_type=get_file_type(filename),
+        file_type=file_type,
         file_size=file_size,
         storage_path=storage_path,
         processing_status="ready",
+        extracted_text=extracted_text,
     )
     db.add(document)
     await db.flush()
@@ -183,6 +194,49 @@ async def get_document(
         raise HTTPException(status_code=404, detail="Document not found")
     await ensure_document_access(db, current_user, doc)
     return doc
+
+
+@router.get("/{document_id}/text")
+async def get_document_text(
+    document_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Return the server-extracted plain text of a document.
+
+    Used by the document viewer (for DOCX/TXT) so the frontend can scroll to
+    and highlight the exact passage the AI cited. If the document was
+    uploaded before text extraction was enabled, this endpoint triggers a
+    lazy extract-and-save round-trip — first call may take a few seconds,
+    subsequent calls are instant.
+    """
+    from app.services.text_extraction import extract_for_document  # local import to avoid cycle at module load
+
+    result = await db.execute(
+        select(Document)
+        .options(noload("*"))
+        .where(Document.document_id == document_id)
+    )
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    await ensure_document_access(db, current_user, doc)
+
+    text = doc.extracted_text
+    if not text:
+        text = await extract_for_document(doc)
+        if text:
+            doc.extracted_text = text
+            await db.flush()
+
+    return {
+        "document_id": str(doc.document_id),
+        "filename": doc.filename,
+        "file_type": doc.file_type,
+        "text": text or "",
+        "has_text": bool(text),
+    }
 
 
 @router.get("/{document_id}/view-url", response_model=DocumentViewUrlResponse)

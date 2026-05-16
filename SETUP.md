@@ -46,6 +46,28 @@ UPLOAD_DIR=./uploads
 SUPABASE_URL=https://[ref].supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 SUPABASE_STORAGE_BUCKET=AID_DOC
+
+# AI Chat (OpenRouter) — required for document-grounded chat
+# Sign up at https://openrouter.ai/ and create a key.
+OPENROUTER_API_KEY=sk-or-v1-...
+# Optional overrides (defaults shown):
+# OPENROUTER_MODEL=openai/gpt-oss-120b:free
+# OPENROUTER_FALLBACK_MODELS=nvidia/nemotron-3-super:free,z-ai/glm-4.5-air:free
+# OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+```
+
+> **About the fallback chain:** If the primary model is rate-limited or
+> unavailable, the backend automatically tries each model in
+> `OPENROUTER_FALLBACK_MODELS` (in order) **before any tokens stream out**.
+> Once a model has started streaming, errors are surfaced rather than
+> retried — otherwise the user would see duplicated output. All three
+> defaults are free-tier models on OpenRouter, so no budget is required.
+
+After installing or updating dependencies, run the DB migration to add the
+`documents.extracted_text` column the AI chat depends on:
+
+```bash
+python alter_db.py
 ```
 Run the server:
 ```bash

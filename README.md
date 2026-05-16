@@ -40,6 +40,7 @@
 
 ## 📖 Features
 
+- **Document-Grounded AI Chat**: Ask questions about an uploaded paper and get answers tied to the exact page + passage. Powered by OpenRouter (`google/gemini-2.0-flash-exp:free` by default). Click any source pill in the chat to jump the PDF to the cited page.
 - **Source Anchoring**: Citations generated for every AI response.
 - **Library Management**: Upload and organize research papers (PDF, DOCX, TXT).
 - **Workspaces**: Collaborative environments for research teams.

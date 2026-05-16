@@ -36,9 +36,13 @@ def validate_file(filename: str) -> bool:
     return ext in ALLOWED_EXTENSIONS
 
 
-async def save_upload(file: UploadFile, user_id: str, workspace_id: str | None = None) -> tuple[str, int]:
+async def save_upload(file: UploadFile, user_id: str, workspace_id: str | None = None) -> tuple[str, int, bytes]:
     """
-    Save an uploaded file to Supabase Storage and return object path and size.
+    Save an uploaded file to Supabase Storage.
+
+    Returns (object_path, file_size_bytes, raw_content). `raw_content` is
+    returned so callers (e.g. the upload router) can pipe the same bytes
+    into text extraction without re-reading the upload stream.
     """
     content = await file.read()
     file_size = len(content)
@@ -59,7 +63,7 @@ async def save_upload(file: UploadFile, user_id: str, workspace_id: str | None =
         "upsert": False,
     }
     client.storage.from_(settings.SUPABASE_STORAGE_BUCKET).upload(object_path, content, options)
-    return object_path, file_size
+    return object_path, file_size, content
 
 
 def delete_file(storage_path: str) -> bool:

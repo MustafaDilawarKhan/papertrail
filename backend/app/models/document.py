@@ -6,7 +6,7 @@ Processing states (from state diagram): uploading → processing → ready | fai
 
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Integer, Boolean, DateTime, ForeignKey
+from sqlalchemy import String, Integer, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
@@ -38,6 +38,9 @@ class Document(Base):
     )
     ocr_applied: Mapped[bool] = mapped_column(Boolean, default=False)
     vectorized: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Plain-text content used by the document-grounded AI chat. Nullable so older
+    # rows keep working — the chat router will extract on demand when missing.
+    extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     upload_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

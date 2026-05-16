@@ -1,4 +1,17 @@
 services:
+  # One-shot job: applies any pending schema changes against Supabase.
+  # Idempotent — every statement uses `IF NOT EXISTS` so re-running is free.
+  # The backend service waits for this to exit with status 0 before it starts.
+  migrate:
+    build: ./backend
+    container_name: aid-migrate-dev
+    command: python alter_db.py
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/app
+    restart: "no"
+
   backend:
     build: ./backend
     container_name: aid-backend-dev
@@ -10,6 +23,9 @@ services:
     volumes:
       - ./backend:/app
       - ./backend/uploads:/app/uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 
   frontend:
     image: node:18-alpine

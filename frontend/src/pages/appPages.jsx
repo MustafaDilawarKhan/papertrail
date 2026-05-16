@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, Icon, Brand, Sidebar, TopNav, AppShell, CommandPalette, EmptyState, Modal, navigate, useRoute } from '../shared/components';
 import { DocTabBar, useDocTabs } from '../shared/docTabs';
 import { useAuth } from '../contexts/AuthContext';
-import { apiRequest } from '../apiConfig';
+import { apiRequest, API_BASE_URL } from '../apiConfig';
 
 const useStateP1 = useState;
 const useEffectP1 = useEffect;
@@ -487,6 +487,146 @@ function LibraryPage() {
 }
 
 // =================== DOCUMENT VIEWER ===================
+
+// Renders extracted plain text of a document with a single highlighted excerpt
+// (drawn from the active AI source). Splits the text on [Page N] markers
+// emitted by the server-side extractor so we can show "PAGE 12 / 28" style
+// headers and scroll the matching chunk into view.
+function TextDocumentView({ docName, text, highlight, fallbackUrl, isDocx }) {
+  const containerRef = useRefP1(null);
+  const matchRef = useRefP1(null);
+
+  // Split on [Page N] markers so we render one block per "page".
+  const pages = useMemoP1(() => {
+    if (!text) return [];
+    const out = [];
+    const re = /\[Page\s+(\d+)\]/g;
+    let lastIdx = 0;
+    let lastPage = 1;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > lastIdx) {
+        out.push({ page: lastPage, content: text.slice(lastIdx, m.index).trim() });
+      }
+      lastPage = parseInt(m[1], 10) || lastPage;
+      lastIdx = m.index + m[0].length;
+    }
+    if (lastIdx < text.length) {
+      out.push({ page: lastPage, content: text.slice(lastIdx).trim() });
+    }
+    return out.filter(p => p.content.length > 0);
+  }, [text]);
+
+  // When highlight changes, scroll its match into view (after render).
+  useEffectP1(() => {
+    if (matchRef.current) {
+      matchRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlight?.page, highlight?.excerpt]);
+
+  if (!text) {
+    return (
+      <div className="w-full max-w-4xl bg-white shadow-sm rounded-xl border border-border-subtle p-6 text-sm text-on-surface-variant">
+        <h3 className="font-card-title text-card-title mb-3 text-on-surface">{docName}</h3>
+        <p>Extracting document text…{isDocx ? " (first open of a DOCX can take a moment)" : ""}</p>
+        {fallbackUrl && (
+          <p className="mt-3"><a href={fallbackUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">Open original file in a new tab</a></p>
+        )}
+      </div>
+    );
+  }
+
+  const excerpt = highlight?.excerpt || "";
+  const highlightPage = highlight?.page;
+
+  return (
+    <div ref={containerRef} className="w-full max-w-4xl bg-white shadow-sm rounded-xl border border-border-subtle px-8 py-6">
+      <div className="flex items-center justify-between border-b border-border-subtle pb-3 mb-5">
+        <h3 className="font-card-title text-card-title">{docName}</h3>
+        {fallbackUrl && (
+          <a href={fallbackUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] text-primary hover:underline">Open original ↗</a>
+        )}
+      </div>
+
+      {pages.map((p, i) => (
+        <section key={i} id={`page-${p.page}`} className="mb-8">
+          <div className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-2">
+            Page {p.page} {highlightPage === p.page && <span className="ml-2 inline-block w-1.5 h-1.5 rounded-full bg-green-500 align-middle" />}
+          </div>
+          {renderPageWithHighlight(p.content, excerpt, highlightPage === p.page ? matchRef : null)}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+// Highlight the (first occurrence of the) excerpt inside one page's content.
+// Falls back to plain text when there is no match (model may have paraphrased
+// slightly). The matchRef points at the highlighted span so we can scroll it
+// into view from the parent component.
+function renderPageWithHighlight(content, excerpt, matchRef) {
+  const safe = excerpt && excerpt.trim().length >= 6 ? excerpt.trim() : "";
+  if (!safe) {
+    return <p className="whitespace-pre-wrap text-sm leading-7 text-on-surface">{content}</p>;
+  }
+  const idx = content.toLowerCase().indexOf(safe.toLowerCase());
+  if (idx === -1) {
+    return <p className="whitespace-pre-wrap text-sm leading-7 text-on-surface">{content}</p>;
+  }
+  const before = content.slice(0, idx);
+  const match = content.slice(idx, idx + safe.length);
+  const after = content.slice(idx + safe.length);
+  return (
+    <p className="whitespace-pre-wrap text-sm leading-7 text-on-surface">
+      {before}
+      <mark ref={matchRef} className="bg-yellow-200 px-0.5 rounded">
+        {match}
+      </mark>
+      {after}
+    </p>
+  );
+}
+
+// Render an AI answer that contains inline [N] citation markers as a sequence of
+// text segments interleaved with clickable numbered badges. The badge's tooltip
+// shows the source excerpt; clicking calls focusSource(source) so the parent
+// component can scroll the document pane to it.
+function renderAnswerWithCitations(content, sources, focusSource, activeSource) {
+  if (!content) return null;
+  const safeSources = Array.isArray(sources) ? sources : [];
+  // Matches [1] or [12] etc. — only digits, no internal spaces.
+  const parts = content.split(/(\[\d{1,2}\])/g);
+  return parts.map((part, idx) => {
+    const m = part.match(/^\[(\d{1,2})\]$/);
+    if (!m) return <span key={idx}>{part}</span>;
+    const n = parseInt(m[1], 10);
+    const src = safeSources[n - 1];
+    if (!src) {
+      // Model emitted a [N] with no matching source — render as plain text rather than a broken badge.
+      return <span key={idx}>{part}</span>;
+    }
+    const isActive = activeSource
+      && activeSource.page === src.page
+      && activeSource.excerpt === src.excerpt;
+    return (
+      <button
+        key={idx}
+        onClick={() => focusSource(src)}
+        title={`p.${src.page} · ${src.section || ""}\n"${src.excerpt || ""}"`}
+        className={
+          "inline-flex items-center justify-center align-baseline mx-0.5 min-w-[18px] h-[18px] rounded-full text-[10px] font-bold leading-none transition-colors " +
+          (isActive
+            ? "bg-primary text-white"
+            : "bg-green-100 text-green-700 hover:bg-green-200")
+        }
+      >
+        {n}
+      </button>
+    );
+  });
+}
+
+
 function DocViewerPage({ params }) {
   const documentId = params?.[1] || "";
   const cached = documentId ? docCache.get(documentId) : null;
@@ -496,35 +636,21 @@ function DocViewerPage({ params }) {
   const [documentData, setDocumentData] = useStateP1(cached?.documentData || null);
   const [viewUrl, setViewUrl] = useStateP1(cached?.viewUrl || "");
   const [textContent, setTextContent] = useStateP1(cached?.textContent || "");
-  const [messages, setMessages] = useStateP1([
-    { role: "user", text: "What is RAG architecture?", time: "10:42 AM" },
-    {
-      role: "ai",
-      time: "10:42 AM",
-      blocks: [
-        { type: "text", text: "Retrieval-Augmented Generation (RAG) is an architectural pattern used to provide LLMs with contextually relevant, external data." },
-        { type: "text", text: "It works by first retrieving relevant documents from a knowledge base and then using that information to ground the AI's final generation." },
-        { type: "text", text: "This significantly reduces hallucinations and ensures answers are verifiable through citations." },
-      ],
-    },
-    {
-      role: "user",
-      text: "@search_web latest RAG papers 2025",
-      time: "10:44 AM",
-      mention: true,
-    },
-    {
-      role: "ai",
-      time: "10:44 AM",
-      agent: "@search_web",
-      blocks: [
-        { type: "text", text: "Searched the web for latest RAG papers (2025). Top results include hierarchical retrieval (Tanaka et al.) and self-correcting RAG agents (Liu et al.)." },
-      ],
-    },
-  ]);
+  // Conversation state. Messages have shape:
+  //   { role: 'user'|'assistant', content: string, sources?: [{page,section,excerpt,relevance}],
+  //     time: string, streaming?: boolean, error?: string }
+  const [messages, setMessages] = useStateP1([]);
   const [draft, setDraft] = useStateP1("");
   const [contextOpen, setContextOpen] = useStateP1(false);
   const [context, setContext] = useStateP1("Current Document");
+  const [sessionId, setSessionId] = useStateP1(null);
+  const [streaming, setStreaming] = useStateP1(false);
+  // The source the user most recently clicked → drives the PDF page anchor
+  // and the highlight in the TextDocumentView (DOCX/TXT).
+  const [activeSource, setActiveSource] = useStateP1(null);
+  // Server-extracted plain text used by TextDocumentView. Fetched lazily for
+  // DOCX (which has no usable inline rendering) and DOCX-like cases.
+  const [extractedTextContent, setExtractedTextContent] = useStateP1("");
 
   const { tabs, openTab, closeTab, reorderTab } = useDocTabs(documentId);
 
@@ -576,6 +702,28 @@ function DocViewerPage({ params }) {
     return () => { active = false; };
   }, [documentId]);
 
+  // Fetch server-extracted text for DOCX (we render it ourselves so we can
+  // highlight cited passages — Microsoft's Office Online viewer can't be
+  // scripted). Stored in `extractedTextContent` separately from the raw TXT
+  // fetch below.
+  useEffectP1(() => {
+    let active = true;
+    if (!documentId || documentData?.file_type !== "DOCX") {
+      setExtractedTextContent("");
+      return () => { active = false; };
+    }
+    (async () => {
+      try {
+        const res = await apiRequest(`/documents/${documentId}/text`);
+        if (!active) return;
+        setExtractedTextContent(res?.text || "");
+      } catch (err) {
+        if (active) setExtractedTextContent("");
+      }
+    })();
+    return () => { active = false; };
+  }, [documentId, documentData?.file_type]);
+
   useEffectP1(() => {
     let active = true;
 
@@ -614,18 +762,136 @@ function DocViewerPage({ params }) {
     openTab({ id: documentId, name: documentData.filename || 'Document', type: documentData.file_type || 'DOC' });
   }, [documentId, documentData, openTab]);
 
-  const send = () => {
-    if (!draft.trim()) return;
+  const send = async () => {
+    const text = draft.trim();
+    if (!text || streaming || !documentId) return;
+
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    setMessages(m => [...m, { role: "user", text: draft, time }]);
+
+    // 1. Push the user message + a placeholder assistant message immediately.
+    setMessages(m => [
+      ...m,
+      { role: "user", content: text, time },
+      { role: "assistant", content: "", time, streaming: true, sources: [] },
+    ]);
     setDraft("");
-    setTimeout(() => {
-      setMessages(m => [...m, {
-        role: "ai", time, blocks: [
-          { type: "text", text: "Based on your uploaded file, the model can now cite and reason over the real document content instead of demo text." },
-        ],
-      }]);
-    }, 800);
+    setStreaming(true);
+
+    try {
+      // 2. Lazily create a session bound to this document.
+      let sid = sessionId;
+      if (!sid) {
+        const session = await apiRequest("/chat/sessions", {
+          method: "POST",
+          body: JSON.stringify({
+            context_type: "document",
+            context_id: documentId,
+            title: text.slice(0, 100),
+          }),
+        });
+        sid = session?.session_id;
+        setSessionId(sid);
+      }
+      if (!sid) throw new Error("Could not start chat session.");
+
+      // 3. Hit the streaming endpoint. We can't use apiRequest() because it
+      //    buffers the full response — we need fetch + ReadableStream here.
+      const token = localStorage.getItem("aid_token");
+      const response = await fetch(`${API_BASE_URL}/api/chat/sessions/${sid}/messages/stream`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ content: text }),
+      });
+
+      if (!response.ok) {
+        const body = await response.text();
+        let detail = body;
+        try { detail = (JSON.parse(body) || {}).detail || body; } catch { /* keep raw */ }
+        throw new Error(detail || `Request failed (${response.status})`);
+      }
+
+      // 4. Parse the SSE stream: lines beginning with "data: " contain JSON
+      //    events of shape { type: 'delta'|'done'|'error', ... }.
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+      let assembled = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        // Keep the trailing partial in the buffer for the next chunk.
+        buffer = events.pop() || "";
+
+        for (const evt of events) {
+          if (!evt.startsWith("data:")) continue;
+          const raw = evt.slice(5).trim();
+          if (!raw) continue;
+
+          let payload;
+          try { payload = JSON.parse(raw); } catch { continue; }
+
+          if (payload.type === "delta" && payload.content) {
+            assembled += payload.content;
+            setMessages(m => {
+              const next = [...m];
+              const i = next.length - 1;
+              if (i >= 0 && next[i].role === "assistant") {
+                next[i] = { ...next[i], content: assembled };
+              }
+              return next;
+            });
+          } else if (payload.type === "done") {
+            setMessages(m => {
+              const next = [...m];
+              const i = next.length - 1;
+              if (i >= 0 && next[i].role === "assistant") {
+                next[i] = {
+                  ...next[i],
+                  sources: payload.sources || [],
+                  streaming: false,
+                };
+              }
+              return next;
+            });
+            // Auto-highlight the primary source so the PDF scrolls to it.
+            const primary = (payload.sources || []).find(s => s.relevance === "primary")
+                          || (payload.sources || [])[0];
+            if (primary) setActiveSource(primary);
+          } else if (payload.type === "error") {
+            throw new Error(payload.error || "AI provider error.");
+          }
+        }
+      }
+    } catch (err) {
+      setMessages(m => {
+        const next = [...m];
+        const i = next.length - 1;
+        if (i >= 0 && next[i].role === "assistant") {
+          next[i] = {
+            ...next[i],
+            content: `Error: ${err.message || "Could not get an AI response."}`,
+            streaming: false,
+            error: true,
+          };
+        }
+        return next;
+      });
+    } finally {
+      setStreaming(false);
+    }
+  };
+
+  // Clicking a source pill scrolls the PDF iframe to the cited page.
+  const focusSource = (src) => {
+    if (!src) return;
+    setActiveSource(src);
   };
 
   const handleDownload = () => {
@@ -656,28 +922,46 @@ function DocViewerPage({ params }) {
     }
 
     if (documentData.file_type === "PDF") {
+      // When the user clicks a source pill, append #page=N so the embedded
+      // PDF viewer scrolls to that page. (Browsers' built-in PDF viewers
+      // honour this fragment; we add a re-mount key so navigation works
+      // even when the same page is selected twice.)
+      const pageAnchor = activeSource?.page ? `&page=${activeSource.page}` : "";
       return (
         <div className="w-full max-w-4xl bg-white shadow-sm rounded-xl overflow-hidden border border-border-subtle">
-          <iframe title={docName} src={`${viewUrl}#toolbar=1&navpanes=0`} className="w-full h-[78vh]" />
+          <iframe
+            key={`${documentId}-${activeSource?.page || 0}-${activeSource?.excerpt?.slice(0, 32) || ""}`}
+            title={docName}
+            src={`${viewUrl}#toolbar=1&navpanes=0${pageAnchor}`}
+            className="w-full h-[78vh]"
+          />
         </div>
       );
     }
 
     if (documentData.file_type === "TXT") {
       return (
-        <div className="w-full max-w-4xl bg-white shadow-sm rounded-xl border border-border-subtle p-6">
-          <h3 className="font-card-title text-card-title mb-3">{docName}</h3>
-          <pre className="whitespace-pre-wrap text-sm leading-6 text-on-surface">{textContent || "Loading text content..."}</pre>
-        </div>
+        <TextDocumentView
+          docName={docName}
+          text={textContent}
+          highlight={activeSource}
+          fallbackUrl={viewUrl}
+        />
       );
     }
 
     if (documentData.file_type === "DOCX") {
-      const officePreviewUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(viewUrl)}`;
+      // DOCX is rendered from the server-extracted plain text (same source the
+      // AI sees) so we can programmatically scroll/highlight the cited passage.
+      // The Office Online iframe is offered as a fallback "Open original" link.
       return (
-        <div className="w-full max-w-4xl bg-white shadow-sm rounded-xl overflow-hidden border border-border-subtle">
-          <iframe title={`${docName} preview`} src={officePreviewUrl} className="w-full h-[78vh]" />
-        </div>
+        <TextDocumentView
+          docName={docName}
+          text={extractedTextContent}
+          highlight={activeSource}
+          fallbackUrl={viewUrl}
+          isDocx
+        />
       );
     }
 
@@ -764,12 +1048,22 @@ function DocViewerPage({ params }) {
           </div>
 
           <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-5">
+            {messages.length === 0 && (
+              <div className="flex flex-col items-center justify-center text-center px-6 py-10 gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-surface-container-high flex items-center justify-center">
+                  <Icon name="smart_toy" filled className="text-primary" size={24} />
+                </div>
+                <h3 className="font-card-title text-card-title">Ask anything about this document</h3>
+                <p className="text-xs text-on-surface-variant max-w-xs">
+                  Answers are grounded in <b>{docName}</b>. Every reply includes a clickable source — click it to jump to the cited page.
+                </p>
+              </div>
+            )}
+
             {messages.map((m, i) => m.role === "user" ? (
               <div key={i} className="flex flex-col items-end">
-                <div className={`px-4 py-2.5 rounded-2xl max-w-[85%] text-body-main ${m.mention ? "bg-primary text-white" : "bg-surface-container-high"}`}>
-                  {m.mention ? (
-                    <><span className="bg-white/20 rounded px-1 py-0.5 text-[11px] font-bold mr-1">@search_web</span>{m.text.replace("@search_web ", "")}</>
-                  ) : m.text}
+                <div className="px-4 py-2.5 rounded-2xl max-w-[85%] text-body-main bg-surface-container-high">
+                  {m.content}
                 </div>
                 <span className="text-[10px] text-text-muted mt-1 px-1">{m.time}</span>
               </div>
@@ -778,16 +1072,31 @@ function DocViewerPage({ params }) {
                 <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
                   <Icon name="smart_toy" filled className="text-white" size={18} />
                 </div>
-                <div className="flex flex-col gap-2 flex-1">
-                  {m.agent && <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1"><Icon name="travel_explore" size={12}/> {m.agent}</span>}
-                  <div className="text-body-main leading-relaxed text-on-surface">
-                    {m.blocks.map((b, j) => <span key={j}>{b.text}</span>)}
+                <div className="flex flex-col gap-2 flex-1 min-w-0">
+                  <div className={`text-body-main leading-relaxed whitespace-pre-wrap ${m.error ? "text-error" : "text-on-surface"}`}>
+                    {m.content
+                      ? renderAnswerWithCitations(m.content, m.sources, focusSource, activeSource)
+                      : (m.streaming ? (
+                        <span className="inline-flex items-center gap-1.5 text-on-surface-variant">
+                          <span className="w-1.5 h-1.5 rounded-full bg-on-surface-variant animate-pulse" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-on-surface-variant animate-pulse" style={{ animationDelay: "120ms" }} />
+                          <span className="w-1.5 h-1.5 rounded-full bg-on-surface-variant animate-pulse" style={{ animationDelay: "240ms" }} />
+                        </span>
+                      ) : null)}
+                    {m.streaming && m.content ? <span className="inline-block w-1.5 h-3 ml-0.5 align-middle bg-primary opacity-60 animate-pulse" /> : null}
                   </div>
-                  <div className="flex gap-1.5">
-                    <button className="p-1.5 rounded-lg border border-border-subtle hover:bg-surface-container-low"><Icon name="content_copy" size={14} /></button>
-                    <button className="p-1.5 rounded-lg border border-border-subtle hover:bg-surface-container-low"><Icon name="thumb_up" size={14} /></button>
-                    <button className="p-1.5 rounded-lg border border-border-subtle hover:bg-surface-container-low"><Icon name="refresh" size={14} /></button>
-                  </div>
+
+                  {!m.streaming && m.content && !m.error && (
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => navigator.clipboard?.writeText(m.content)}
+                        className="p-1.5 rounded-lg border border-border-subtle hover:bg-surface-container-low"
+                        title="Copy answer"
+                      >
+                        <Icon name="content_copy" size={14} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -795,7 +1104,14 @@ function DocViewerPage({ params }) {
 
           <div className="p-4 border-t border-border-subtle">
             <div className="bg-surface-container-low rounded-2xl p-2 border border-border-subtle">
-              <textarea value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} className="w-full bg-transparent border-none focus:ring-0 text-body-main resize-none p-2 h-16 outline-none" placeholder="Ask a question, or type @ to mention an agent..." />
+              <textarea
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+                disabled={streaming}
+                className="w-full bg-transparent border-none focus:ring-0 text-body-main resize-none p-2 h-16 outline-none disabled:opacity-60"
+                placeholder={streaming ? "Waiting for the AI…" : `Ask anything about ${docName}…`}
+              />
               <div className="flex items-center justify-between pt-1 px-1">
                 <div className="flex bg-surface-container-highest p-1 rounded-full">
                   {["Short", "Med", "Detailed"].map(l => (
@@ -804,8 +1120,13 @@ function DocViewerPage({ params }) {
                 </div>
                 <div className="flex items-center gap-2">
                   <button className="p-2 text-on-surface-variant hover:text-primary rounded-full"><Icon name="attach_file" size={18} /></button>
-                  <button onClick={send} className="bg-primary text-white p-2 rounded-full hover:opacity-90 flex items-center justify-center">
-                    <Icon name="send" size={18} />
+                  <button
+                    onClick={send}
+                    disabled={streaming || !draft.trim()}
+                    className="bg-primary text-white p-2 rounded-full hover:opacity-90 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+                    title={streaming ? "Streaming…" : "Send"}
+                  >
+                    <Icon name={streaming ? "stop_circle" : "send"} size={18} />
                   </button>
                 </div>
               </div>
