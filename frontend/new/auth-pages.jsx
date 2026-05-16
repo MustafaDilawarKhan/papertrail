@@ -25,7 +25,7 @@ function AuthVisual() {
       </div>
       <div className="relative max-w-md">
         <h2 className="font-hero-headline text-hero-headline mb-6">Anchor every claim to a verifiable source.</h2>
-        <p className="text-body-main opacity-80 leading-relaxed">Aid is the deliberate research workspace. We don't manufacture answers — we help you reason through them, with citations on every line.</p>
+        <p className="text-body-main opacity-80 leading-relaxed">Paper Trail is the deliberate research workspace. We don't manufacture answers — we help you reason through them, with citations on every line.</p>
         <div className="mt-12 flex items-center gap-3 text-xs">
           <div className="flex -space-x-2">
             {["RM","SK","AT"].map((i, k) => <div key={k} className="w-7 h-7 rounded-full bg-white/20 border-2 border-primary flex items-center justify-center text-[9px] font-bold">{i}</div>)}
@@ -152,7 +152,7 @@ function UploadPage() {
     <AppShell active="library" breadcrumbs={[{ label: "Library", to: "/library" }, { label: "Upload" }]}>
       <div className="max-w-3xl mx-auto">
         <h1 className="font-section-heading text-section-heading text-primary mb-2">Add to your library</h1>
-        <p className="text-on-surface-variant mb-8">Aid will extract metadata, generate embeddings, and link citations automatically.</p>
+        <p className="text-on-surface-variant mb-8">Paper Trail will extract metadata, generate embeddings, and link citations automatically.</p>
 
         <div className="bg-white border border-border-subtle rounded-2xl overflow-hidden">
           <div className="flex border-b border-border-subtle">
@@ -395,9 +395,9 @@ function SettingsPage() {
                 <p className="text-xs text-on-surface-variant">Choose which model handles your queries.</p>
               </div>
               {[
-                { id: "balanced", name: "Aid Balanced", desc: "Best general-purpose model. Recommended for most tasks.", default: true },
-                { id: "rigor", name: "Aid Rigor", desc: "Slower but more thorough. Higher citation accuracy.", premium: true },
-                { id: "fast", name: "Aid Fast", desc: "Quick responses for simple lookups." },
+                { id: "balanced", name: "Paper Trail Balanced", desc: "Best general-purpose model. Recommended for most tasks.", default: true },
+                { id: "rigor", name: "Paper Trail Rigor", desc: "Slower but more thorough. Higher citation accuracy.", premium: true },
+                { id: "fast", name: "Paper Trail Fast", desc: "Quick responses for simple lookups." },
               ].map(m => (
                 <label key={m.id} className="flex items-start gap-3 p-4 border border-border-subtle rounded-lg cursor-pointer hover:bg-surface-container-low">
                   <input type="radio" name="model" defaultChecked={m.default} className="mt-1" />

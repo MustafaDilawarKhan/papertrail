@@ -1,5 +1,5 @@
 """
-Aid Backend — SQLAlchemy Models
+Paper Trail Backend — SQLAlchemy Models
 Imports all models so Alembic and Base.metadata can discover them.
 """
 

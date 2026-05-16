@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Screen 4 — Library</title>
+  <link rel="stylesheet" href="wireframe.css">
+</head>
+<body>
+
+  <div class="wireframe">
+    <div class="wireframe-title">Screen 4 / 8 — Library</div>
+
+    <div class="browser-chrome">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      <div class="url">https://papertrail.app/#/library</div>
+    </div>
+
+    <header class="app-header">
+      <div class="logo">[ logo ]  Paper Trail</div>
+      <div class="search">🔍  Search documents, citations, chats…</div>
+      <div class="icon-btn">+</div>
+      <div class="icon-btn">🔔</div>
+      <div class="avatar">FF</div>
+    </header>
+
+    <div class="app-shell">
+
+      <!-- Sidebar with collections tree -->
+      <aside class="sidebar">
+        <div class="nav-item"><span class="nav-icon"></span> Dashboard</div>
+        <div class="nav-item active"><span class="nav-icon"></span> Library</div>
+        <div class="nav-item"><span class="nav-icon"></span> Workspaces</div>
+        <div class="nav-item"><span class="nav-icon"></span> Editor (Write)</div>
+        <div class="nav-item"><span class="nav-icon"></span> Integrations</div>
+
+        <div class="nav-section">Collections</div>
+        <div class="nav-item"><span class="nav-icon"></span> ▸ All Documents (24)</div>
+        <div class="nav-item" style="margin-left:18px;"><span class="nav-icon"></span> ▾ Surveys (8)</div>
+        <div class="nav-item" style="margin-left:36px;"><span class="nav-icon"></span> Transformers (4)</div>
+        <div class="nav-item" style="margin-left:36px;"><span class="nav-icon"></span> Pre-training (3)</div>
+        <div class="nav-item" style="margin-left:18px;"><span class="nav-icon"></span> ▸ Methodology (5)</div>
+        <div class="nav-item" style="margin-left:18px;"><span class="nav-icon"></span> ▸ Drafts (3)</div>
+        <div class="nav-item dashed"><span class="nav-icon">+</span> New Collection</div>
+
+        <div class="nav-section">Account</div>
+        <div class="nav-item"><span class="nav-icon"></span> Settings</div>
+      </aside>
+
+      <main class="main">
+
+        <div class="row between">
+          <div>
+            <h1 style="margin:0;">Library</h1>
+            <p class="muted small" style="margin:4px 0 0;">/ All Documents</p>
+          </div>
+          <div class="row">
+            <a class="btn primary" href="#upload">⬆ Upload</a>
+            <button class="btn">+ New Collection</button>
+            <div class="box small dashed" style="padding: 4px 10px;">List | <b>Grid</b></div>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="row mt-12 wrap">
+          <div class="btn sm">All</div>
+          <div class="btn sm ghost">PDF</div>
+          <div class="btn sm ghost">DOCX</div>
+          <div class="btn sm ghost">TXT</div>
+          <div class="muted small" style="margin-left:8px;">Sort by:</div>
+          <div class="box small dashed" style="padding: 2px 8px;">Recent  ▾</div>
+          <div class="muted small" style="margin-left:8px;">View:</div>
+          <div class="box small dashed" style="padding: 2px 8px;">All  ▾</div>
+        </div>
+
+        <!-- Document table -->
+        <div class="box mt-24" style="padding:0;">
+          <div class="doc-row head">
+            <span></span><span>Type</span><span>Name &nbsp;·&nbsp; Tags</span><span>Size</span><span>Modified</span><span>Actions</span>
+          </div>
+
+          <div class="doc-row">
+            <span class="checkbox"></span>
+            <div class="thumb">PDF</div>
+            <div><b>attention-is-all-you-need.pdf</b><br><span class="muted tiny">Transformers · Vaswani et al. · 2017</span></div>
+            <span class="small">12 MB</span>
+            <span class="small muted">2h ago</span>
+            <span class="row" style="gap:4px;"><a class="btn sm" href="screen-05-doc-viewer.html">Open</a><div class="btn sm ghost">⋯</div></span>
+          </div>
+          <div class="doc-row">
+            <span class="checkbox"></span>
+            <div class="thumb">PDF</div>
+            <div><b>bert-paper.pdf</b><br><span class="muted tiny">Pre-training · Devlin et al. · 2018</span></div>
+            <span class="small">8 MB</span>
+            <span class="small muted">10h ago</span>
+            <span class="row" style="gap:4px;"><a class="btn sm" href="screen-05-doc-viewer.html">Open</a><div class="btn sm ghost">⋯</div></span>
+          </div>
+          <div class="doc-row">
+            <span class="checkbox"></span>
+            <div class="thumb">DOC</div>
+            <div><b>draft-survey-v3.docx</b><br><span class="muted tiny">Drafts</span></div>
+            <span class="small">3 MB</span>
+            <span class="small muted">3d ago</span>
+            <span class="row" style="gap:4px;"><a class="btn sm" href="screen-05-doc-viewer.html">Open</a><div class="btn sm ghost">⋯</div></span>
+          </div>
+          <div class="doc-row">
+            <span class="checkbox"></span>
+            <div class="thumb">TXT</div>
+            <div><b>reading-notes.txt</b><br><span class="muted tiny">— no collection —</span></div>
+            <span class="small">12 KB</span>
+            <span class="small muted">1w ago</span>
+            <span class="row" style="gap:4px;"><a class="btn sm" href="screen-05-doc-viewer.html">Open</a><div class="btn sm ghost">⋯</div></span>
+          </div>
+          <div class="doc-row">
+            <span class="checkbox"></span>
+            <div class="thumb">PDF</div>
+            <div><b>longformer.pdf</b><br><span class="muted tiny">Transformers · Beltagy et al. · 2020</span></div>
+            <span class="small">9 MB</span>
+            <span class="small muted">2w ago</span>
+            <span class="row" style="gap:4px;"><a class="btn sm" href="screen-05-doc-viewer.html">Open</a><div class="btn sm ghost">⋯</div></span>
+          </div>
+          <div class="doc-row">
+            <span class="checkbox"></span>
+            <div class="thumb">PDF</div>
+            <div><b>flash-attention.pdf</b><br><span class="muted tiny">Methodology · Dao et al. · 2022</span></div>
+            <span class="small">6 MB</span>
+            <span class="small muted">3w ago</span>
+            <span class="row" style="gap:4px;"><a class="btn sm" href="screen-05-doc-viewer.html">Open</a><div class="btn sm ghost">⋯</div></span>
+          </div>
+        </div>
+
+        <!-- Selection action bar (visible when at least one row is checked) -->
+        <div class="box dashed row between mt-12">
+          <span class="muted small">2 documents selected</span>
+          <div class="row">
+            <div class="btn sm">Move to…</div>
+            <div class="btn sm">Add tag</div>
+            <div class="btn sm">Cite</div>
+            <div class="btn sm">Delete</div>
+          </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="row mt-24" style="justify-content:center; gap: 8px;">
+          <div class="btn sm ghost">‹ Prev</div>
+          <div class="btn sm">1</div>
+          <div class="btn sm ghost">2</div>
+          <div class="btn sm ghost">3</div>
+          <div class="btn sm ghost">Next ›</div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Upload modal -->
+  <div class="wireframe mt-24" style="width: 600px;">
+    <div class="wireframe-title">Modal — Upload Documents (opens over Screen 4)</div>
+    <div style="padding: 18px;">
+      <h2 style="margin-top:0;">Upload Documents</h2>
+      <div class="box placeholder" style="min-height: 160px;">
+        <div>
+          <div style="font-size: 36px;">⬆</div>
+          <b>Drop files here</b><br>
+          <span class="muted small">or  <u>browse</u>  ·  PDF / DOCX / TXT  ·  max 25 MB on Free plan</span>
+        </div>
+      </div>
+
+      <div class="mt-12">
+        <div class="row between"><span class="small">attention.pdf</span><span class="small muted">uploading… ▓▓▓░░ 60%</span></div>
+        <div class="row between"><span class="small">bert.pdf</span><span class="small muted">done ✓</span></div>
+        <div class="row between"><span class="small">notes.txt</span><span class="small muted">pending</span></div>
+      </div>
+
+      <div class="field mt-12">
+        <label>Add to collection (optional)</label>
+        <div class="input dashed" style="display:flex; justify-content:space-between;">Surveys / Transformers  <span class="muted">▾</span></div>
+      </div>
+
+      <div class="row between mt-12">
+        <span class="muted small">3 files selected  ·  18.4 MB / 25 MB</span>
+        <div class="row">
+          <button class="btn">Cancel</button>
+          <button class="btn primary">Confirm Upload</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>Low-fi design notes</h3>
+    <ul>
+      <li><b>Upload</b> is now a primary button in the top-right of the page (survey insight: B2 = 3.83).</li>
+      <li>Collections are nestable (the schema supports <code>parent_collection_id</code>).</li>
+      <li>Multi-select bulk-action bar appears below the table when at least one row is checked.</li>
+      <li>Upload modal shows per-file status pills so the user can see progress per file.</li>
+    </ul>
+  </div>
+
+</body>
+</html>

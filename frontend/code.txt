@@ -36,7 +36,7 @@ function Icon({ name, className = "", filled = false, size }) {
 function Brand({ small }) {
   return (
     <Link to="/dashboard" className="flex items-center gap-2 group">
-      <span className={`font-hero-headline font-extrabold text-primary tracking-tight ${small ? "text-lg" : "text-xl"}`}>Aid</span>
+      <span className={`font-hero-headline font-extrabold text-primary tracking-tight ${small ? "text-lg" : "text-xl"}`}>Paper Trail</span>
       {!small && <span className="text-[9px] uppercase tracking-widest text-on-surface-variant font-bold">AI Research</span>}
     </Link>
   );
@@ -199,7 +199,7 @@ function CommandPalette({ open, onClose }) {
             <span><kbd className="font-bold border px-1 rounded">↑↓</kbd> navigate</span>
             <span><kbd className="font-bold border px-1 rounded">↵</kbd> select</span>
           </div>
-          <span>Aid Search v2.4</span>
+          <span>Paper Trail Search v2.4</span>
         </div>
       </div>
     </div>
@@ -227,8 +227,8 @@ Object.assign(window, {
 
 
 
-// Shared Tailwind config — matches existing Aid design system
-window.__aidTailwindConfig = {
+// Shared Tailwind config — matches existing Paper Trail design system
+window.__paperTrailTailwindConfig = {
   darkMode: "class",
   theme: {
     extend: {
@@ -284,7 +284,7 @@ window.__aidTailwindConfig = {
     },
   },
 };
-if (window.tailwind) window.tailwind.config = window.__aidTailwindConfig;
+if (window.tailwind) window.tailwind.config = window.__paperTrailTailwindConfig;
 
 
 // Admin console pages
@@ -303,7 +303,7 @@ function AdminSidebar({ active }) {
   return (
     <aside className="fixed left-0 top-0 h-screen w-sidebar-width bg-[#1a1a1c] text-white flex flex-col p-4 gap-4 z-40">
       <div className="px-2 mb-2 flex items-center gap-2">
-        <span className="font-hero-headline font-extrabold tracking-tight text-lg text-white">Aid</span>
+        <span className="font-hero-headline font-extrabold tracking-tight text-lg text-white">Paper Trail</span>
         <span className="text-[9px] uppercase tracking-widest text-white/50 font-bold">Admin</span>
       </div>
       <nav className="flex flex-col gap-1 flex-grow">
@@ -566,10 +566,10 @@ function AdminModelsPage() {
 
       <div className="space-y-4">
         {[
-          { name: "Aid Balanced", id: "aid-balanced-v3", status: "Active", traffic: 62, p95: "1.4s", err: "0.02%", default: true },
-          { name: "Aid Rigor", id: "aid-rigor-v2", status: "Active", traffic: 24, p95: "3.8s", err: "0.01%" },
-          { name: "Aid Fast", id: "aid-fast-v4", status: "Active", traffic: 14, p95: "0.6s", err: "0.04%" },
-          { name: "Aid Experimental", id: "aid-exp-v5-canary", status: "Canary", traffic: 0.5, p95: "1.1s", err: "0.12%" },
+          { name: "Paper Trail Balanced", id: "paper-trail-balanced-v3", status: "Active", traffic: 62, p95: "1.4s", err: "0.02%", default: true },
+          { name: "Paper Trail Rigor", id: "paper-trail-rigor-v2", status: "Active", traffic: 24, p95: "3.8s", err: "0.01%" },
+          { name: "Paper Trail Fast", id: "paper-trail-fast-v4", status: "Active", traffic: 14, p95: "0.6s", err: "0.04%" },
+          { name: "Paper Trail Experimental", id: "paper-trail-exp-v5-canary", status: "Canary", traffic: 0.5, p95: "1.1s", err: "0.12%" },
         ].map((m, i) => (
           <div key={i} className="bg-white border border-border-subtle rounded-xl p-5">
             <div className="flex items-start justify-between mb-4">
@@ -608,7 +608,7 @@ function AdminFlagsPage() {
     { name: "agent-mentions", desc: "@search_web, @summarize_web in chat", state: "Rollout", rollout: "35%", updated: "Yesterday" },
     { name: "annotation-suggestions", desc: "AI-suggested highlights on PDF open", state: "Off", rollout: "0%", updated: "3d ago" },
     { name: "team-billing-portal", desc: "Self-serve seat management", state: "Lab Only", rollout: "Lab plan", updated: "1w ago" },
-    { name: "experimental-canary", desc: "Aid Experimental v5 routing", state: "Rollout", rollout: "0.5%", updated: "12h ago" },
+    { name: "experimental-canary", desc: "Paper Trail Experimental v5 routing", state: "Rollout", rollout: "0.5%", updated: "12h ago" },
   ];
   return (
     <AdminShell active="flags" breadcrumbs={[{ label: "Admin", to: "/admin" }, { label: "Feature Flags" }]}>
@@ -648,7 +648,7 @@ function AdminFlagsPage() {
 function AdminLogsPage() {
   const logs = [
     { time: "10:42:18", actor: "anna@stanford.edu", action: "feature_flag.update", target: "agent-mentions", meta: "rollout: 25% → 35%", level: "info" },
-    { time: "10:38:02", actor: "system", action: "model.canary_promote", target: "aid-exp-v5", meta: "0.1% → 0.5%", level: "info" },
+    { time: "10:38:02", actor: "system", action: "model.canary_promote", target: "paper-trail-exp-v5", meta: "0.1% → 0.5%", level: "info" },
     { time: "10:31:55", actor: "mustafa@example.com", action: "user.suspend", target: "liam@gmail.com", meta: "reason: ToS violation", level: "warn" },
     { time: "10:24:11", actor: "system", action: "billing.invoice_failed", target: "lab_org_412", meta: "stripe_err: card_declined", level: "error" },
     { time: "10:18:47", actor: "anna@stanford.edu", action: "user.role_grant", target: "john@mit.edu", meta: "role: workspace_admin", level: "info" },
@@ -771,7 +771,7 @@ Object.assign(window, { AdminOverviewPage, AdminUsersPage, AdminModelsPage, Admi
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Aid — Research Workspace</title>
+<title>Paper Trail — Research Workspace</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1555,7 +1555,7 @@ function AuthVisual() {
       </div>
       <div className="relative max-w-md">
         <h2 className="font-hero-headline text-hero-headline mb-6">Anchor every claim to a verifiable source.</h2>
-        <p className="text-body-main opacity-80 leading-relaxed">Aid is the deliberate research workspace. We don't manufacture answers — we help you reason through them, with citations on every line.</p>
+        <p className="text-body-main opacity-80 leading-relaxed">Paper Trail is the deliberate research workspace. We don't manufacture answers — we help you reason through them, with citations on every line.</p>
         <div className="mt-12 flex items-center gap-3 text-xs">
           <div className="flex -space-x-2">
             {["RM","SK","AT"].map((i, k) => <div key={k} className="w-7 h-7 rounded-full bg-white/20 border-2 border-primary flex items-center justify-center text-[9px] font-bold">{i}</div>)}
@@ -1682,7 +1682,7 @@ function UploadPage() {
     <AppShell active="library" breadcrumbs={[{ label: "Library", to: "/library" }, { label: "Upload" }]}>
       <div className="max-w-3xl mx-auto">
         <h1 className="font-section-heading text-section-heading text-primary mb-2">Add to your library</h1>
-        <p className="text-on-surface-variant mb-8">Aid will extract metadata, generate embeddings, and link citations automatically.</p>
+        <p className="text-on-surface-variant mb-8">Paper Trail will extract metadata, generate embeddings, and link citations automatically.</p>
 
         <div className="bg-white border border-border-subtle rounded-2xl overflow-hidden">
           <div className="flex border-b border-border-subtle">
@@ -1925,9 +1925,9 @@ function SettingsPage() {
                 <p className="text-xs text-on-surface-variant">Choose which model handles your queries.</p>
               </div>
               {[
-                { id: "balanced", name: "Aid Balanced", desc: "Best general-purpose model. Recommended for most tasks.", default: true },
-                { id: "rigor", name: "Aid Rigor", desc: "Slower but more thorough. Higher citation accuracy.", premium: true },
-                { id: "fast", name: "Aid Fast", desc: "Quick responses for simple lookups." },
+                { id: "balanced", name: "Paper Trail Balanced", desc: "Best general-purpose model. Recommended for most tasks.", default: true },
+                { id: "rigor", name: "Paper Trail Rigor", desc: "Slower but more thorough. Higher citation accuracy.", premium: true },
+                { id: "fast", name: "Paper Trail Fast", desc: "Quick responses for simple lookups." },
               ].map(m => (
                 <label key={m.id} className="flex items-start gap-3 p-4 border border-border-subtle rounded-lg cursor-pointer hover:bg-surface-container-low">
                   <input type="radio" name="model" defaultChecked={m.default} className="mt-1" />

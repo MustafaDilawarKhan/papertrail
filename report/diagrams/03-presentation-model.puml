@@ -1,0 +1,74 @@
+@startuml PresentationModel
+' Paper Trail — Presentation Model
+' Wireframe-style component layout for the key screen (Document Viewer).
+
+skinparam shadowing false
+skinparam rectangle {
+  BackgroundColor #F7F7F7
+  BorderColor #555
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #777
+}
+
+title Paper Trail — Presentation Model (Document Viewer screen)
+
+rectangle "Document Viewer Page (/library/doc/:id)" {
+
+  rectangle "Header Bar (fixed, 64px)" as Header {
+    component "Brand Logo" as Logo
+    component "Breadcrumb: Library > FileName.pdf" as Crumb
+    component "Search Box" as Search
+    component "Notifications Bell" as Bell
+    component "Profile Dropdown" as Profile
+  }
+
+  rectangle "Left Sidebar (collapsible, 240px)" as Sidebar {
+    component "Dashboard"
+    component "Library"
+    component "Workspaces"
+    component "Editor (Write)"
+    component "Integrations"
+    component "Settings"
+  }
+
+  rectangle "DocTabBar (fixed, 44px)" as TabBar {
+    component "[Tab 1] FileA.pdf [x]" as Tab1
+    component "[Tab 2] FileB.docx [x]" as Tab2
+    component "[+ New Tab]" as Plus
+  }
+
+  rectangle "Main Content (flex)" as Main {
+    rectangle "Document Pane (flex:1)" as DocPane {
+      component "PDF / DOCX iframe" as Iframe
+      component "Page Controls (zoom, page #)" as Controls
+      component "Annotation Toolbar" as Anno
+    }
+    rectangle "AI Chat Panel (440px)" as ChatPanel {
+      component "Chat History (scroll)" as History
+      component "Source Citation Cards" as Cites
+      component "Prompt Input + Send" as Input
+      component "Model Selector" as Model
+    }
+  }
+}
+
+Header -[hidden]down-> TabBar
+Sidebar -[hidden]right-> Main
+TabBar -[hidden]down-> Main
+DocPane -[hidden]right-> ChatPanel
+
+note right of ChatPanel
+  Citation cards link back to the
+  exact page + bounding box in the
+  Document Pane (SourceHighlight).
+end note
+
+note bottom of TabBar
+  Multi-document tabs persisted in
+  localStorage. Cmd/Ctrl+W closes
+  active tab; drag-to-reorder.
+end note
+
+@enduml

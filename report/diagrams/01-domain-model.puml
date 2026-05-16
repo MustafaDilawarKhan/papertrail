@@ -1,0 +1,169 @@
+@startuml DomainModel
+' Paper Trail — Domain Model
+' Replace this rendered diagram in the final report.
+
+skinparam classAttributeIconSize 0
+skinparam classBackgroundColor #FAFAFA
+skinparam classBorderColor #444
+skinparam shadowing false
+hide circle
+hide methods
+
+title Paper Trail — Domain Model (Entity-Relationship)
+
+class User {
+  + user_id : UUID
+  + name : String
+  + email : String
+  + password_hash : String
+  + ui_theme : String
+  + default_citation_style : String
+  + preferred_llm : String
+  + affiliation : String
+  + email_verified : Boolean
+  + created_at : DateTime
+}
+
+class Workspace {
+  + workspace_id : UUID
+  + owner_id : UUID
+  + name : String
+  + description : String
+  + privacy : Enum
+  + created_at : DateTime
+}
+
+class WorkspaceMember {
+  + member_id : UUID
+  + workspace_id : UUID
+  + user_id : UUID
+  + role : Enum(owner, editor, viewer)
+  + joined_at : DateTime
+}
+
+class Collection {
+  + collection_id : UUID
+  + user_id : UUID
+  + workspace_id : UUID
+  + parent_collection_id : UUID
+  + name : String
+  + created_at : DateTime
+}
+
+class Document {
+  + document_id : UUID
+  + user_id : UUID
+  + workspace_id : UUID
+  + collection_id : UUID
+  + filename : String
+  + file_type : Enum(pdf, docx, txt)
+  + file_size_bytes : Integer
+  + storage_path : String
+  + processing_status : Enum
+  + uploaded_at : DateTime
+}
+
+class ChatSession {
+  + session_id : UUID
+  + user_id : UUID
+  + context_type : Enum(document, workspace, global)
+  + context_id : UUID
+  + title : String
+  + created_at : DateTime
+}
+
+class ChatMessage {
+  + message_id : UUID
+  + session_id : UUID
+  + role : Enum(user, assistant)
+  + content : Text
+  + token_count : Integer
+  + created_at : DateTime
+}
+
+class SourceHighlight {
+  + highlight_id : UUID
+  + message_id : UUID
+  + document_id : UUID
+  + page_number : Integer
+  + bounding_box : JSON
+  + chunk_text : Text
+  + similarity_score : Float
+}
+
+class Citation {
+  + citation_id : UUID
+  + user_id : UUID
+  + document_id : UUID
+  + style : Enum(APA, MLA, Chicago, BibTeX)
+  + formatted_string : Text
+  + created_at : DateTime
+}
+
+class Annotation {
+  + annotation_id : UUID
+  + user_id : UUID
+  + document_id : UUID
+  + highlighted_text : Text
+  + page_number : Integer
+  + coordinates : JSON
+  + note : Text
+  + color : String
+}
+
+class Notification {
+  + notification_id : UUID
+  + user_id : UUID
+  + type : Enum
+  + title : String
+  + message : Text
+  + related_id : UUID
+  + read : Boolean
+  + created_at : DateTime
+}
+
+class SubscriptionPlan {
+  + plan_id : UUID
+  + plan_type : Enum(free, pro, team)
+  + storage_limit_mb : Integer
+  + document_limit : Integer
+  + ai_words_per_day : Integer
+  + price : Decimal
+}
+
+class UserSubscription {
+  + subscription_id : UUID
+  + user_id : UUID
+  + plan_id : UUID
+  + status : Enum(active, cancelled, expired)
+  + current_period_start : DateTime
+  + current_period_end : DateTime
+}
+
+' Relationships
+User "1" -- "0..*" Workspace : owns >
+User "1" -- "0..*" WorkspaceMember : has memberships >
+Workspace "1" -- "0..*" WorkspaceMember : contains >
+Workspace "1" -- "0..*" Collection : groups >
+Workspace "1" -- "0..*" Document : holds >
+
+User "1" -- "0..*" Collection : creates >
+Collection "1" -- "0..*" Collection : nests >
+Collection "1" -- "0..*" Document : organizes >
+
+User "1" -- "0..*" Document : uploads >
+Document "1" -- "0..*" Citation : cited as >
+Document "1" -- "0..*" Annotation : annotated by >
+Document "1" -- "0..*" SourceHighlight : referenced in >
+
+User "1" -- "0..*" ChatSession : starts >
+ChatSession "1" -- "0..*" ChatMessage : contains >
+ChatMessage "1" -- "0..*" SourceHighlight : cites >
+
+User "1" -- "0..*" Citation : owns >
+User "1" -- "0..*" Annotation : creates >
+User "1" -- "0..*" Notification : receives >
+User "1" -- "0..*" UserSubscription : subscribes >
+SubscriptionPlan "1" -- "0..*" UserSubscription : sold as >
+
+@enduml

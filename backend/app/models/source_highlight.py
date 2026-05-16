@@ -1,6 +1,6 @@
 """
 SourceHighlight model — Links AI responses to exact document passages.
-Maps to FR-I-03.2 from the SRS. Core "verifiable" feature of Aid.
+Maps to FR-I-03.2 from the SRS. Core "verifiable" feature of Paper Trail.
 """
 
 import uuid

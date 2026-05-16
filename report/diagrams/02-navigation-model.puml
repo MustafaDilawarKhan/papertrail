@@ -1,0 +1,73 @@
+@startuml NavigationModel
+' Paper Trail — Hypertext / Navigation Model
+' Shows the link structure between pages and the conditional flows.
+
+skinparam shadowing false
+skinparam state {
+  BackgroundColor #FAFAFA
+  BorderColor #555
+  FontColor #222
+}
+
+title Paper Trail — Hypertext / Navigation Model
+
+[*] --> LandingPage : open site
+
+state LandingPage : Public marketing page\nCTA: Sign Up / Sign In
+state RegisterPage : /register\nForm: name, email, password
+state VerifyPage : /verify\n6-digit email code
+state LoginPage : /login\nEmail + password
+
+LandingPage --> RegisterPage : "Sign Up"
+LandingPage --> LoginPage : "Sign In"
+RegisterPage --> VerifyPage : submit
+VerifyPage --> Dashboard : verified
+LoginPage --> Dashboard : authenticated
+
+state "Authenticated Shell" as Shell {
+  state Dashboard : /dashboard\nRecent docs, activity, AI suggestions
+  state Library : /library\nDocuments + collections tree
+  state DocViewer : /library/doc/:id\nPDF/DOCX viewer + AI chat panel
+  state Editor : /write\nIEEE paper editor
+  state Workspaces : /workspaces\nTeam workspaces grid
+  state WorkspaceDetail : /workspaces/:id\nMembers + docs
+  state Integrations : /integrations\nZotero, Mendeley, Drive...
+  state Settings : /settings\nProfile, security, billing
+  state Upgrade : /upgrade\nFree / Pro / Team plans
+  state Admin : /admin\nAdmin dashboards (role-gated)
+}
+
+Dashboard --> Library : "Browse Library"
+Dashboard --> Workspaces : "My Workspaces"
+Dashboard --> Editor : "New Paper"
+Dashboard --> Settings : profile menu
+
+Library --> DocViewer : click document
+Library --> Library : upload (modal)
+DocViewer --> DocViewer : open new tab (multi-tab)
+DocViewer --> Library : close tab (last)
+DocViewer --> Editor : "Cite in Paper"
+
+Workspaces --> WorkspaceDetail : open workspace
+WorkspaceDetail --> DocViewer : open doc in workspace
+WorkspaceDetail --> Library : view all
+
+Settings --> Upgrade : "Upgrade Plan"
+Settings --> Integrations : "Manage Integrations"
+Dashboard --> Admin : if role=admin
+
+Shell --> LoginPage : sign out
+
+note right of DocViewer
+  Conditional links:
+  - "Cite in Paper" only if Editor is reachable
+  - "Add Annotation" requires pro plan
+end note
+
+note right of WorkspaceDetail
+  Owner-only links:
+  - Invite Member
+  - Delete Workspace
+end note
+
+@enduml

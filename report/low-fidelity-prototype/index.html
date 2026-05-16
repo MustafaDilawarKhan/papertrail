@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Paper Trail — Low-Fidelity Prototype (Index)</title>
+  <link rel="stylesheet" href="wireframe.css">
+</head>
+<body>
+
+  <div class="wireframe" style="padding: 24px;">
+    <div class="wireframe-title">Paper Trail — Low-Fidelity Prototype</div>
+
+    <div style="padding: 24px;">
+      <h1 style="margin:0 0 6px">Eight wireframe screens</h1>
+      <p class="muted">
+        Each screen below is a deliberately rough, greyscale wireframe — no real
+        colours, typography or animation. These were the stimulus shown to the
+        12 participants of the usability survey
+        (<a href="../usability-survey/01-questionnaire.md">questionnaire</a>,
+        <a href="../usability-survey/02-responses.md">responses</a>,
+        <a href="../usability-survey/03-analysis.md">analysis</a>).
+      </p>
+
+      <div class="index-grid mt-24">
+
+        <div class="index-card">
+          <h2>1. Landing / Sign-In</h2>
+          <p class="muted">Entry point. Two CTAs: Sign In, Sign Up.</p>
+          <a class="btn" href="screen-01-landing.html">Open wireframe →</a>
+        </div>
+
+        <div class="index-card">
+          <h2>2. Register &amp; Verify</h2>
+          <p class="muted">Account creation + 6-digit email verification.</p>
+          <a class="btn" href="screen-02-register.html">Open wireframe →</a>
+        </div>
+
+        <div class="index-card">
+          <h2>3. Dashboard</h2>
+          <p class="muted">Recent docs, AI suggestions, activity feed.</p>
+          <a class="btn" href="screen-03-dashboard.html">Open wireframe →</a>
+        </div>
+
+        <div class="index-card">
+          <h2>4. Library</h2>
+          <p class="muted">All documents + nested collections + filters.</p>
+          <a class="btn" href="screen-04-library.html">Open wireframe →</a>
+        </div>
+
+        <div class="index-card">
+          <h2>5. Document Viewer + AI Chat ★</h2>
+          <p class="muted">Flagship screen. PDF on left, AI chat on right.</p>
+          <a class="btn" href="screen-05-doc-viewer.html">Open wireframe →</a>
+        </div>
+
+        <div class="index-card">
+          <h2>6. IEEE Paper Editor</h2>
+          <p class="muted">Three-pane block editor with LaTeX export.</p>
+          <a class="btn" href="screen-06-editor.html">Open wireframe →</a>
+        </div>
+
+        <div class="index-card">
+          <h2>7. Workspaces</h2>
+          <p class="muted">Workspace grid + detail with member list.</p>
+          <a class="btn" href="screen-07-workspaces.html">Open wireframe →</a>
+        </div>
+
+        <div class="index-card">
+          <h2>8. Settings</h2>
+          <p class="muted">Profile, security, billing, AI models, appearance.</p>
+          <a class="btn" href="screen-08-settings.html">Open wireframe →</a>
+        </div>
+
+      </div>
+
+      <h2 style="margin-top:32px;">Key design decisions captured at low-fi</h2>
+      <ol style="line-height:1.7;color:var(--ink-soft)">
+        <li><b>Two-pane document viewer.</b> AI chat permanently on the right of the document so the user never loses context.</li>
+        <li><b>Persistent left sidebar</b> across every authenticated screen — same chrome on every page.</li>
+        <li><b>Multi-document tabs</b> above the viewer — researchers frequently jump between papers.</li>
+        <li><b>Citation cards inline in chat</b> — every AI answer surfaces clickable source cards that scroll to the source paragraph.</li>
+        <li><b>One global search</b> in the top bar — documents + citations + chat history.</li>
+        <li><b>Editor as a separate "mode"</b>, not a sub-page of the library — writing has a different flow than reading.</li>
+      </ol>
+
+      <p class="muted small mt-24">
+        Print tip: open each wireframe HTML in a browser at 100% zoom and use
+        "File → Print → Save as PDF" (A3 landscape works well) to attach to the
+        hard-copy report.
+      </p>
+    </div>
+  </div>
+
+</body>
+</html>

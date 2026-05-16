@@ -1,7 +1,7 @@
 @echo off
-REM Quick setup script for Aid Landing Page
+REM Quick setup script for Paper Trail Landing Page
 
-echo 🚀 Setting up Aid Landing Page...
+echo 🚀 Setting up Paper Trail Landing Page...
 
 REM Check if Node.js is installed
 where node >nul 2>nul

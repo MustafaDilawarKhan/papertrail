@@ -1,5 +1,5 @@
 """
-Aid Backend — Database Connection
+Paper Trail Backend — Database Connection
 Async SQLAlchemy engine configured for Supabase Transaction Pooler.
 """
 

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Screen 1 — Landing</title>
+  <link rel="stylesheet" href="wireframe.css">
+</head>
+<body>
+
+  <div class="wireframe">
+    <div class="wireframe-title">Screen 1 / 8 — Landing &amp; Sign-In  (low-fidelity wireframe)</div>
+
+    <div class="browser-chrome">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      <div class="url">https://papertrail.app/</div>
+    </div>
+
+    <!-- Top nav -->
+    <header class="app-header">
+      <div class="logo">[ logo ]  Paper Trail</div>
+      <div class="flex-1"></div>
+      <a class="btn ghost sm" href="screen-02-register.html">Sign In</a>
+      <a class="btn primary sm" href="screen-02-register.html">Sign Up</a>
+    </header>
+
+    <!-- Hero -->
+    <section style="padding: 60px 60px 40px; text-align:center;">
+      <h1 style="font-size: 42px; margin:0 0 12px;">Anchor every claim to a verifiable source.</h1>
+      <p class="muted" style="font-size:18px; max-width:720px; margin: 0 auto 24px;">
+        Paper Trail is a deliberate research workspace for academics and
+        researchers who refuse to accept un-cited AI answers.
+      </p>
+      <div class="row" style="justify-content:center;">
+        <a class="btn primary lg" href="screen-02-register.html">Get Started Free</a>
+        <a class="btn lg" href="#demo">Watch the Demo</a>
+      </div>
+    </section>
+
+    <!-- Trust strip -->
+    <section style="padding: 16px 60px; border-top: 1.5px dashed var(--line); border-bottom: 1.5px dashed var(--line); text-align:center;" class="muted small">
+      Trusted by researchers at  &nbsp;|&nbsp;  [ uni-1 ]  &nbsp;|&nbsp;  [ uni-2 ]  &nbsp;|&nbsp;  [ uni-3 ]  &nbsp;|&nbsp;  [ uni-4 ]
+    </section>
+
+    <!-- Features -->
+    <section style="padding: 40px 60px;">
+      <h2 style="text-align:center; margin: 0 0 24px;">What you get</h2>
+      <div class="grid-3">
+
+        <div class="box">
+          <div class="box placeholder" style="height:80px;">[ icon ]</div>
+          <h3 style="margin:12px 0 6px;">Source Anchoring</h3>
+          <p class="muted small">Every AI answer is tied to the exact page and paragraph of the original PDF.</p>
+        </div>
+
+        <div class="box">
+          <div class="box placeholder" style="height:80px;">[ icon ]</div>
+          <h3 style="margin:12px 0 6px;">AI Chat with Citations</h3>
+          <p class="muted small">Ask any question across your library. Click a citation to jump into the source.</p>
+        </div>
+
+        <div class="box">
+          <div class="box placeholder" style="height:80px;">[ icon ]</div>
+          <h3 style="margin:12px 0 6px;">IEEE / LaTeX Builder</h3>
+          <p class="muted small">A block-based editor that exports your manuscript to <code>IEEEtran</code> LaTeX.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Workflow walkthrough -->
+    <section style="padding: 0 60px 40px;">
+      <h2>How it works (3 steps)</h2>
+      <div class="grid-3 mt-12">
+        <div class="box dashed center">
+          <div style="font-size:28px; border:2px solid var(--ink); width:40px; height:40px; line-height:36px; margin:0 auto 8px; border-radius:50%;">1</div>
+          <b>Upload</b><br>
+          <span class="muted small">Drop a PDF, DOCX, or TXT into your library.</span>
+        </div>
+        <div class="box dashed center">
+          <div style="font-size:28px; border:2px solid var(--ink); width:40px; height:40px; line-height:36px; margin:0 auto 8px; border-radius:50%;">2</div>
+          <b>Ask</b><br>
+          <span class="muted small">Open the document and chat with the AI on the right pane.</span>
+        </div>
+        <div class="box dashed center">
+          <div style="font-size:28px; border:2px solid var(--ink); width:40px; height:40px; line-height:36px; margin:0 auto 8px; border-radius:50%;">3</div>
+          <b>Cite</b><br>
+          <span class="muted small">Click any source card to jump to the exact paragraph it came from.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer style="background: var(--fill-soft); padding: 18px 60px; border-top: 2px solid var(--ink);" class="row between small muted">
+      <span>© 2026 Paper Trail</span>
+      <span>Privacy  ·  Terms  ·  Contact  ·  Status</span>
+    </footer>
+  </div>
+
+  <div class="notes">
+    <h3>Low-fi design notes</h3>
+    <ul>
+      <li>Both <b>Sign In</b> and <b>Sign Up</b> are exposed in the top-right so neither path is hidden.</li>
+      <li>Single primary CTA above the fold (“Get Started Free”).</li>
+      <li>Three feature cards reinforce the value prop before the user scrolls; the 3-step strip reinforces it again.</li>
+      <li>No real colours — the final palette is decided in the high-fi build.</li>
+    </ul>
+  </div>
+
+</body>
+</html>

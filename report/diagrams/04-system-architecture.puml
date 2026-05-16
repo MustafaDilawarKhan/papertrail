@@ -1,0 +1,85 @@
+@startuml SystemArchitecture
+' Paper Trail — Layered / N-Tier System Architecture
+
+skinparam shadowing false
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #555
+}
+skinparam package {
+  BackgroundColor #F7F7F7
+  BorderColor #555
+}
+
+title Paper Trail — System Architecture (Layered N-Tier)
+
+actor "Researcher\n(User)" as User
+
+package "Presentation Layer (Browser)" {
+  component "React + Vite SPA" as React
+  component "Tailwind CSS\n+ Material Symbols\n+ KaTeX" as Styling
+  component "Auth Context\n(JWT in memory)" as AuthCtx
+  component "Module-level Cache\n(docCache Map,\nlocalStorage tabs)" as Cache
+}
+
+package "Edge / Hosting" {
+  component "Vercel CDN +\nServerless Functions" as Vercel
+}
+
+package "Application Layer (FastAPI)" {
+  component "Auth Router\n(JWT, OAuth2)" as AuthAPI
+  component "Documents Router" as DocAPI
+  component "Chat Router" as ChatAPI
+  component "Workspaces Router" as WsAPI
+  component "Citations / Annotations\n/ Collections Routers" as OtherAPI
+  component "Middleware\n(CORS, JWT verify,\nrate-limit)" as MW
+}
+
+package "Domain Services" {
+  component "Document Processor\n(PDF/DOCX → chunks)" as Proc
+  component "RAG Service\n(embedding + retrieval)" as RAG
+  component "LLM Gateway\n(OpenAI / Anthropic)" as LLM
+  component "Citation Formatter\n(APA, MLA, IEEE, BibTeX)" as Cite
+}
+
+package "Data Layer" {
+  database "PostgreSQL\n(Supabase)" as PG
+  storage "Supabase Storage\n(uploaded files)" as FS
+  database "pgvector\n(embeddings)" as Vec
+}
+
+package "External" {
+  cloud "OpenAI API" as OpenAI
+  cloud "Anthropic API" as Anth
+  cloud "Stripe (billing)" as Stripe
+}
+
+User --> React : HTTPS
+React --> Vercel : static + /api/*
+Vercel --> MW : invoke serverless fn
+MW --> AuthAPI
+MW --> DocAPI
+MW --> ChatAPI
+MW --> WsAPI
+MW --> OtherAPI
+
+DocAPI --> Proc
+DocAPI --> FS
+ChatAPI --> RAG
+RAG --> Vec
+RAG --> LLM
+LLM --> OpenAI
+LLM --> Anth
+OtherAPI --> Cite
+
+AuthAPI --> PG
+DocAPI --> PG
+ChatAPI --> PG
+WsAPI --> PG
+OtherAPI --> PG
+
+OtherAPI --> Stripe : subscriptions
+
+AuthCtx -[hidden]down- Cache
+
+@enduml

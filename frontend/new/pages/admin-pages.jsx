@@ -14,7 +14,7 @@ function AdminSidebar({ active }) {
   return (
     <aside className="fixed left-0 top-0 h-screen w-sidebar-width bg-[#1a1a1c] text-white flex flex-col p-4 gap-4 z-40">
       <div className="px-2 mb-2 flex items-center gap-2">
-        <span className="font-hero-headline font-extrabold tracking-tight text-lg text-white">Aid</span>
+        <span className="font-hero-headline font-extrabold tracking-tight text-lg text-white">Paper Trail</span>
         <span className="text-[9px] uppercase tracking-widest text-white/50 font-bold">Admin</span>
       </div>
       <nav className="flex flex-col gap-1 flex-grow">
@@ -277,10 +277,10 @@ function AdminModelsPage() {
 
       <div className="space-y-4">
         {[
-          { name: "Aid Balanced", id: "aid-balanced-v3", status: "Active", traffic: 62, p95: "1.4s", err: "0.02%", default: true },
-          { name: "Aid Rigor", id: "aid-rigor-v2", status: "Active", traffic: 24, p95: "3.8s", err: "0.01%" },
-          { name: "Aid Fast", id: "aid-fast-v4", status: "Active", traffic: 14, p95: "0.6s", err: "0.04%" },
-          { name: "Aid Experimental", id: "aid-exp-v5-canary", status: "Canary", traffic: 0.5, p95: "1.1s", err: "0.12%" },
+          { name: "Paper Trail Balanced", id: "paper-trail-balanced-v3", status: "Active", traffic: 62, p95: "1.4s", err: "0.02%", default: true },
+          { name: "Paper Trail Rigor", id: "paper-trail-rigor-v2", status: "Active", traffic: 24, p95: "3.8s", err: "0.01%" },
+          { name: "Paper Trail Fast", id: "paper-trail-fast-v4", status: "Active", traffic: 14, p95: "0.6s", err: "0.04%" },
+          { name: "Paper Trail Experimental", id: "paper-trail-exp-v5-canary", status: "Canary", traffic: 0.5, p95: "1.1s", err: "0.12%" },
         ].map((m, i) => (
           <div key={i} className="bg-white border border-border-subtle rounded-xl p-5">
             <div className="flex items-start justify-between mb-4">
@@ -319,7 +319,7 @@ function AdminFlagsPage() {
     { name: "agent-mentions", desc: "@search_web, @summarize_web in chat", state: "Rollout", rollout: "35%", updated: "Yesterday" },
     { name: "annotation-suggestions", desc: "AI-suggested highlights on PDF open", state: "Off", rollout: "0%", updated: "3d ago" },
     { name: "team-billing-portal", desc: "Self-serve seat management", state: "Lab Only", rollout: "Lab plan", updated: "1w ago" },
-    { name: "experimental-canary", desc: "Aid Experimental v5 routing", state: "Rollout", rollout: "0.5%", updated: "12h ago" },
+    { name: "experimental-canary", desc: "Paper Trail Experimental v5 routing", state: "Rollout", rollout: "0.5%", updated: "12h ago" },
   ];
   return (
     <AdminShell active="flags" breadcrumbs={[{ label: "Admin", to: "/admin" }, { label: "Feature Flags" }]}>
@@ -359,7 +359,7 @@ function AdminFlagsPage() {
 function AdminLogsPage() {
   const logs = [
     { time: "10:42:18", actor: "anna@stanford.edu", action: "feature_flag.update", target: "agent-mentions", meta: "rollout: 25% → 35%", level: "info" },
-    { time: "10:38:02", actor: "system", action: "model.canary_promote", target: "aid-exp-v5", meta: "0.1% → 0.5%", level: "info" },
+    { time: "10:38:02", actor: "system", action: "model.canary_promote", target: "paper-trail-exp-v5", meta: "0.1% → 0.5%", level: "info" },
     { time: "10:31:55", actor: "mustafa@example.com", action: "user.suspend", target: "liam@gmail.com", meta: "reason: ToS violation", level: "warn" },
     { time: "10:24:11", actor: "system", action: "billing.invoice_failed", target: "lab_org_412", meta: "stripe_err: card_declined", level: "error" },
     { time: "10:18:47", actor: "anna@stanford.edu", action: "user.role_grant", target: "john@mit.edu", meta: "role: workspace_admin", level: "info" },

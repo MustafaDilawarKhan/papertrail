@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Screen 7 — Workspaces</title>
+  <link rel="stylesheet" href="wireframe.css">
+</head>
+<body>
+
+  <!-- 7a. Workspaces grid -->
+  <div class="wireframe">
+    <div class="wireframe-title">Screen 7a / 8 — Workspaces (grid)</div>
+
+    <div class="browser-chrome">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      <div class="url">https://papertrail.app/#/workspaces</div>
+    </div>
+
+    <header class="app-header">
+      <div class="logo">[ logo ]  Paper Trail</div>
+      <div class="search">🔍  Search workspaces…</div>
+      <div class="icon-btn">🔔</div>
+      <div class="avatar">FF</div>
+    </header>
+
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="nav-item"><span class="nav-icon"></span> Dashboard</div>
+        <div class="nav-item"><span class="nav-icon"></span> Library</div>
+        <div class="nav-item active"><span class="nav-icon"></span> Workspaces</div>
+        <div class="nav-item"><span class="nav-icon"></span> Editor</div>
+        <div class="nav-item"><span class="nav-icon"></span> Integrations</div>
+
+        <div class="nav-section">Filter</div>
+        <div class="nav-item dashed">All workspaces</div>
+        <div class="nav-item dashed">Owned by me</div>
+        <div class="nav-item dashed">Shared with me</div>
+        <div class="nav-item dashed">Archived</div>
+      </aside>
+
+      <main class="main">
+
+        <div class="row between">
+          <div>
+            <h1 style="margin:0;">Workspaces</h1>
+            <p class="muted small" style="margin:4px 0 0;">5 workspaces · 14 collaborators</p>
+          </div>
+          <button class="btn primary">+ New Workspace</button>
+        </div>
+
+        <div class="grid-3 mt-24">
+
+          <div class="box">
+            <div class="row between">
+              <h2 style="margin:0;">NLP Survey</h2>
+              <span class="box small dashed" style="padding:2px 8px;">Owner</span>
+            </div>
+            <p class="muted small">A literature review of attention-based methods.</p>
+            <div class="row" style="gap:-4px;">
+              <div class="avatar" style="width:28px;height:28px;font-size:12px;margin-right:-8px;">FF</div>
+              <div class="avatar" style="width:28px;height:28px;font-size:12px;margin-right:-8px;">AL</div>
+              <div class="avatar" style="width:28px;height:28px;font-size:12px;">+1</div>
+            </div>
+            <div class="row between mt-12">
+              <span class="muted small">8 docs · 3 members</span>
+              <a class="btn sm" href="#detail">Open →</a>
+            </div>
+          </div>
+
+          <div class="box">
+            <div class="row between">
+              <h2 style="margin:0;">FYP — Paper Trail</h2>
+              <span class="box small dashed" style="padding:2px 8px;">Editor</span>
+            </div>
+            <p class="muted small">The codebase, design notes and meeting minutes for our final-year project.</p>
+            <div class="row" style="gap:-4px;">
+              <div class="avatar" style="width:28px;height:28px;font-size:12px;margin-right:-8px;">FF</div>
+              <div class="avatar" style="width:28px;height:28px;font-size:12px;margin-right:-8px;">AL</div>
+              <div class="avatar" style="width:28px;height:28px;font-size:12px;margin-right:-8px;">MK</div>
+              <div class="avatar" style="width:28px;height:28px;font-size:12px;">+1</div>
+            </div>
+            <div class="row between mt-12">
+              <span class="muted small">12 docs · 4 members</span>
+              <a class="btn sm" href="#detail">Open →</a>
+            </div>
+          </div>
+
+          <div class="box">
+            <div class="row between">
+              <h2 style="margin:0;">Reading Group</h2>
+              <span class="box small dashed" style="padding:2px 8px;">Owner</span>
+            </div>
+            <p class="muted small">Weekly paper picks. Anyone can comment.</p>
+            <div class="row" style="gap:-4px;">
+              <div class="avatar" style="width:28px;height:28px;font-size:12px;margin-right:-8px;">FF</div>
+              <div class="avatar" style="width:28px;height:28px;font-size:12px;">+5</div>
+            </div>
+            <div class="row between mt-12">
+              <span class="muted small">5 docs · 6 members</span>
+              <a class="btn sm" href="#detail">Open →</a>
+            </div>
+          </div>
+
+          <div class="box">
+            <div class="row between">
+              <h2 style="margin:0;">Capstone Group</h2>
+              <span class="box small dashed" style="padding:2px 8px;">Owner</span>
+            </div>
+            <p class="muted small">Shared docs for the final-semester capstone.</p>
+            <div class="row" style="gap:-4px;">
+              <div class="avatar" style="width:28px;height:28px;font-size:12px;margin-right:-8px;">FF</div>
+              <div class="avatar" style="width:28px;height:28px;font-size:12px;">+5</div>
+            </div>
+            <div class="row between mt-12">
+              <span class="muted small">23 docs · 6 members</span>
+              <a class="btn sm" href="#detail">Open →</a>
+            </div>
+          </div>
+
+          <div class="box dashed center" style="display:flex; flex-direction:column; justify-content:center; align-items:center; min-height: 160px;">
+            <div style="font-size: 32px;">+</div>
+            <b>New Workspace</b>
+            <span class="muted small">Invite your team and start a shared library.</span>
+          </div>
+
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- 7b. Workspace detail -->
+  <div class="wireframe mt-24">
+    <div class="wireframe-title">Screen 7b / 8 — Workspace detail</div>
+
+    <div class="browser-chrome">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      <div class="url">https://papertrail.app/#/workspaces/9c…</div>
+    </div>
+
+    <header class="app-header">
+      <div class="logo">[ logo ]</div>
+      <div class="small muted">Workspaces <span style="margin: 0 6px;">›</span> <b>FYP — Paper Trail</b></div>
+      <div class="flex-1"></div>
+      <button class="btn">Invite Member</button>
+      <button class="btn ghost">Settings ⚙</button>
+    </header>
+
+    <div class="app-shell">
+      <aside class="sidebar" style="width: 60px;">
+        <div class="nav-item" style="padding: 8px;">D</div>
+        <div class="nav-item" style="padding: 8px;">L</div>
+        <div class="nav-item active" style="padding: 8px;">W</div>
+        <div class="nav-item" style="padding: 8px;">E</div>
+      </aside>
+
+      <main class="main">
+
+        <div class="row gap-lg" style="align-items:flex-start;">
+          <!-- Left column -->
+          <div style="flex: 2;">
+            <h1 style="margin:0;">FYP — Paper Trail</h1>
+            <p class="muted">An AI-powered research workspace · created 2 months ago</p>
+
+            <div class="row mt-12">
+              <div class="btn sm">+ Add Document</div>
+              <div class="btn sm">+ Add Collection</div>
+              <div class="btn sm ghost">⬇ Export</div>
+            </div>
+
+            <h2>Shared documents (12)</h2>
+            <div class="box" style="padding:0;">
+              <div class="doc-row head"><span></span><span>Type</span><span>Name</span><span>Added by</span><span>Modified</span><span></span></div>
+              <div class="doc-row"><span class="checkbox"></span><div class="thumb">PDF</div><div><b>attention.pdf</b></div><span class="small">Ali</span><span class="small muted">2d ago</span><a class="btn sm" href="screen-05-doc-viewer.html">Open</a></div>
+              <div class="doc-row"><span class="checkbox"></span><div class="thumb">PDF</div><div><b>bert-paper.pdf</b></div><span class="small">Fayzal</span><span class="small muted">1d ago</span><a class="btn sm" href="screen-05-doc-viewer.html">Open</a></div>
+              <div class="doc-row"><span class="checkbox"></span><div class="thumb">DOC</div><div><b>draft.docx</b></div><span class="small">You</span><span class="small muted">2h ago</span><a class="btn sm" href="screen-05-doc-viewer.html">Open</a></div>
+              <div class="doc-row"><span class="checkbox"></span><div class="thumb">PDF</div><div><b>longformer.pdf</b></div><span class="small">Mustafa</span><span class="small muted">3d ago</span><a class="btn sm" href="screen-05-doc-viewer.html">Open</a></div>
+            </div>
+          </div>
+
+          <!-- Right column: members + activity -->
+          <div style="flex: 1; min-width: 280px;">
+
+            <div class="box">
+              <div class="row between">
+                <h2 style="margin:0;">Members (4)</h2>
+                <button class="btn sm">+ Invite</button>
+              </div>
+
+              <div class="row mt-12">
+                <div class="avatar">AL</div>
+                <div class="flex-1">
+                  <b>Ali</b><br><span class="muted small">ali@university.edu</span>
+                </div>
+                <span class="box small dashed" style="padding: 2px 8px;">Owner</span>
+              </div>
+
+              <div class="row mt-12">
+                <div class="avatar">FF</div>
+                <div class="flex-1">
+                  <b>Fayzal</b><br><span class="muted small">fayzal@university.edu</span>
+                </div>
+                <div class="box small dashed" style="padding: 2px 8px;">Editor ▾</div>
+              </div>
+
+              <div class="row mt-12">
+                <div class="avatar">MK</div>
+                <div class="flex-1">
+                  <b>Mustafa</b><br><span class="muted small">mustafa@university.edu</span>
+                </div>
+                <div class="box small dashed" style="padding: 2px 8px;">Editor ▾</div>
+              </div>
+
+              <div class="row mt-12">
+                <div class="avatar">ZA</div>
+                <div class="flex-1">
+                  <b>Zara</b><br><span class="muted small">zara@university.edu</span>
+                </div>
+                <div class="box small dashed" style="padding: 2px 8px;">Viewer ▾</div>
+              </div>
+            </div>
+
+            <div class="box mt-24">
+              <h2 style="margin-top:0;">Recent activity</h2>
+              <ul style="padding-left: 18px; line-height:1.7; margin: 0;">
+                <li><b>You</b> added <i>draft.docx</i></li>
+                <li><b>Ali</b> commented on <i>attention.pdf</i></li>
+                <li><b>Mustafa</b> joined</li>
+                <li><b>Ali</b> created the workspace</li>
+              </ul>
+            </div>
+
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>Low-fi design notes</h3>
+    <ul>
+      <li>Roles: <b>owner &gt; editor &gt; viewer</b>. Only owners see <b>Settings</b> and <b>Delete Workspace</b>.</li>
+      <li>Invites are by email; the recipient gets an in-app notification + an email link.</li>
+      <li>Member roles use a dropdown for in-place change (owner only can change others).</li>
+      <li>Recent activity is intentionally narrow so the document table dominates the page.</li>
+    </ul>
+  </div>
+
+</body>
+</html>

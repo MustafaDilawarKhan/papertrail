@@ -1,0 +1,55 @@
+@startuml UseCase
+' Paper Trail — Use Case Diagram
+
+skinparam shadowing false
+left to right direction
+
+title Paper Trail — Use Case Diagram
+
+actor Researcher
+actor "Workspace Owner" as Owner
+actor "Admin" as Admin
+actor "AI Service" as AI <<system>>
+actor "Payment Gateway" as Stripe <<system>>
+
+rectangle "Paper Trail" {
+  usecase "Register / Verify Email" as UC1
+  usecase "Log In" as UC2
+  usecase "Upload Document\n(PDF / DOCX / TXT)" as UC3
+  usecase "Browse Library" as UC4
+  usecase "Open Document Viewer" as UC5
+  usecase "Ask AI about Document" as UC6
+  usecase "Annotate / Highlight" as UC7
+  usecase "Generate Citation" as UC8
+  usecase "Build Paper in Editor" as UC9
+  usecase "Export to LaTeX / PDF" as UC10
+  usecase "Manage Workspaces" as UC11
+  usecase "Invite Member" as UC12
+  usecase "Subscribe / Upgrade" as UC13
+  usecase "Admin: Manage Users" as UC14
+}
+
+Researcher --> UC1
+Researcher --> UC2
+Researcher --> UC3
+Researcher --> UC4
+Researcher --> UC5
+Researcher --> UC6
+Researcher --> UC7
+Researcher --> UC8
+Researcher --> UC9
+Researcher --> UC10
+Researcher --> UC11
+Researcher --> UC13
+
+Owner --|> Researcher
+Owner --> UC12
+
+Admin --|> Researcher
+Admin --> UC14
+
+UC6 ..> AI : <<include>>
+UC9 ..> AI : <<include>>
+UC13 ..> Stripe : <<include>>
+
+@enduml

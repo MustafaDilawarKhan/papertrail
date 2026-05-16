@@ -1,7 +1,7 @@
 {
-  "name": "aid-landing",
+  "name": "paper-trail",
   "version": "1.0.0",
-  "description": "Aid - Trust your AI's insights. Verify every claim.",
+  "description": "Paper Trail - Trust your AI's insights. Verify every claim.",
   "type": "module",
   "scripts": {
     "dev": "vite",

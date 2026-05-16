@@ -29,14 +29,14 @@ function Integrations() {
               Plug into the tools you <em>already use</em>.
             </h2>
             <p className="lead" style={{ marginTop: 16 }}>
-              Aid sits at the center of your knowledge stack. Import from reference managers, sync to note tools, and export
+              Paper Trail sits at the center of your knowledge stack. Import from reference managers, sync to note tools, and export
               clean citations — without leaving your flow.
             </p>
             <div className="col gap-12" style={{ marginTop: 24 }}>
               {[
                 ["Reference managers", "Zotero, Mendeley, EndNote — full library sync."],
                 ["Note tools", "Obsidian, Notion — bidirectional links to source passages."],
-                ["Academic databases", "arXiv, Google Scholar, PubMed — search inside Aid."],
+                ["Academic databases", "arXiv, Google Scholar, PubMed — search inside Paper Trail."],
                 ["Cite anywhere", "BibTeX, RIS, APA, MLA, Chicago — one click."],
               ].map(([t, s], i) => (
                 <div key={i} className="row gap-12" style={{ alignItems: "flex-start" }}>

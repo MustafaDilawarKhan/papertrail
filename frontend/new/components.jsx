@@ -34,7 +34,7 @@ function Icon({ name, className = "", filled = false, size }) {
 function Brand({ small }) {
   return (
     <Link to="/dashboard" className="flex items-center gap-2 group">
-      <span className={`font-hero-headline font-extrabold text-primary tracking-tight ${small ? "text-lg" : "text-xl"}`}>Aid</span>
+      <span className={`font-hero-headline font-extrabold text-primary tracking-tight ${small ? "text-lg" : "text-xl"}`}>Paper Trail</span>
       {!small && <span className="text-[9px] uppercase tracking-widest text-on-surface-variant font-bold">AI Research</span>}
     </Link>
   );
@@ -197,7 +197,7 @@ function CommandPalette({ open, onClose }) {
             <span><kbd className="font-bold border px-1 rounded">↑↓</kbd> navigate</span>
             <span><kbd className="font-bold border px-1 rounded">↵</kbd> select</span>
           </div>
-          <span>Aid Search v2.4</span>
+          <span>Paper Trail Search v2.4</span>
         </div>
       </div>
     </div>

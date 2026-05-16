@@ -31,7 +31,7 @@ function Features() {
               </div>
               <h3 style={{ fontFamily: "var(--serif)", fontSize: 30, lineHeight: 1.05, marginBottom: 8 }}>Ask one question, query your whole library.</h3>
               <p className="text-mute" style={{ fontSize: 14.5, maxWidth: 480 }}>
-                Aid synthesizes across 1,000+ documents in seconds — comparing findings, surfacing contradictions, and citing every source on the way.
+                Paper Trail synthesizes across 1,000+ documents in seconds — comparing findings, surfacing contradictions, and citing every source on the way.
               </p>
             </div>
             <div style={{ flex: 1, padding: "8px 28px 26px", position: "relative" }}>

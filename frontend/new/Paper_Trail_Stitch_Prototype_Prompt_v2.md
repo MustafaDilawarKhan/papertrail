@@ -1,12 +1,12 @@
-# Aid Platform — Full Stitch Prototype Prompt (v2)
-## "Aid: The Verifiable AI Research Assistant"
+# Paper Trail Platform — Full Stitch Prototype Prompt (v2)
+## "Paper Trail: The Verifiable AI Research Assistant"
 ### UWE Assignment 2 (CLO-2) · Web Engineering · BSE 6B
 
 ---
 
 ## OVERVIEW & DESIGN SYSTEM
 
-Build a complete, high-fidelity prototype for **Aid** — a SaaS web application for AI-powered academic and professional research. The product lets users upload documents, chat with them via AI, and receive source-highlighted, verifiable responses linked directly back to the source material.
+Build a complete, high-fidelity prototype for **Paper Trail** — a SaaS web application for AI-powered academic and professional research. The product lets users upload documents, chat with them via AI, and receive source-highlighted, verifiable responses linked directly back to the source material.
 
 ### Design Language
 - **Aesthetic**: Clean, minimal, professional — similar to Notion/Linear. Light and dark mode both supported.
@@ -21,7 +21,7 @@ Build a complete, high-fidelity prototype for **Aid** — a SaaS web application
   - Dark mode background: `#111111`, sidebar `#1A1A1A`, text `#F0F0F0`
 - **Typography**: Use `DM Sans` or `Geist` for all UI text. Monospace for code/ID references only.
 - **Spacing**: 8pt grid system. Generous padding. Cards with `border-radius: 12px`, subtle `box-shadow`.
-- **Brand Name**: **Aid** — bold, set in top-left of the sidebar on every user-facing page.
+- **Brand Name**: **Paper Trail** — bold, set in top-left of the sidebar on every user-facing page.
 
 ---
 
@@ -30,7 +30,7 @@ Build a complete, high-fidelity prototype for **Aid** — a SaaS web application
 All pages (except Login / Register / Email Verification / Upload modal) share the same shell:
 
 ### Persistent Left Sidebar (240px wide)
-- Top: **"Aid"** wordmark in bold black
+- Top: **"Paper Trail"** wordmark in bold black
 - Navigation links (vertical list, full-width, with icons):
   - **Home** (home/dashboard icon)
   - **Library** (books/grid icon)
@@ -108,7 +108,7 @@ Left: Persistent sidebar (Home is active). Right: Main content area.
 
 ### Layout
 - Centered card on light grey `#F5F5F7` background (same as auth pages)
-- **Aid** wordmark at top
+- **Paper Trail** wordmark at top
 - Large envelope icon (illustration) in the center
 - Heading: **"Check your inbox"**
 - Subtext: `We've sent a verification link to ahmed@example.com. Click the link in the email to activate your account.`
@@ -171,7 +171,7 @@ Triggered by clicking the search bar or `Cmd+K`. Drops down as an overlay from t
 ## PAGE 4 — DOCUMENT VIEWER
 
 **Route**: `/library/[collection]/[document-name]`
-**Purpose**: Two-pane layout — PDF renderer (left) + AI chat (right). Core feature of Aid. (FR-I-02, FR-I-03)
+**Purpose**: Two-pane layout — PDF renderer (left) + AI chat (right). Core feature of Paper Trail. (FR-I-02, FR-I-03)
 
 ### Breadcrumb
 `Dashboard > Library > [Collection] > ResearchPaper.pdf`
@@ -234,7 +234,7 @@ Horizontal row: `Back` | `Download` | `Annotate` | `Cite` | `Share`
 - Centered on page, white background, `border-radius: 16px`, drop shadow
 - Width: 460px
 - `×` close button top-right corner
-- Title: **"Upload to Aid"** (centered, bold)
+- Title: **"Upload to Paper Trail"** (centered, bold)
 
 ### Tab Toggle (below title):
 **`File upload`** (active — black fill, white text) | **`Web URL`** (inactive — light grey)
@@ -325,14 +325,14 @@ Footer:
 
 **Security section:**
 - **2-step Verification** — toggle (OFF by default)
-  - Subtext: `Enable an extra layer of security to your Aid account`
+  - Subtext: `Enable an extra layer of security to your Paper Trail account`
 
 **Support section:**
 - **Clear cookies** — description: `Remove all locally stored data. You'll need to sign in again.` → `Clear cookies` button (outlined, right)
 - **Log out of all devices** — description: `Revoke all active sessions on any device you're logged in to.` → `Log out all devices` button (outlined, right)
 
 **Danger Zone section** (red-tinted background or red border card):
-- **Delete account** — description: `Permanently delete your Aid account and all associated data. This cannot be undone.` → `Delete account` button (red filled)
+- **Delete account** — description: `Permanently delete your Paper Trail account and all associated data. This cannot be undone.` → `Delete account` button (red filled)
 
 ---
 
@@ -417,7 +417,7 @@ Footer:
   - `Open` button (appears on hover)
 
 ### Workspace Detail Page (`/workspaces/[workspace-name]`)
-- Sidebar shows the workspace name at the top (replaces "Aid" wordmark while inside)
+- Sidebar shows the workspace name at the top (replaces "Paper Trail" wordmark while inside)
 - Breadcrumb: `Workspaces > Thesis Research`
 - Sub-tabs: **Files** | **Chats**
 
@@ -465,7 +465,7 @@ Accessible via gear icon in workspace detail header.
 ## PAGE 8 — LANDING PAGE
 
 **Route**: `/` (root — the very first page a visitor sees)
-**Purpose**: Convert visitors into signups. Communicate Aid's value proposition clearly and compellingly. This is the most important page in the prototype — it must feel polished, confident, and trustworthy.
+**Purpose**: Convert visitors into signups. Communicate Paper Trail's value proposition clearly and compellingly. This is the most important page in the prototype — it must feel polished, confident, and trustworthy.
 
 ### Overall Structure (single long-scrolling page with fixed top navbar)
 
@@ -473,7 +473,7 @@ Accessible via gear icon in workspace detail header.
 
 ### Section 1 — Top Navigation Bar (fixed, full-width)
 
-- Left: **"Aid"** wordmark (bold black)
+- Left: **"Paper Trail"** wordmark (bold black)
 - Center: Nav links (horizontal):
   - `Features`
   - `Pricing`
@@ -500,7 +500,7 @@ Accessible via gear icon in workspace detail header.
   `Research with AI you can actually trust.`
 
 - **Subheadline** (18–20px, grey `#555`):
-  `Aid lets you upload your documents, ask questions, and get AI answers — every response linked directly back to the exact source passage. No hallucinations. No guessing.`
+  `Paper Trail lets you upload your documents, ask questions, and get AI answers — every response linked directly back to the exact source passage. No hallucinations. No guessing.`
 
 - **CTA buttons** (horizontal, centered below subheadline):
   - `Get started free` (filled black, large, 48px height)
@@ -537,7 +537,7 @@ Accessible via gear icon in workspace detail header.
 - **Section heading** (32–36px, bold, centered):
   `Everything your research workflow needs.`
 - **Subtext** (grey, centered, max-width 560px):
-  `From upload to insight — Aid handles the heavy lifting so you can focus on thinking.`
+  `From upload to insight — Paper Trail handles the heavy lifting so you can focus on thinking.`
 
 **Feature cards** (3 per row, 2 rows = 6 total):
 
@@ -550,7 +550,7 @@ Accessible via gear icon in workspace detail header.
 
 2. **Chat with Your Documents**
    - Icon: chat bubble + PDF
-   - Description: `Ask questions in plain language across a single document or an entire collection. Aid synthesizes answers from all your sources simultaneously.`
+   - Description: `Ask questions in plain language across a single document or an entire collection. Paper Trail synthesizes answers from all your sources simultaneously.`
    - Tag: `AI-Powered`
 
 3. **Smart Annotations**
@@ -590,7 +590,7 @@ Accessible via gear icon in workspace detail header.
 - **Heading** (28–32px, bold):
   `See exactly where every answer comes from.`
 - **Body text:**
-  `When Aid answers your question, it doesn't just tell you — it shows you. Click any source chip in the chat and instantly jump to the highlighted passage in your document. Research you can verify in one click.`
+  `When Paper Trail answers your question, it doesn't just tell you — it shows you. Click any source chip in the chat and instantly jump to the highlighted passage in your document. Research you can verify in one click.`
 - Bullet points (checkmarks, not dashes):
   - ✓ Every AI claim linked to a source passage
   - ✓ Highlights scroll and persist across sessions
@@ -608,7 +608,7 @@ Accessible via gear icon in workspace detail header.
 - **Heading** (28–32px, bold):
   `Ask questions across your entire library.`
 - **Body text:**
-  `Don't limit your AI to a single file. Set the context to an entire collection and Aid synthesizes insights across all your sources — comparing, contrasting, and identifying themes automatically.`
+  `Don't limit your AI to a single file. Set the context to an entire collection and Paper Trail synthesizes insights across all your sources — comparing, contrasting, and identifying themes automatically.`
 - Bullet points:
   - ✓ Single doc or multi-doc context
   - ✓ Use @ mentions to direct the AI (`@document1`, `@search_web`)
@@ -708,7 +708,7 @@ Accessible via gear icon in workspace detail header.
 
 2. **University Students**
    - Icon: pencil/book
-   - Text: `Write better essays and dissertations. Upload your reading list and let Aid help you find, understand, and cite the right passages.`
+   - Text: `Write better essays and dissertations. Upload your reading list and let Paper Trail help you find, understand, and cite the right passages.`
 
 3. **Scientists & Physicians**
    - Icon: microscope/stethoscope
@@ -724,7 +724,7 @@ Accessible via gear icon in workspace detail header.
 
 **Layout**: White background, centered heading, 3 testimonial cards in a row.
 
-- **Heading**: `Researchers love Aid.`
+- **Heading**: `Researchers love Paper Trail.`
 
 **Testimonial Card 1:**
 - Quote: `"I reviewed 40 papers for my lit review in one afternoon. Every AI answer linked directly to the passage — I never had to second-guess a claim."`
@@ -733,7 +733,7 @@ Accessible via gear icon in workspace detail header.
 - Avatar: placeholder circle
 
 **Testimonial Card 2:**
-- Quote: `"Aid replaced my entire workflow — Zotero for organization, ChatGPT for questions, and manual ctrl+F to verify. Now it's all in one place, and I can actually trust the answers."`
+- Quote: `"Paper Trail replaced my entire workflow — Zotero for organization, ChatGPT for questions, and manual ctrl+F to verify. Now it's all in one place, and I can actually trust the answers."`
 - Name: `Marcus Chen`
 - Title: `PhD Candidate, Computer Science`
 - Avatar: placeholder circle
@@ -765,7 +765,7 @@ Accessible via gear icon in workspace detail header.
 **Layout**: Dark background `#111111`, organized in 4 columns.
 
 **Column 1 — Brand:**
-- **Aid** wordmark (white, bold)
+- **Paper Trail** wordmark (white, bold)
 - Tagline: `Verifiable AI Research`
 - Social icons: Twitter/X · LinkedIn · GitHub
 
@@ -791,7 +791,7 @@ Accessible via gear icon in workspace detail header.
 - Status Page
 
 **Bottom bar** (below the 4 columns, thin separator line above):
-- Left: `© 2026 Aid. All rights reserved.`
+- Left: `© 2026 Paper Trail. All rights reserved.`
 - Right: `Privacy · Terms · Cookies`
 
 ---
@@ -800,7 +800,7 @@ Accessible via gear icon in workspace detail header.
 
 ### Register Page (`/register`)
 - Centered card on `#F5F5F7` background
-- **Aid** wordmark at top (bold)
+- **Paper Trail** wordmark at top (bold)
 - Heading: **"Create your account"**
 - Fields:
   - Full name (text input)
@@ -815,7 +815,7 @@ Accessible via gear icon in workspace detail header.
 
 ### Login Page (`/login`)
 - Centered card on same background
-- **Aid** wordmark at top
+- **Paper Trail** wordmark at top
 - Heading: **"Welcome back"**
 - Fields: Email · Password (with show/hide toggle)
 - `Sign in` button (filled black, full-width)
@@ -839,20 +839,20 @@ Accessible via gear icon in workspace detail header.
 ## PAGE 10 — OWNER / SUPER ADMIN DASHBOARD
 
 **Route**: `/admin`
-**Access**: Exclusively for the **platform Owner** — the single person who created and runs the Aid SaaS platform. This is NOT accessible to any regular user, workspace owner, or any other role. It is a completely separate section with its own login/auth guard.
+**Access**: Exclusively for the **platform Owner** — the single person who created and runs the Paper Trail SaaS platform. This is NOT accessible to any regular user, workspace owner, or any other role. It is a completely separate section with its own login/auth guard.
 
 **Key principle**: There is only ONE admin role — the Owner. No other admin tiers exist. The Owner has full, unrestricted control over every aspect of the platform.
 
 ### Admin Auth Guard
 - Separate login page at `/admin/login`:
-  - Shows **"Aid Admin"** wordmark with a small shield/⚡ icon badge
+  - Shows **"Paper Trail Admin"** wordmark with a small shield/⚡ icon badge
   - Email + password fields
   - `Sign in as Owner` button (filled dark)
   - No registration option (Owner account is pre-seeded)
 
 ### Admin Layout
 - **Left sidebar** — always dark theme (`#111111` background):
-  - Top: **"Aid Admin"** wordmark + `Owner` badge (small, accent color)
+  - Top: **"Paper Trail Admin"** wordmark + `Owner` badge (small, accent color)
   - Navigation sections with icons:
 
   **Overview**
@@ -1238,4 +1238,4 @@ For each major interactive element, show at minimum one alternate state as a sep
 
 ---
 
-*This prompt is based on the Aid SRS document (v1, Feb 2026) and presentation wireframes for UWE Assignment 2 (CLO-2), Web Engineering, BSE 6B. All plan pricing, model names, and connector details are illustrative and match the wireframe screenshots provided.*
+*This prompt is based on the Paper Trail SRS document (v1, Feb 2026) and presentation wireframes for UWE Assignment 2 (CLO-2), Web Engineering, BSE 6B. All plan pricing, model names, and connector details are illustrative and match the wireframe screenshots provided.*

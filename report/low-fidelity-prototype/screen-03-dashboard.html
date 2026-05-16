@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Screen 3 — Dashboard</title>
+  <link rel="stylesheet" href="wireframe.css">
+</head>
+<body>
+
+  <div class="wireframe">
+    <div class="wireframe-title">Screen 3 / 8 — Dashboard</div>
+
+    <div class="browser-chrome">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      <div class="url">https://papertrail.app/#/dashboard</div>
+    </div>
+
+    <header class="app-header">
+      <div class="logo">[ logo ]  Paper Trail</div>
+      <div class="search">🔍  Search documents, citations, chats…</div>
+      <div class="icon-btn">+</div>
+      <div class="icon-btn">🔔</div>
+      <div class="avatar">FF</div>
+    </header>
+
+    <div class="app-shell">
+
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="nav-item active"><span class="nav-icon"></span> Dashboard</div>
+        <div class="nav-item"><span class="nav-icon"></span> Library</div>
+        <div class="nav-item"><span class="nav-icon"></span> Workspaces</div>
+        <div class="nav-item"><span class="nav-icon"></span> Editor (Write)</div>
+        <div class="nav-item"><span class="nav-icon"></span> Integrations</div>
+
+        <div class="nav-section">Recent</div>
+        <div class="nav-item"><span class="nav-icon"></span> attention.pdf</div>
+        <div class="nav-item"><span class="nav-icon"></span> bert-paper.pdf</div>
+        <div class="nav-item"><span class="nav-icon"></span> draft-v3.docx</div>
+
+        <div class="nav-section">Account</div>
+        <div class="nav-item"><span class="nav-icon"></span> Settings</div>
+        <div class="nav-item"><span class="nav-icon"></span> Upgrade</div>
+      </aside>
+
+      <!-- Main -->
+      <main class="main">
+        <h1>Welcome back, Fayzal</h1>
+        <p class="muted">You have <b>3</b> documents waiting for review and <b>2</b> AI suggestions.</p>
+
+        <!-- Quick actions -->
+        <div class="row mt-12">
+          <a class="btn primary" href="screen-06-editor.html">+ New Paper</a>
+          <a class="btn" href="screen-04-library.html">+ Upload Document</a>
+          <a class="btn ghost" href="screen-07-workspaces.html">+ New Workspace</a>
+        </div>
+
+        <!-- Stat strip -->
+        <div class="grid-4 mt-24">
+          <div class="box center"><div style="font-size:28px;font-weight:700;">24</div><div class="small muted">Documents</div></div>
+          <div class="box center"><div style="font-size:28px;font-weight:700;">5</div><div class="small muted">Workspaces</div></div>
+          <div class="box center"><div style="font-size:28px;font-weight:700;">128</div><div class="small muted">Citations</div></div>
+          <div class="box center"><div style="font-size:28px;font-weight:700;">63%</div><div class="small muted">Storage used</div></div>
+        </div>
+
+        <!-- Recent documents -->
+        <h2>Recent documents</h2>
+        <div class="box" style="padding:0;">
+          <div class="doc-row head">
+            <span></span><span>Type</span><span>Name</span><span>Size</span><span>Modified</span><span>Open</span>
+          </div>
+          <div class="doc-row">
+            <span class="checkbox"></span>
+            <div class="thumb">PDF</div>
+            <div><b>attention-is-all-you-need.pdf</b><br><span class="muted small">/ Library / Surveys</span></div>
+            <span class="small">12 MB</span>
+            <span class="small muted">2h ago</span>
+            <a class="btn sm" href="screen-05-doc-viewer.html">Open</a>
+          </div>
+          <div class="doc-row">
+            <span class="checkbox"></span>
+            <div class="thumb">PDF</div>
+            <div><b>bert-paper.pdf</b><br><span class="muted small">/ Library / Surveys</span></div>
+            <span class="small">8 MB</span>
+            <span class="small muted">10h ago</span>
+            <a class="btn sm" href="screen-05-doc-viewer.html">Open</a>
+          </div>
+          <div class="doc-row">
+            <span class="checkbox"></span>
+            <div class="thumb">DOC</div>
+            <div><b>draft-survey-v3.docx</b><br><span class="muted small">/ Library / Drafts</span></div>
+            <span class="small">3 MB</span>
+            <span class="small muted">3d ago</span>
+            <a class="btn sm" href="screen-05-doc-viewer.html">Open</a>
+          </div>
+        </div>
+
+        <!-- AI suggestions + activity -->
+        <div class="row gap-lg mt-24" style="align-items:stretch;">
+
+          <div class="box" style="flex:1;">
+            <h2 style="margin-top:0;">AI suggestions</h2>
+            <div class="box dashed mb-12">
+              <b>🪄 Cite this in your draft?</b><br>
+              <span class="muted small">You haven't cited <i>bert-paper.pdf</i> in your <i>draft-survey-v3</i> yet.</span>
+            </div>
+            <div class="box dashed mb-12">
+              <b>📚 3 papers reference "attention mechanism"</b><br>
+              <span class="muted small">Open a comparative summary?</span>
+            </div>
+            <div class="box dashed">
+              <b>🧹 Untagged uploads</b><br>
+              <span class="muted small">5 documents have no collection. Organise them?</span>
+            </div>
+          </div>
+
+          <div class="box" style="flex:1;">
+            <h2 style="margin-top:0;">Activity feed</h2>
+            <ul style="padding-left:18px; margin:0; line-height:1.7;">
+              <li><b>Ali</b> added 2 docs to <i>NLP-Survey</i> workspace  <span class="muted small">· 1h ago</span></li>
+              <li><b>You</b> exported <i>Methodology v3</i> to LaTeX  <span class="muted small">· 4h ago</span></li>
+              <li><b>Mustafa</b> commented on <i>draft-v3.docx</i>  <span class="muted small">· yesterday</span></li>
+              <li><b>You</b> upgraded to <i>Pro Monthly</i>  <span class="muted small">· 3d ago</span></li>
+              <li><b>You</b> created workspace <i>Capstone Group</i>  <span class="muted small">· 1w ago</span></li>
+            </ul>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>Low-fi design notes</h3>
+    <ul>
+      <li>Sidebar is the canonical shell — same on Library / Workspaces / Editor / Settings.</li>
+      <li>Search lives in the top bar and is global (documents + citations + chat history).</li>
+      <li>Stat strip is intentionally above the doc list — gives a sense of "where am I" at a glance.</li>
+      <li>“AI Suggestions” is placed before “Activity Feed” because it drives the next action.</li>
+    </ul>
+  </div>
+
+</body>
+</html>

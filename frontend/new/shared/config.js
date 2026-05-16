@@ -1,5 +1,5 @@
-// Shared Tailwind config — matches existing Aid design system
-window.__aidTailwindConfig = {
+// Shared Tailwind config — matches existing Paper Trail design system
+window.__paperTrailTailwindConfig = {
   darkMode: "class",
   theme: {
     extend: {
@@ -55,4 +55,4 @@ window.__aidTailwindConfig = {
     },
   },
 };
-if (window.tailwind) window.tailwind.config = window.__aidTailwindConfig;
+if (window.tailwind) window.tailwind.config = window.__paperTrailTailwindConfig;

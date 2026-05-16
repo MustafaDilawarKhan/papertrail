@@ -1,7 +1,7 @@
 #!/bin/bash
-# Quick setup script for Aid Landing Page
+# Quick setup script for Paper Trail Landing Page
 
-echo "🚀 Setting up Aid Landing Page..."
+echo "🚀 Setting up Paper Trail Landing Page..."
 
 # Check if Node.js is installed
 if ! command -v node &> /dev/null; then

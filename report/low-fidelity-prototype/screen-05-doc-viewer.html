@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Screen 5 — Document Viewer + AI Chat</title>
+  <link rel="stylesheet" href="wireframe.css">
+</head>
+<body>
+
+  <div class="wireframe" style="width: 1400px;">
+    <div class="wireframe-title">Screen 5 / 8 — Document Viewer + AI Chat  ★ flagship screen</div>
+
+    <div class="browser-chrome">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      <div class="url">https://papertrail.app/#/library/doc/9f3b1c…</div>
+    </div>
+
+    <header class="app-header">
+      <div class="logo">[ logo ]</div>
+      <div class="small muted">Library <span style="margin: 0 6px;">›</span> Surveys <span style="margin: 0 6px;">›</span> <b>attention-is-all-you-need.pdf</b></div>
+      <div class="flex-1"></div>
+      <div class="search" style="max-width: 240px;">🔍  Search…</div>
+      <div class="icon-btn">🔔</div>
+      <div class="avatar">FF</div>
+    </header>
+
+    <div class="app-shell">
+
+      <!-- Collapsed sidebar (icons only) -->
+      <aside class="sidebar" style="width: 60px; padding: 14px 6px;">
+        <div class="nav-item" style="padding: 8px;">D</div>
+        <div class="nav-item active" style="padding: 8px;">L</div>
+        <div class="nav-item" style="padding: 8px;">W</div>
+        <div class="nav-item" style="padding: 8px;">E</div>
+        <div class="nav-item" style="padding: 8px;">I</div>
+        <div class="nav-item dashed" style="padding: 8px;">⚙</div>
+      </aside>
+
+      <main style="flex:1; display:flex; flex-direction:column;">
+
+        <!-- Tab bar -->
+        <div class="tab-bar">
+          <div class="tab active">attention.pdf <span class="close">×</span></div>
+          <div class="tab">bert-paper.pdf <span class="close">×</span></div>
+          <div class="tab">longformer.pdf <span class="close">×</span></div>
+          <div class="tab ghost" style="padding: 6px 10px;">＋</div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="toolbar">
+          <div class="tool">‹ Page 3 / 15 ›</div>
+          <div class="tool">−</div>
+          <div class="tool">+</div>
+          <div class="tool">100%</div>
+          <span class="muted small" style="align-self:center;">|</span>
+          <div class="tool">✏ Highlight</div>
+          <div class="tool">📝 Note</div>
+          <div class="tool">🔖 Bookmark</div>
+          <div class="tool">🔗 Cite</div>
+          <div class="flex-1"></div>
+          <div class="tool">⬇ Download</div>
+          <div class="tool">⤴ Share</div>
+        </div>
+
+        <!-- Two-pane viewer -->
+        <div class="viewer-pane" style="grid-template-columns: 1fr 420px;">
+
+          <!-- PDF pane -->
+          <div class="pdf-pane">
+            <div class="pdf-canvas">
+              <h3 style="text-align:center; margin: 0 0 8px;">Attention Is All You Need</h3>
+              <p class="center muted small">Ashish Vaswani · Noam Shazeer · Niki Parmar · …</p>
+
+              <h4 style="margin: 18px 0 4px;">Abstract</h4>
+              <div class="pseudo-line"></div>
+              <div class="pseudo-line"></div>
+              <div class="pseudo-line med"></div>
+              <div class="pseudo-line"></div>
+              <div class="pseudo-line short"></div>
+
+              <h4 style="margin: 18px 0 4px;">1. Introduction</h4>
+              <div class="pseudo-line"></div>
+              <div class="pseudo-line med"></div>
+              <div class="pseudo-line"></div>
+              <div class="pseudo-line"></div>
+              <div class="pseudo-line short"></div>
+
+              <!-- Citation-anchored highlight -->
+              <h4 style="margin: 18px 0 4px;">2. Background</h4>
+              <div style="background: #fff1a8; padding: 6px; border: 1.5px dashed #b59f00; margin-bottom:10px;">
+                <div class="pseudo-line" style="background:#e5c93b;"></div>
+                <div class="pseudo-line med" style="background:#e5c93b;"></div>
+                <span class="tiny muted">↑ source-anchored to chat answer #2</span>
+              </div>
+              <div class="pseudo-line"></div>
+              <div class="pseudo-line short"></div>
+            </div>
+
+            <div class="row" style="justify-content: space-between; padding: 8px 0 0;">
+              <span class="small muted">12 MB  ·  uploaded 2 h ago  ·  3 annotations</span>
+              <div class="row">
+                <div class="tool">‹</div><div class="tool">›</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI Chat pane -->
+          <div class="chat-pane">
+            <div class="row between">
+              <b>AI Chat</b>
+              <div class="row" style="gap: 4px;">
+                <div class="box small dashed" style="padding: 2px 8px;">gpt-4o ▾</div>
+                <div class="icon-btn" style="width:24px;height:24px;">⌄</div>
+              </div>
+            </div>
+            <hr style="border:0; border-top:1.5px dashed var(--line); margin: 4px 0;">
+
+            <div class="chat-bubble user">
+              <b>You</b>: Summarise the key contribution of this paper in 2 sentences.
+            </div>
+
+            <div class="chat-bubble ai">
+              <b>AI</b>: The paper introduces the Transformer, a model
+              architecture that replaces recurrence and convolutions with a
+              pure attention mechanism. It achieves state-of-the-art results
+              on WMT 2014 English-to-German translation while being faster to
+              train than recurrent baselines.
+
+              <div class="source-card">
+                📄  <b>Sources</b>
+                <div>· p.2 §2 “Background”  <span class="muted tiny">(0.91)</span></div>
+                <div>· p.3 §3.1 “Encoder”  <span class="muted tiny">(0.87)</span></div>
+              </div>
+            </div>
+
+            <div class="chat-bubble user">
+              <b>You</b>: How do the encoder and decoder differ?
+            </div>
+
+            <div class="chat-bubble ai">
+              <b>AI</b>: The encoder is a stack of identical layers with
+              self-attention and a feed-forward network; the decoder adds a
+              masked self-attention sub-layer plus a cross-attention layer
+              that attends to the encoder output…
+
+              <div class="source-card">
+                📄  <b>Sources</b>
+                <div>· p.3 §3.1 “Encoder” </div>
+                <div>· p.4 §3.2 “Decoder”</div>
+              </div>
+            </div>
+
+            <div class="flex-1"></div>
+
+            <!-- Prompt input -->
+            <div class="box dashed" style="padding: 8px;">
+              <textarea class="input dashed" rows="2" placeholder="Ask anything about this document…" style="resize:none; border: 0; padding: 4px;"></textarea>
+              <div class="row between" style="margin-top: 6px;">
+                <div class="row" style="gap:4px;">
+                  <div class="btn sm ghost">📎 Attach</div>
+                  <div class="btn sm ghost">🎙</div>
+                </div>
+                <button class="btn primary sm">Send ↩</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>Low-fi design notes</h3>
+    <ul>
+      <li>Two-pane layout: PDF on the left, AI chat anchored on the right. The single most important decision and the one the survey validated most strongly (B4 = 4.67).</li>
+      <li>Multi-document tabs above the viewer; tab state persists in <code>localStorage</code>.</li>
+      <li>Citation cards inside each AI answer are clickable — they jump the PDF pane to the exact page + bounding box (the yellow block in §2 illustrates the resulting highlight).</li>
+      <li>Toolbar is right above the PDF (not inside the chat) so annotation tools feel "attached" to the document.</li>
+      <li>On screens &lt; 1024 px, the chat pane collapses into a slide-over drawer (see Screen 5b in the responsive section).</li>
+    </ul>
+  </div>
+
+</body>
+</html>

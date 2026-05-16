@@ -1,6 +1,6 @@
 # Start Here
 
-Aid is a landing page for source-backed AI claim verification. It presents the product story, feature set, verification flow, and supporting trust content in one page.
+Paper Trail is a landing page for source-backed AI claim verification. It presents the product story, feature set, verification flow, and supporting trust content in one page.
 
 ## Run It
 

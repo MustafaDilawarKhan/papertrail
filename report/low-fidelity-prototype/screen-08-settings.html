@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Screen 8 — Settings</title>
+  <link rel="stylesheet" href="wireframe.css">
+</head>
+<body>
+
+  <div class="wireframe">
+    <div class="wireframe-title">Screen 8 / 8 — Settings</div>
+
+    <div class="browser-chrome">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      <div class="url">https://papertrail.app/#/settings</div>
+    </div>
+
+    <header class="app-header">
+      <div class="logo">[ logo ]  Paper Trail</div>
+      <div class="search">🔍  Search settings…</div>
+      <div class="icon-btn">🔔</div>
+      <div class="avatar">FF</div>
+    </header>
+
+    <div class="app-shell">
+
+      <!-- Outer nav -->
+      <aside class="sidebar">
+        <div class="nav-item"><span class="nav-icon"></span> Dashboard</div>
+        <div class="nav-item"><span class="nav-icon"></span> Library</div>
+        <div class="nav-item"><span class="nav-icon"></span> Workspaces</div>
+        <div class="nav-item"><span class="nav-icon"></span> Editor</div>
+        <div class="nav-item active"><span class="nav-icon"></span> Settings</div>
+        <div class="nav-section">Account</div>
+        <div class="nav-item"><span class="nav-icon"></span> Upgrade</div>
+        <div class="nav-item dashed"><span class="nav-icon"></span> Sign out</div>
+      </aside>
+
+      <!-- Inner nav (sections) -->
+      <aside class="sidebar" style="width: 200px;">
+        <div class="nav-section">Settings</div>
+        <div class="nav-item active"><span class="nav-icon"></span> Profile</div>
+        <div class="nav-item"><span class="nav-icon"></span> Security</div>
+        <div class="nav-item"><span class="nav-icon"></span> Billing</div>
+        <div class="nav-item"><span class="nav-icon"></span> AI Models</div>
+        <div class="nav-item"><span class="nav-icon"></span> Notifications</div>
+        <div class="nav-item"><span class="nav-icon"></span> Appearance</div>
+        <div class="nav-item"><span class="nav-icon"></span> Integrations</div>
+        <div class="nav-item"><span class="nav-icon"></span> Data &amp; Export</div>
+        <div class="nav-item dashed" style="color: #a13;"><span class="nav-icon"></span> Danger Zone</div>
+      </aside>
+
+      <main class="main">
+
+        <h1>Profile</h1>
+        <p class="muted">Everyone in your shared workspaces sees this info.</p>
+
+        <div class="row gap-lg mt-12" style="align-items:flex-start;">
+
+          <!-- Avatar -->
+          <div style="flex: 0 0 200px;">
+            <div class="avatar" style="width: 120px; height: 120px; font-size: 32px;">FF</div>
+            <div class="row mt-12" style="gap: 6px;">
+              <div class="btn sm">Upload</div>
+              <div class="btn sm ghost">Remove</div>
+            </div>
+            <p class="muted tiny mt-12">PNG, JPG or GIF · max 2 MB</p>
+          </div>
+
+          <!-- Fields -->
+          <div style="flex: 1; max-width: 540px;">
+            <div class="field">
+              <label>Display name</label>
+              <input class="input" value="Fayzal Fatima">
+            </div>
+            <div class="field">
+              <label>Email</label>
+              <input class="input" value="fayzalfatima787@gmail.com">
+              <span class="tiny muted">Email cannot be changed without re-verification.</span>
+            </div>
+            <div class="field">
+              <label>Affiliation</label>
+              <input class="input" value="Bahria University · Computer Science">
+            </div>
+            <div class="field">
+              <label>Bio</label>
+              <textarea class="input" rows="4">Final-year CS student building AI tools for research workflows.</textarea>
+            </div>
+
+            <h2>Research defaults</h2>
+            <div class="row mt-12">
+              <div class="field" style="flex:1;">
+                <label>Default citation style</label>
+                <div class="input dashed">APA  ▾</div>
+              </div>
+              <div class="field" style="flex:1;">
+                <label>Preferred LLM</label>
+                <div class="input dashed">GPT-4o  ▾</div>
+              </div>
+              <div class="field" style="flex:1;">
+                <label>Response length</label>
+                <div class="input dashed">Medium  ▾</div>
+              </div>
+            </div>
+
+            <div class="row mt-24">
+              <button class="btn primary">Save Changes</button>
+              <button class="btn ghost">Cancel</button>
+            </div>
+          </div>
+
+          <!-- Account status card -->
+          <div style="flex: 0 0 220px;">
+
+            <div class="box">
+              <h2 style="margin-top:0;">Plan</h2>
+              <div class="box dashed center">
+                <b>Pro Monthly</b><br>
+                <span class="muted small">Renews 12 Jun 2026</span>
+              </div>
+              <div class="mt-12">
+                <div class="row between small"><span>Storage</span><span>1.6 / 10 GB</span></div>
+                <div class="box filled" style="height: 6px; padding:0; margin-top:4px; position: relative; border:1.5px solid var(--ink);">
+                  <div style="width: 16%; height: 100%; background: var(--ink);"></div>
+                </div>
+                <div class="row between small mt-12"><span>AI words / day</span><span>2,300 / 5,000</span></div>
+                <div class="box filled" style="height: 6px; padding:0; margin-top:4px; position: relative; border:1.5px solid var(--ink);">
+                  <div style="width: 46%; height: 100%; background: var(--ink);"></div>
+                </div>
+              </div>
+              <a class="btn sm mt-12" style="display:block; text-align:center;" href="#manage">Manage Plan</a>
+            </div>
+
+            <div class="box mt-24">
+              <h2 style="margin-top:0;">Security</h2>
+              <p class="muted small">Two-factor authentication is <b>off</b>.</p>
+              <button class="btn sm">Enable 2FA</button>
+            </div>
+
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>Low-fi design notes</h3>
+    <ul>
+      <li>Two-level sidebar: top-level app nav (left) + settings section nav (middle).</li>
+      <li>Each settings group is a separate section in the inner sidebar.</li>
+      <li>Plan card on the right surfaces storage + AI usage at a glance.</li>
+      <li>“Danger Zone” (account delete) is at the bottom of the inner sidebar, separated visually.</li>
+      <li>Sign-out is in the outer sidebar so it’s reachable from any section.</li>
+    </ul>
+  </div>
+
+</body>
+</html>

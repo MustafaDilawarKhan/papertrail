@@ -91,7 +91,7 @@ kbd { font-family: ui-monospace, monospace; }
 .integration-connected { box-shadow: 0 0 0 2px rgba(34,197,94,0.2); }
 
 
-/* === Aid landing — design tokens & globals === */
+/* === Paper Trail landing — design tokens & globals === */
 :root {
   --bg: #f1ece1;
   --bg-soft: #ebe5d6;

@@ -1,6 +1,6 @@
-# Aid Backend
+# Paper Trail Backend
 
-> Python FastAPI backend for the **Aid: Verifiable AI Research Assistant**.
+> Python FastAPI backend for the **Paper Trail: Verifiable AI Research Assistant**.
 
 ## Tech Stack
 

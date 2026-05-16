@@ -1,0 +1,36 @@
+@startuml SequenceAIChat
+' Paper Trail — Sequence: Asking the AI a question about an uploaded document.
+
+skinparam shadowing false
+skinparam sequence {
+  ArrowColor #333
+  ActorBackgroundColor #FFFFFF
+  ParticipantBackgroundColor #FFFFFF
+  LifeLineBorderColor #555
+}
+
+title Paper Trail — Sequence: AI Q&A with citations
+
+actor User
+participant "React UI\n(DocViewerPage)" as UI
+participant "FastAPI\n/api/chat" as API
+participant "RAG Service" as RAG
+database "pgvector" as Vec
+participant "LLM Gateway" as LLM
+database "PostgreSQL" as PG
+
+User -> UI : type question + press Send
+UI -> API : POST /sessions/{id}/messages\n{ content }
+API -> PG : load session + recent messages
+API -> RAG : retrieve(question, document_id)
+RAG -> Vec : top-k similarity search
+Vec --> RAG : chunks + metadata
+RAG -> LLM : prompt = (system + chunks + question)
+LLM --> RAG : answer text + token usage
+RAG --> API : { answer, source_chunks }
+API -> PG : INSERT ChatMessage (assistant)\n+ SourceHighlight rows
+API --> UI : 200 { message, source_highlights }
+UI -> UI : render answer\n+ citation cards
+UI -> UI : on click → scroll PDF\nto bounding box
+
+@enduml

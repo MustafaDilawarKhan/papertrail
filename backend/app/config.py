@@ -1,5 +1,5 @@
 """
-Aid Backend — Application Configuration
+Paper Trail Backend — Application Configuration
 Loads environment variables from .env file using Pydantic Settings.
 """
 
@@ -9,11 +9,11 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/aid_db"
-    DATABASE_URL_SYNC: str = "postgresql://postgres:postgres@localhost:5432/aid_db"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/paper_trail_db"
+    DATABASE_URL_SYNC: str = "postgresql://postgres:postgres@localhost:5432/paper_trail_db"
 
     # JWT Authentication
-    SECRET_KEY: str = "aid-secret-key-change-in-production"
+    SECRET_KEY: str = "paper-trail-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
 
@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     SUPABASE_SIGNED_URL_EXPIRES_SECONDS: int = 3600
 
     # App
-    APP_NAME: str = "Aid API"
+    APP_NAME: str = "Paper Trail API"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
 

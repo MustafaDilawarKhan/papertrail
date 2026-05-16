@@ -1,0 +1,41 @@
+@startuml Deployment
+' Paper Trail — Deployment Diagram
+
+skinparam shadowing false
+
+title Paper Trail — Deployment Diagram
+
+node "Client Device" {
+  artifact "Modern Browser\n(Chrome / Firefox / Safari / Edge)" as Browser
+}
+
+cloud "Vercel Edge Network" {
+  node "Static Hosting" as Static {
+    artifact "React SPA bundle\n(index.html + JS + CSS)"
+  }
+  node "Serverless Functions" as Serverless {
+    artifact "FastAPI (Python 3.11)\nasync runtime"
+  }
+}
+
+cloud "Supabase Project" {
+  database "PostgreSQL 15\n+ pgvector" as Postgres
+  storage "Object Storage\n(documents bucket)" as Storage
+  node "Auth (Optional)" as Auth
+}
+
+cloud "Third-Party APIs" {
+  node "OpenAI" as OAI
+  node "Anthropic" as Ant
+  node "Stripe" as Str
+}
+
+Browser -down-> Static : HTTPS\n(static assets)
+Browser -down-> Serverless : HTTPS\n/api/*
+Serverless -down-> Postgres : asyncpg / SQLAlchemy
+Serverless -down-> Storage : signed URLs
+Serverless -right-> OAI : embeddings + chat
+Serverless -right-> Ant : chat completions
+Serverless -right-> Str : billing
+
+@enduml

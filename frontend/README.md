@@ -1,10 +1,10 @@
-# Aid Landing Page
+# Paper Trail Landing Page
 
 Trust your AI's insights. Verify every claim.
 
 ## Overview
 
-Aid is a landing page for checking AI-generated claims against sources and highlighting what was verified. The page includes a hero section, trust signals, comparison tables, workflow steps, integrations, testimonials, FAQ content, and a final call to action.
+Paper Trail is a landing page for checking AI-generated claims against sources and highlighting what was verified. The page includes a hero section, trust signals, comparison tables, workflow steps, integrations, testimonials, FAQ content, and a final call to action.
 
 ## Getting Started
 

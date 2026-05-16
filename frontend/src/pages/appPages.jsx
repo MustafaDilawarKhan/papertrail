@@ -1444,7 +1444,7 @@ function IntegrationsPage() {
       <div className="max-w-5xl mx-auto">
         <div className="mb-8">
           <h1 className="font-section-heading text-section-heading text-primary mb-2">Integrations</h1>
-          <p className="text-on-surface-variant">Connect Aid to your existing research tools and workflows.</p>
+          <p className="text-on-surface-variant">Connect Paper Trail to your existing research tools and workflows.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

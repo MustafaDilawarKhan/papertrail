@@ -1,6 +1,6 @@
-# Aid Landing Page - Project Structure
+# Paper Trail Landing Page - Project Structure
 
-This document outlines the organized structure of the Aid landing page project.
+This document outlines the organized structure of the Paper Trail landing page project.
 
 ## Directory Structure
 
@@ -62,7 +62,7 @@ Shared utility components and hooks used across the project:
 - **TrustBar** - Trust indicators and badges
 - **Features** - Feature showcase section
 - **Verification** - Interactive verification demo
-- **Comparison** - Aid vs other tools comparison
+- **Comparison** - Paper Trail vs other tools comparison
 - **Workflow** - Workflow/process visualization
 - **Integrations** - Third-party integrations showcase
 - **Testimonials** - User testimonials

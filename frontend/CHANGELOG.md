@@ -2,7 +2,7 @@
 
 ## Overview
 
-Aid is a landing page for verifying AI-generated claims with source-backed evidence and clear trust signals.
+Paper Trail is a landing page for verifying AI-generated claims with source-backed evidence and clear trust signals.
 
 ## Included Files
 

@@ -1,6 +1,6 @@
-# Aid Landing Page - Quick Start Guide
+# Paper Trail Landing Page - Quick Start Guide
 
-This project is a landing page for Aid, a product that helps people verify AI-generated claims with sources.
+This project is a landing page for Paper Trail, a product that helps people verify AI-generated claims with sources.
 
 ## Start in 3 Steps
 
