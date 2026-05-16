@@ -16,7 +16,7 @@ from app.models.collection import Collection
 from app.schemas.document import DocumentResponse, DocumentViewUrlResponse
 from app.services.document_service import save_upload, get_file_type, validate_file, delete_file, get_view_url, get_local_file_url
 from app.services.session_cache import clear_user_bootstrap_cache
-from app.services.text_extraction import extract_text
+from app.services.text_extraction import extract_text, extract_html
 from app.middleware.auth import get_current_user
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -116,6 +116,11 @@ async def upload_document(
         extracted_text = extract_text(raw_content, file_type) or None
     except Exception:  # noqa: BLE001 — never fail an upload because of extraction
         extracted_text = None
+    # For DOCX, also produce a rich-HTML rendering for the in-browser viewer.
+    try:
+        extracted_html_value = extract_html(raw_content, file_type)
+    except Exception:  # noqa: BLE001
+        extracted_html_value = None
 
     document = Document(
         user_id=current_user.user_id,
@@ -127,6 +132,7 @@ async def upload_document(
         storage_path=storage_path,
         processing_status="ready",
         extracted_text=extracted_text,
+        extracted_html=extracted_html_value,
     )
     db.add(document)
     await db.flush()
@@ -211,7 +217,7 @@ async def get_document_text(
     lazy extract-and-save round-trip — first call may take a few seconds,
     subsequent calls are instant.
     """
-    from app.services.text_extraction import extract_for_document  # local import to avoid cycle at module load
+    from app.services.text_extraction import extract_for_document, extract_html_for_document  # local import to avoid cycle at module load
 
     result = await db.execute(
         select(Document)
@@ -230,12 +236,24 @@ async def get_document_text(
             doc.extracted_text = text
             await db.flush()
 
+    # Rich HTML rendering (DOCX only). Lazy-extract for older uploads so
+    # the in-browser viewer can show the original formatting without
+    # requiring a fresh re-upload.
+    html = doc.extracted_html
+    if not html and (doc.file_type or "").upper() == "DOCX":
+        html = await extract_html_for_document(doc)
+        if html:
+            doc.extracted_html = html
+            await db.flush()
+
     return {
         "document_id": str(doc.document_id),
         "filename": doc.filename,
         "file_type": doc.file_type,
         "text": text or "",
         "has_text": bool(text),
+        "html": html or "",
+        "has_html": bool(html),
     }
 
 

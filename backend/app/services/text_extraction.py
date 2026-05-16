@@ -44,9 +44,22 @@ def extract_text(file_bytes: bytes, file_type: str) -> str:
     return _extract_txt(file_bytes)
 
 
+def extract_html(file_bytes: bytes, file_type: str) -> str | None:
+    """
+    Produce a rich-HTML rendering of the document for in-browser display.
+
+    Only DOCX is currently supported (via mammoth) — PDFs are rendered by the
+    react-pdf canvas viewer and TXTs are shown as plain text, so returning None
+    for those file types is correct.
+    """
+    if not file_bytes or (file_type or "").upper() != "DOCX":
+        return None
+    return _extract_docx_html(file_bytes)
+
+
 async def extract_for_document(document) -> str | None:
     """
-    Best-effort extraction for a Document row.
+    Best-effort plain-text extraction for a Document row.
 
     Returns the extracted text on success, None on failure. Does NOT save
     back to the database — the caller decides what to do with it.
@@ -65,6 +78,30 @@ async def extract_for_document(document) -> str | None:
 
     file_type = getattr(document, "file_type", "PDF")
     return extract_text(raw, file_type)
+
+
+async def extract_html_for_document(document) -> str | None:
+    """
+    Best-effort HTML extraction for a Document row (DOCX only).
+    Returns the HTML on success, None on failure / unsupported type.
+    """
+    cached = getattr(document, "extracted_html", None)
+    if cached:
+        return cached
+
+    file_type = getattr(document, "file_type", "").upper()
+    if file_type != "DOCX":
+        return None
+
+    storage_path = getattr(document, "storage_path", None)
+    if not storage_path:
+        return None
+
+    raw = _fetch_bytes(storage_path)
+    if raw is None:
+        return None
+
+    return extract_html(raw, file_type)
 
 
 # ─────────────────────────── Per-format helpers ───────────────────────────
@@ -123,6 +160,35 @@ def _extract_docx(file_bytes: bytes) -> str:
     # DOCX has no native page concept; emit a synthetic [Section] marker every
     # ~3000 chars so the LLM can still produce page numbers consistently with the PDF path.
     return _insert_section_markers(paragraphs)
+
+
+def _extract_docx_html(file_bytes: bytes) -> str | None:
+    """
+    Convert a DOCX to clean HTML using mammoth. Output contains headings, lists,
+    bold/italic, tables, hyperlinks — i.e. close to how Word renders it.
+
+    Mammoth's `convert_to_html` returns a result with `.value` (the HTML) and
+    `.messages` (any conversion warnings — logged but not raised, since they're
+    rarely fatal). The HTML it produces is safe by construction (no scripts,
+    no event handlers), but the frontend still sanitises before injection.
+    """
+    try:
+        import mammoth
+    except ImportError:
+        logger.error("mammoth is not installed; cannot extract DOCX HTML")
+        return None
+
+    try:
+        result = mammoth.convert_to_html(io.BytesIO(file_bytes))
+    except Exception as exc:  # noqa: BLE001 — extraction must never crash upload
+        logger.warning("Could not convert DOCX to HTML: %s", exc)
+        return None
+
+    for msg in (result.messages or [])[:5]:
+        logger.debug("mammoth conversion message: %s", getattr(msg, "message", msg))
+
+    html = result.value or ""
+    return html or None
 
 
 def _extract_txt(file_bytes: bytes) -> str:

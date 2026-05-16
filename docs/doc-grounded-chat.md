@@ -176,7 +176,7 @@ If the model emits `[5]` but only 3 sources exist, the badge falls back to plain
 ### Click handler — `focusSource(src)`
 
 Sets `activeSource = src`. That state triggers:
-- **PDFs**: the iframe's `src` becomes `…#toolbar=1&navpanes=0&page={src.page}` with a re-mount key forcing navigation even if the same page is clicked twice.
+- **PDFs**: `<PdfDocumentView>` finds the matching span(s) in the page's text layer, adds the `.pt-pdf-highlight` class (translucent yellow), and scrolls the first match into center view. Uses `react-pdf` + `pdfjs-dist` under the hood, so text selection / copy still works inside the highlight. **How span matching works:** pdf.js splits text into many small `<span>`s; the highlighter concatenates every span's normalised text in DOM order, runs `concat.indexOf(excerpt)`, then marks every span whose offset range overlaps the match. If the full excerpt doesn't match (model sometimes quotes verbatim plus trailing punctuation), it retries with the first 60 chars. Tuning lives in `applyExcerptHighlight` in `appPages.jsx` and the `.pt-pdf-highlight` rule in `styles.css`. **Vite worker config:** `pdfjs-dist/build/pdf.worker.min.mjs?url` is imported as an asset URL and passed to `pdfjs.GlobalWorkerOptions.workerSrc` — no CDN required, works offline. **CORS gotcha:** the PDF is fetched from a Supabase signed URL; if the bucket's CORS policy blocks the dev origin, the viewer falls back to an "Open in a new tab" panel. Fix in Supabase dashboard → Storage → bucket → Policies.
 - **DOCX**: `<TextDocumentView>` highlights the matching excerpt with `<mark>` and scrolls it into view via `scrollIntoView({ block: "center" })`.
 - **TXT**: same as DOCX (uses the raw text content fetched from `viewUrl`).
 
@@ -250,7 +250,6 @@ To keep scope tight and the build understandable, these were explicit non-goals:
 | RAG / vector retrieval / embeddings | Free chat models have 130K+ token context windows — that's enough to fit any reasonable research paper or assignment brief in one shot. No retrieval needed. |
 | Cross-document chat | The session is scoped to ONE document. A workspace-wide or collection-wide chat is straightforward to add later (concatenate texts in the user message) but not yet wired. |
 | OCR for scanned PDFs | Image-only PDFs return empty extracted text. We don't have tesseract or PaddleOCR in the container. |
-| True PDF passage highlighting (not just page navigation) | Would require swapping the iframe-based PDF viewer for `react-pdf` with custom text-layer overlays. The dep is installed but unused. ~200 line task. |
 | Reasoning-mode tokens | Some OpenRouter models accept `reasoning: {enabled: true}` for chain-of-thought. We don't enable it — adds latency and interferes with the strict JSON output. |
 | Streaming-aware source highlighting | Highlights only appear when the `done` event lands. We could parse partial JSON to show provisional badges sooner, but it's brittle and the latency gain is minimal. |
 

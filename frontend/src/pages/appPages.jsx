@@ -1,9 +1,19 @@
 // Dashboard, Library, Document Viewer, Workspaces pages
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { Document as PdfDocument, Page as PdfPage, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/Page/TextLayer.css';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
+import pdfjsWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import DOMPurify from 'dompurify';
 import { Link, Icon, Brand, Sidebar, TopNav, AppShell, CommandPalette, EmptyState, Modal, navigate, useRoute } from '../shared/components';
 import { DocTabBar, useDocTabs } from '../shared/docTabs';
 import { useAuth } from '../contexts/AuthContext';
 import { apiRequest, API_BASE_URL } from '../apiConfig';
+
+// Point pdf.js at the worker bundled with react-pdf. The `?url` suffix lets
+// Vite emit a hashed asset URL we can hand to GlobalWorkerOptions without
+// shipping the worker source into the main chunk.
+pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorkerSrc;
 
 const useStateP1 = useState;
 const useEffectP1 = useEffect;
@@ -488,11 +498,366 @@ function LibraryPage() {
 
 // =================== DOCUMENT VIEWER ===================
 
+// PDF viewer with passage-level highlighting.
+//
+// Renders the full PDF (one <Page> per page) inside a scrollable container.
+// When `highlight` changes, finds the matching text span(s) inside the page's
+// text layer, applies a yellow background, and scrolls the first match into
+// view. This replaces the previous iframe-based viewer that could only
+// navigate to page granularity via the `#page=N` URL fragment.
+function PdfDocumentView({ docName, fileUrl, highlight, focusNonce }) {
+  const [numPages, setNumPages] = useStateP1(0);
+  const [loadError, setLoadError] = useStateP1("");
+  const [pageWidth, setPageWidth] = useStateP1(720);
+  const containerRef = useRefP1(null);
+
+  // Track container width so the PDF resizes with the layout. (react-pdf
+  // doesn't auto-scale without an explicit width.)
+  useEffectP1(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect?.width;
+      if (w && Math.abs(w - pageWidth) > 8) {
+        setPageWidth(Math.min(900, Math.floor(w - 32)));
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [pageWidth]);
+
+  if (loadError) {
+    return (
+      <div className="w-full max-w-4xl bg-white shadow-sm rounded-xl border border-border-subtle p-6 text-sm text-on-surface-variant">
+        <h3 className="font-card-title text-card-title mb-3 text-on-surface">{docName}</h3>
+        <p>Could not load PDF: {loadError}</p>
+        {fileUrl && <p className="mt-2"><a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">Open in a new tab</a></p>}
+      </div>
+    );
+  }
+
+  return (
+    // No `overflow-hidden` here — the parent <section> in renderDocumentPane
+    // already provides the scroll viewport. Clipping at this level was
+    // hiding every page after the first.
+    <div ref={containerRef} className="w-full max-w-4xl bg-white shadow-sm rounded-xl border border-border-subtle px-4 py-4">
+      <div className="flex items-center justify-between border-b border-border-subtle pb-3 mb-3 px-2 sticky top-0 bg-white z-10">
+        <h3 className="font-card-title text-card-title">{docName}</h3>
+        <div className="flex items-center gap-3">
+          {numPages > 0 && <span className="text-[11px] text-on-surface-variant">{numPages} {numPages === 1 ? "page" : "pages"}</span>}
+          {fileUrl && <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] text-primary hover:underline">Open original ↗</a>}
+        </div>
+      </div>
+
+      <PdfDocument
+        file={fileUrl}
+        onLoadSuccess={({ numPages }) => { setNumPages(numPages); setLoadError(""); }}
+        onLoadError={(err) => setLoadError(err?.message || "unknown error")}
+        loading={<div className="py-12 text-center text-sm text-on-surface-variant">Loading PDF…</div>}
+        error={<div className="py-12 text-center text-sm text-error">Failed to load PDF.</div>}
+      >
+        {Array.from({ length: numPages }, (_, i) => i + 1).map(pageNumber => (
+          <PdfPageWithHighlight
+            key={pageNumber}
+            pageNumber={pageNumber}
+            width={pageWidth}
+            highlight={highlight && highlight.page === pageNumber ? highlight : null}
+            focusNonce={focusNonce}
+          />
+        ))}
+      </PdfDocument>
+    </div>
+  );
+}
+
+// Render one PDF page. After the text layer is ready, scan it for the cited
+// excerpt and highlight the matching spans (also scroll the first into view).
+function PdfPageWithHighlight({ pageNumber, width, highlight, focusNonce }) {
+  const pageContainerRef = useRefP1(null);
+
+  // Re-apply the highlight + scroll into view. Pulled out so we can call it
+  // BOTH on initial text-layer render AND on every subsequent click (via the
+  // focusNonce useEffect below).
+  const reapplyHighlight = useCallback(() => {
+    const root = pageContainerRef.current;
+    if (!root) return;
+    const layer = root.querySelector('.react-pdf__Page__textContent');
+    if (!layer) return;
+
+    // Clear any previous highlight markers on this page.
+    layer.querySelectorAll('.pt-pdf-highlight').forEach(el => {
+      el.classList.remove('pt-pdf-highlight');
+    });
+
+    if (!highlight || !highlight.excerpt) return;
+    const ok = applyExcerptHighlight(layer, highlight.excerpt);
+    if (ok) {
+      const firstMark = layer.querySelector('.pt-pdf-highlight');
+      if (firstMark) firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      // No match in this page's text — scroll the page header into view as a
+      // fallback so the user lands in the right neighbourhood.
+      root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [highlight?.excerpt, highlight?.page]);
+
+  // Fires once when react-pdf finishes rendering the text layer.
+  const handleTextLayerSuccess = useCallback(() => {
+    reapplyHighlight();
+  }, [reapplyHighlight]);
+
+  // Fires every time the user clicks a citation badge (even the same one twice).
+  // The text layer is already rendered at this point, so we just re-apply.
+  useEffectP1(() => {
+    if (!highlight) return;
+    reapplyHighlight();
+  }, [focusNonce, reapplyHighlight, highlight]);
+
+  return (
+    <div ref={pageContainerRef} className="my-4 flex flex-col items-center" data-pdf-page={pageNumber}>
+      <div className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold mb-1">
+        Page {pageNumber}
+      </div>
+      <div className="shadow-sm">
+        <PdfPage
+          pageNumber={pageNumber}
+          width={width}
+          renderTextLayer
+          renderAnnotationLayer={false}
+          onRenderTextLayerSuccess={handleTextLayerSuccess}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Find the excerpt inside a rendered text layer and add the 'pt-pdf-highlight'
+// class to every span that contributes to the match. Returns true if a match
+// was found.
+//
+// Implementation: PDF text is split into many small <span>s by pdf.js (one per
+// run of glyphs with the same font / position). We concatenate their text
+// content in DOM order, find the excerpt in the concatenation, and then mark
+// every span whose range overlaps the match.
+function applyExcerptHighlight(textLayer, rawExcerpt) {
+  const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, ' ').trim();
+  const target = norm(rawExcerpt);
+  if (target.length < 6) return false;
+
+  const spans = Array.from(textLayer.querySelectorAll('span'));
+  if (spans.length === 0) return false;
+
+  // Build a normalised concatenation with a position map back to span index.
+  let concat = "";
+  const positions = []; // positions[i] = { span, start, end } in concat
+  for (const span of spans) {
+    const piece = norm(span.textContent);
+    if (!piece) continue;
+    positions.push({ span, start: concat.length, end: concat.length + piece.length });
+    concat += piece + " ";
+  }
+
+  let idx = concat.indexOf(target);
+  if (idx === -1) {
+    // Tolerant fallback: try the first 60 chars only — model excerpts often
+    // include trailing punctuation that doesn't match the PDF exactly.
+    if (target.length > 60) {
+      idx = concat.indexOf(target.slice(0, 60));
+    }
+    if (idx === -1) return false;
+  }
+
+  const matchEnd = idx + Math.min(target.length, 60);
+  for (const p of positions) {
+    if (p.end > idx && p.start < matchEnd) {
+      p.span.classList.add('pt-pdf-highlight');
+    }
+  }
+  return true;
+}
+
+// Renders a DOCX as rich HTML (server-side conversion via mammoth) and
+// applies excerpt highlighting by walking the rendered text nodes.
+//
+// Highlighting strategy:
+//   1. Sanitise the HTML with DOMPurify (mammoth output is already safe but
+//      we belt-and-braces — never trust HTML you inject with innerHTML).
+//   2. After the HTML is in the DOM, walk text nodes via TreeWalker.
+//   3. Locate the excerpt using the same 4-tier matcher as the plain-text path
+//      (exact → 60-char prefix → 3+-word run → 20-40 char window), operating
+//      on the concatenation of all text-node content.
+//   4. Split the matching text node(s), wrap the matched range in a <mark>,
+//      and scroll the first <mark> into view.
+function DocxHtmlView({ docName, html, fallbackUrl, highlight, focusNonce }) {
+  const containerRef = useRefP1(null);
+
+  // Sanitise once per html change.
+  const safeHtml = useMemoP1(() => sanitiseDocxHtml(html || ""), [html]);
+
+  // Re-apply the highlight + scroll. Runs on every focusNonce / highlight change.
+  const reapply = useCallback(() => {
+    const root = containerRef.current;
+    if (!root) return;
+    // Clear any previous marks first.
+    clearDomHighlights(root);
+    if (!highlight || !highlight.excerpt) return;
+    const ok = applyHtmlHighlight(root, highlight.excerpt);
+    const target = ok ? root.querySelector('.pt-html-highlight') : root;
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [highlight?.excerpt, highlight?.page]);
+
+  useEffectP1(() => {
+    // Defer one tick so React has painted the new HTML before we walk it.
+    const t = setTimeout(reapply, 30);
+    return () => clearTimeout(t);
+  }, [reapply, safeHtml, focusNonce]);
+
+  if (!html) {
+    return (
+      <div className="w-full max-w-4xl bg-white shadow-sm rounded-xl border border-border-subtle p-6 text-sm text-on-surface-variant">
+        <h3 className="font-card-title text-card-title mb-3 text-on-surface">{docName}</h3>
+        <p>Rendering DOCX… (first open of a legacy upload can take a moment.)</p>
+        {fallbackUrl && <p className="mt-3"><a href={fallbackUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">Open original ↗</a></p>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-4xl bg-white shadow-sm rounded-xl border border-border-subtle px-10 py-8">
+      <div className="flex items-center justify-between border-b border-border-subtle pb-3 mb-5 sticky top-0 bg-white z-10">
+        <h3 className="font-card-title text-card-title">{docName}</h3>
+        {fallbackUrl && <a href={fallbackUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] text-primary hover:underline">Open original ↗</a>}
+      </div>
+      <article
+        ref={containerRef}
+        className="pt-docx-html prose prose-sm max-w-none text-on-surface"
+        dangerouslySetInnerHTML={{ __html: safeHtml }}
+      />
+    </div>
+  );
+}
+
+// Sanitise mammoth-produced HTML. Mammoth's output is already free of scripts
+// and event handlers, but we run DOMPurify anyway so any future change in
+// the conversion pipeline can't surprise us. Allows tables + images.
+function sanitiseDocxHtml(rawHtml) {
+  if (!rawHtml) return "";
+  return DOMPurify.sanitize(rawHtml, {
+    USE_PROFILES: { html: true },
+    ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'colspan', 'rowspan', 'id'],
+  });
+}
+
+// Remove any previous <mark class="pt-html-highlight"> elements, restoring the
+// original text-node structure as much as possible.
+function clearDomHighlights(root) {
+  const marks = root.querySelectorAll('mark.pt-html-highlight');
+  for (const m of marks) {
+    const parent = m.parentNode;
+    if (!parent) continue;
+    while (m.firstChild) parent.insertBefore(m.firstChild, m);
+    parent.removeChild(m);
+    parent.normalize(); // merge adjacent text nodes
+  }
+}
+
+// Walk the text nodes of `root`, concatenate their content into a single
+// string with a position map, locate the excerpt (with the same fuzzy
+// fallbacks as the plain-text path), then wrap the matched range in <mark>.
+// Returns true if a match was found and wrapped.
+function applyHtmlHighlight(root, rawExcerpt) {
+  const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, " ");
+  const target = norm(rawExcerpt).trim();
+  if (target.length < 6) return false;
+
+  // 1. Walk text nodes, building a flat string + position map.
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+  const nodes = []; // { node, start, end } in normalised concatenated string
+  let concat = "";
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const piece = norm(node.nodeValue || "");
+    if (!piece.trim()) continue;
+    nodes.push({ node, start: concat.length, end: concat.length + piece.length });
+    concat += piece + " ";
+  }
+  if (!concat) return false;
+
+  // 2. Locate excerpt (4-tier fallback matching the plain-text matcher).
+  const locate = (needle) => {
+    let idx = concat.indexOf(needle);
+    if (idx !== -1) return { start: idx, end: idx + needle.length };
+    if (needle.length > 60) {
+      idx = concat.indexOf(needle.slice(0, 60));
+      if (idx !== -1) return { start: idx, end: idx + 60 };
+    }
+    const words = needle.split(' ').filter(w => w.length >= 3);
+    for (let len = words.length; len >= 3; len--) {
+      for (let i = 0; i + len <= words.length; i++) {
+        const phrase = words.slice(i, i + len).join(' ');
+        if (phrase.length < 15) continue;
+        const at = concat.indexOf(phrase);
+        if (at !== -1) return { start: at, end: at + phrase.length };
+      }
+    }
+    for (let len = 40; len >= 20; len -= 5) {
+      if (needle.length < len) continue;
+      for (let i = 0; i + len <= needle.length; i++) {
+        const window = needle.slice(i, i + len);
+        const at = concat.indexOf(window);
+        if (at !== -1) return { start: at, end: at + len };
+      }
+    }
+    return null;
+  };
+  const span = locate(target);
+  if (!span) return false;
+
+  // 3. Convert (start, end) in `concat` back to per-node ranges, wrapping the
+  //    overlapping portion of each node in a fresh <mark>.
+  for (const item of nodes) {
+    if (item.end <= span.start || item.start >= span.end) continue;
+    const localStart = Math.max(0, span.start - item.start);
+    const localEnd = Math.min(item.end - item.start, span.end - item.start);
+    if (localEnd <= localStart) continue;
+
+    // The normalised string drops repeated whitespace, so we cannot just slice
+    // by index on the original node value. Best effort: search for the
+    // (lowercased) overlap substring in the original node text.
+    const original = item.node.nodeValue || "";
+    const overlap = concat.slice(item.start + localStart, item.start + localEnd);
+    const probe = overlap.slice(0, Math.min(40, overlap.length));
+    if (probe.length < 4) continue;
+    const at = original.toLowerCase().indexOf(probe);
+    if (at === -1) continue;
+    wrapRange(item.node, at, at + probe.length);
+  }
+  return !!root.querySelector('mark.pt-html-highlight');
+}
+
+// Split a text node and wrap the [start, end) substring in <mark>.
+function wrapRange(textNode, start, end) {
+  const original = textNode.nodeValue || "";
+  if (start < 0 || end > original.length || end <= start) return;
+  const parent = textNode.parentNode;
+  if (!parent) return;
+  const before = document.createTextNode(original.slice(0, start));
+  const middle = original.slice(start, end);
+  const after = document.createTextNode(original.slice(end));
+  const mark = document.createElement('mark');
+  mark.className = 'pt-html-highlight';
+  mark.appendChild(document.createTextNode(middle));
+  parent.insertBefore(before, textNode);
+  parent.insertBefore(mark, textNode);
+  parent.insertBefore(after, textNode);
+  parent.removeChild(textNode);
+}
+
 // Renders extracted plain text of a document with a single highlighted excerpt
 // (drawn from the active AI source). Splits the text on [Page N] markers
 // emitted by the server-side extractor so we can show "PAGE 12 / 28" style
 // headers and scroll the matching chunk into view.
-function TextDocumentView({ docName, text, highlight, fallbackUrl, isDocx }) {
+function TextDocumentView({ docName, text, highlight, fallbackUrl, isDocx, focusNonce }) {
   const containerRef = useRefP1(null);
   const matchRef = useRefP1(null);
 
@@ -518,11 +883,25 @@ function TextDocumentView({ docName, text, highlight, fallbackUrl, isDocx }) {
   }, [text]);
 
   // When highlight changes, scroll its match into view (after render).
+  // If the matcher couldn't find the excerpt anywhere on the page (e.g. the
+  // model paraphrased so heavily even the 3-tier fallback missed), fall back
+  // to scrolling the cited page header into view so the user at least lands
+  // in the right neighbourhood.
   useEffectP1(() => {
-    if (matchRef.current) {
-      matchRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [highlight?.page, highlight?.excerpt]);
+    const t = setTimeout(() => {
+      if (matchRef.current) {
+        matchRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      if (highlight?.page && containerRef.current) {
+        const el = containerRef.current.querySelector(`#page-${highlight.page}`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 50); // give React one tick to paint the new mark before we scroll
+    return () => clearTimeout(t);
+    // focusNonce is included so repeated clicks on the same badge re-trigger
+    // the scroll even though highlight.page / highlight.excerpt are unchanged.
+  }, [highlight?.page, highlight?.excerpt, focusNonce]);
 
   if (!text) {
     return (
@@ -564,26 +943,178 @@ function TextDocumentView({ docName, text, highlight, fallbackUrl, isDocx }) {
 // Falls back to plain text when there is no match (model may have paraphrased
 // slightly). The matchRef points at the highlighted span so we can scroll it
 // into view from the parent component.
+// Render a single "page" of extracted text. Handles two concerns:
+//
+//   1. Visual formatting — lines starting with `## ` are rendered as headings
+//      (we inject those markers server-side in _extract_docx so the LLM can
+//      recognise structure; they should NOT appear as literal "##" to the user).
+//
+//   2. Excerpt highlighting — find the cited passage and wrap it in <mark>.
+//      The matcher is tolerant: whitespace-normalised, case-insensitive, and
+//      falls back to the first ~60 chars of the excerpt if a full match misses
+//      (the model often paraphrases or adds trailing punctuation that differs
+//      from the document verbatim).
 function renderPageWithHighlight(content, excerpt, matchRef) {
-  const safe = excerpt && excerpt.trim().length >= 6 ? excerpt.trim() : "";
-  if (!safe) {
-    return <p className="whitespace-pre-wrap text-sm leading-7 text-on-surface">{content}</p>;
+  // 1. Split into blocks by line, detecting heading markers.
+  const blocks = parseBlocks(content);
+
+  // 2. Locate the excerpt's match span (if any) across the WHOLE page text,
+  //    then map that back to which block(s) the match falls into.
+  const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, " ").trim();
+  const target = norm(excerpt);
+  let matchSpan = null; // { startInJoinedText, endInJoinedText }
+  if (target && target.length >= 6) {
+    matchSpan = locateExcerpt(blocks, target);
   }
-  const idx = content.toLowerCase().indexOf(safe.toLowerCase());
-  if (idx === -1) {
-    return <p className="whitespace-pre-wrap text-sm leading-7 text-on-surface">{content}</p>;
+
+  // 3. Render each block, applying the highlight when its slice overlaps the match.
+  return blocks.map((block, i) => {
+    const Tag = block.heading ? "h4" : "p";
+    const className = block.heading
+      ? "text-sm font-bold text-on-surface mt-4 mb-2"
+      : "whitespace-pre-wrap text-sm leading-7 text-on-surface mb-3";
+    const inner = renderBlockWithHighlight(block, matchSpan, matchRef);
+    return <Tag key={i} className={className}>{inner}</Tag>;
+  });
+}
+
+// Split extracted text into blocks. Lines starting with `## ` become headings;
+// runs of non-heading lines collapse into paragraph blocks.
+function parseBlocks(content) {
+  const lines = (content || "").split("\n");
+  const blocks = [];
+  let buf = [];
+  const flushBuf = () => {
+    const text = buf.join("\n").trim();
+    if (text) blocks.push({ heading: false, text, sourceStart: 0 });
+    buf = [];
+  };
+  for (const raw of lines) {
+    const line = raw.replace(/\s+$/, "");
+    const headingMatch = line.match(/^##\s+(.+)$/);
+    if (headingMatch) {
+      flushBuf();
+      blocks.push({ heading: true, text: headingMatch[1].trim() });
+    } else {
+      buf.push(line);
+    }
   }
-  const before = content.slice(0, idx);
-  const match = content.slice(idx, idx + safe.length);
-  const after = content.slice(idx + safe.length);
+  flushBuf();
+  // Compute each block's start offset in the joined NORMALISED text. The
+  // `locateExcerpt` function joins normalised pieces, so sourceStart must be
+  // in normalised-character space — using `b.text.length` (original) caused
+  // offsets to drift on any block containing collapsed whitespace and made
+  // the per-block overlap check miss every time.
+  const normForLen = (s) => (s || "").toLowerCase().replace(/\s+/g, " ").trim();
+  let runningStart = 0;
+  for (const b of blocks) {
+    b.sourceStart = runningStart;
+    runningStart += normForLen(b.text).length + 1; // +1 for the separator
+  }
+  return blocks;
+}
+
+// Find the excerpt across all blocks. Returns { start, end } in the joined
+// normalised text (each block separated by a single space), or null if not found.
+//
+// Tries three increasingly tolerant strategies:
+//   1. Exact normalised substring match (handles whitespace + case).
+//   2. Prefix match — first 60 chars only (handles trailing punctuation
+//      added by the model).
+//   3. Word-sequence match — find the longest run of significant excerpt
+//      words that appear in order in the document. This catches paraphrased
+//      excerpts ("Kubernetes provides horizontal auto-scaling..." matching
+//      "Kubernetes horizontal auto-scaling handles...") so long as a chunk
+//      of 4+ consecutive words from the excerpt does appear verbatim.
+function locateExcerpt(blocks, target) {
+  const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, " ").trim();
+  const joined = blocks.map(b => norm(b.text)).join(" ");
+  if (!joined) return null;
+
+  // Strategy 1: exact match.
+  let idx = joined.indexOf(target);
+  if (idx !== -1) return { start: idx, end: idx + target.length };
+
+  // Strategy 2: prefix match.
+  if (target.length > 60) {
+    idx = joined.indexOf(target.slice(0, 60));
+    if (idx !== -1) return { start: idx, end: idx + 60 };
+  }
+
+  // Strategy 3: longest matching word-run.
+  const words = target.split(" ").filter(w => w.length >= 3);
+  if (words.length >= 3) {
+    for (let len = words.length; len >= 3; len--) {
+      for (let i = 0; i + len <= words.length; i++) {
+        const phrase = words.slice(i, i + len).join(" ");
+        // Require phrase to be at least 15 chars to avoid false positives like
+        // "the application" matching any random sentence.
+        if (phrase.length < 15) continue;
+        const at = joined.indexOf(phrase);
+        if (at !== -1) return { start: at, end: at + phrase.length };
+      }
+    }
+  }
+
+  // Strategy 4: char-window fallback. Try increasingly small fixed windows
+  // (40 → 20 chars) sliding across the excerpt; first hit wins. Catches cases
+  // where the model paraphrased a word in the middle but a long suffix matches.
+  for (let len = 40; len >= 20; len -= 5) {
+    if (target.length < len) continue;
+    for (let i = 0; i + len <= target.length; i++) {
+      const window = target.slice(i, i + len);
+      const at = joined.indexOf(window);
+      if (at !== -1) return { start: at, end: at + len };
+    }
+  }
+
+  return null;
+}
+
+// Render one block, splicing in a <mark> around the part that intersects
+// the global match span. We operate on the normalised joined-text indices,
+// not on the original (un-normalised) text — so we approximate by searching
+// within this block for the excerpt-substring after a global match is found.
+function renderBlockWithHighlight(block, matchSpan, matchRef) {
+  if (!matchSpan || block.heading) return block.text;
+
+  // Convert global span → block-local span via the block's sourceStart.
+  const blockStart = block.sourceStart;
+  // Approximate block length in the normalised representation.
+  const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, " ").trim();
+  const normalisedBlock = norm(block.text);
+  const blockEnd = blockStart + normalisedBlock.length;
+
+  // Does this block overlap the match at all?
+  if (matchSpan.end <= blockStart || matchSpan.start >= blockEnd) {
+    return block.text;
+  }
+
+  // Find the visible substring in the ORIGINAL block text that corresponds to
+  // the match. Easiest reliable approach: take the chars of the normalised
+  // overlap, then re-search the original block text for that substring,
+  // case-insensitively. Good enough for most academic prose.
+  const overlapStartInBlock = Math.max(0, matchSpan.start - blockStart);
+  const overlapEndInBlock = Math.min(normalisedBlock.length, matchSpan.end - blockStart);
+  const overlapNorm = normalisedBlock.slice(overlapStartInBlock, overlapEndInBlock);
+  if (overlapNorm.length < 4) return block.text;
+
+  // Find it (lowercase) in the original block.
+  const lowerBlock = block.text.toLowerCase();
+  // Try first ~60 chars to be robust against whitespace differences.
+  const probe = overlapNorm.slice(0, 60);
+  const idx = lowerBlock.indexOf(probe);
+  if (idx === -1) return block.text;
+
+  const before = block.text.slice(0, idx);
+  const match = block.text.slice(idx, idx + probe.length);
+  const after = block.text.slice(idx + probe.length);
   return (
-    <p className="whitespace-pre-wrap text-sm leading-7 text-on-surface">
+    <>
       {before}
-      <mark ref={matchRef} className="bg-yellow-200 px-0.5 rounded">
-        {match}
-      </mark>
+      <mark ref={matchRef} className="bg-yellow-200 px-0.5 rounded">{match}</mark>
       {after}
-    </p>
+    </>
   );
 }
 
@@ -594,12 +1125,16 @@ function renderPageWithHighlight(content, excerpt, matchRef) {
 function renderAnswerWithCitations(content, sources, focusSource, activeSource) {
   if (!content) return null;
   const safeSources = Array.isArray(sources) ? sources : [];
-  // Matches [1] or [12] etc. — only digits, no internal spaces.
-  const parts = content.split(/(\[\d{1,2}\])/g);
+  // Match ASCII brackets [1], CJK full-width 【1】, or parenthesised (1) —
+  // free models drift between these formats despite the prompt asking for ASCII.
+  // The capture is wrapped in a split-group so each marker becomes its own piece.
+  const MARKER_RE = /(\[\d{1,2}\]|【\d{1,2}】|（\d{1,2}）)/g;
+  const MARKER_INNER = /^(?:\[(\d{1,2})\]|【(\d{1,2})】|（(\d{1,2})）)$/;
+  const parts = content.split(MARKER_RE);
   return parts.map((part, idx) => {
-    const m = part.match(/^\[(\d{1,2})\]$/);
+    const m = part.match(MARKER_INNER);
     if (!m) return <span key={idx}>{part}</span>;
-    const n = parseInt(m[1], 10);
+    const n = parseInt(m[1] || m[2] || m[3], 10);
     const src = safeSources[n - 1];
     if (!src) {
       // Model emitted a [N] with no matching source — render as plain text rather than a broken badge.
@@ -651,6 +1186,8 @@ function DocViewerPage({ params }) {
   // Server-extracted plain text used by TextDocumentView. Fetched lazily for
   // DOCX (which has no usable inline rendering) and DOCX-like cases.
   const [extractedTextContent, setExtractedTextContent] = useStateP1("");
+  // Server-rendered DOCX HTML (mammoth) used by DocxHtmlView for rich display.
+  const [extractedHtmlContent, setExtractedHtmlContent] = useStateP1("");
 
   const { tabs, openTab, closeTab, reorderTab } = useDocTabs(documentId);
 
@@ -702,14 +1239,14 @@ function DocViewerPage({ params }) {
     return () => { active = false; };
   }, [documentId]);
 
-  // Fetch server-extracted text for DOCX (we render it ourselves so we can
-  // highlight cited passages — Microsoft's Office Online viewer can't be
-  // scripted). Stored in `extractedTextContent` separately from the raw TXT
-  // fetch below.
+  // Fetch server-extracted text + HTML for DOCX. The HTML is what we render
+  // (rich formatting via mammoth); the text is kept as a fallback for older
+  // uploads where mammoth conversion may not have run yet.
   useEffectP1(() => {
     let active = true;
     if (!documentId || documentData?.file_type !== "DOCX") {
       setExtractedTextContent("");
+      setExtractedHtmlContent("");
       return () => { active = false; };
     }
     (async () => {
@@ -717,8 +1254,12 @@ function DocViewerPage({ params }) {
         const res = await apiRequest(`/documents/${documentId}/text`);
         if (!active) return;
         setExtractedTextContent(res?.text || "");
+        setExtractedHtmlContent(res?.html || "");
       } catch (err) {
-        if (active) setExtractedTextContent("");
+        if (active) {
+          setExtractedTextContent("");
+          setExtractedHtmlContent("");
+        }
       }
     })();
     return () => { active = false; };
@@ -888,10 +1429,20 @@ function DocViewerPage({ params }) {
     }
   };
 
-  // Clicking a source pill scrolls the PDF iframe to the cited page.
+  // Click counter that increments every time a citation badge is clicked.
+  // Doc-view components use it as a useEffect dependency so they re-scroll
+  // even when the user clicks the SAME source twice (after manually scrolling
+  // away). Without this, React skips the effect because activeSource is
+  // referentially equal to the previous value.
+  const [focusNonce, setFocusNonce] = useStateP1(0);
+
+  // Clicking a source citation scrolls the doc pane to the cited passage and
+  // highlights it. Always increments focusNonce so the scroll fires even if
+  // the same badge is clicked repeatedly.
   const focusSource = (src) => {
     if (!src) return;
     setActiveSource(src);
+    setFocusNonce(n => n + 1);
   };
 
   const handleDownload = () => {
@@ -922,20 +1473,16 @@ function DocViewerPage({ params }) {
     }
 
     if (documentData.file_type === "PDF") {
-      // When the user clicks a source pill, append #page=N so the embedded
-      // PDF viewer scrolls to that page. (Browsers' built-in PDF viewers
-      // honour this fragment; we add a re-mount key so navigation works
-      // even when the same page is selected twice.)
-      const pageAnchor = activeSource?.page ? `&page=${activeSource.page}` : "";
+      // Render with react-pdf so we can highlight the cited passage inside
+      // the text layer, not just navigate to a page. Falls back to "Open
+      // original ↗" if the PDF fails to load (e.g. CORS on the signed URL).
       return (
-        <div className="w-full max-w-4xl bg-white shadow-sm rounded-xl overflow-hidden border border-border-subtle">
-          <iframe
-            key={`${documentId}-${activeSource?.page || 0}-${activeSource?.excerpt?.slice(0, 32) || ""}`}
-            title={docName}
-            src={`${viewUrl}#toolbar=1&navpanes=0${pageAnchor}`}
-            className="w-full h-[78vh]"
-          />
-        </div>
+        <PdfDocumentView
+          docName={docName}
+          fileUrl={viewUrl}
+          highlight={activeSource}
+          focusNonce={focusNonce}
+        />
       );
     }
 
@@ -946,20 +1493,33 @@ function DocViewerPage({ params }) {
           text={textContent}
           highlight={activeSource}
           fallbackUrl={viewUrl}
+          focusNonce={focusNonce}
         />
       );
     }
 
     if (documentData.file_type === "DOCX") {
-      // DOCX is rendered from the server-extracted plain text (same source the
-      // AI sees) so we can programmatically scroll/highlight the cited passage.
-      // The Office Online iframe is offered as a fallback "Open original" link.
+      // Prefer the mammoth-rendered HTML view (preserves headings, bold,
+      // tables, lists). Falls back to the plain-text view if extraction
+      // hasn't run yet (legacy upload, mammoth missing in container, etc.).
+      if (extractedHtmlContent) {
+        return (
+          <DocxHtmlView
+            docName={docName}
+            html={extractedHtmlContent}
+            fallbackUrl={viewUrl}
+            highlight={activeSource}
+            focusNonce={focusNonce}
+          />
+        );
+      }
       return (
         <TextDocumentView
           docName={docName}
           text={extractedTextContent}
           highlight={activeSource}
           fallbackUrl={viewUrl}
+          focusNonce={focusNonce}
           isDocx
         />
       );
@@ -1011,7 +1571,15 @@ function DocViewerPage({ params }) {
 
       <main className="ml-sidebar-width h-screen flex" style={{ paddingTop: 64 + (tabs.length ? 44 : 0) }}>
         {/* PDF pane */}
-        <section className="flex-1 bg-surface-container-low overflow-y-auto p-8 flex flex-col items-center">
+        <section
+          className="flex-1 bg-surface-container-low overflow-y-auto p-8 flex flex-col items-center"
+          // Clear the active source highlight when the user scrolls / pans
+          // by hand. `scrollIntoView` does NOT trigger wheel/touchmove, so
+          // these handlers fire only on real user input. The next badge
+          // click re-sets activeSource and the highlight comes back.
+          onWheel={() => { if (activeSource) setActiveSource(null); }}
+          onTouchMove={() => { if (activeSource) setActiveSource(null); }}
+        >
           <div className="sticky top-0 mb-8 bg-white/90 backdrop-blur-md border border-border-subtle px-3 py-2 rounded-xl flex items-center gap-4 z-10 shadow-sm">
             <div className="flex items-center gap-2 border-r border-border-subtle pr-3 text-xs">
               <Icon name="description" size={16} className="text-on-surface-variant" />

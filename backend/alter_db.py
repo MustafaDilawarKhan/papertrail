@@ -15,8 +15,8 @@ async def main():
 
 
 async def ensure_document_text_column():
-    """Add the `extracted_text` column to documents for the AI chat feature."""
-    print("Adding documents.extracted_text column…")
+    """Add the `extracted_text` + `extracted_html` columns to documents for the AI chat feature."""
+    print("Adding documents.extracted_text + extracted_html columns…")
     engine = create_async_engine(
         DATABASE_URL,
         connect_args={
@@ -31,9 +31,12 @@ async def ensure_document_text_column():
             await conn.execute(text(
                 "ALTER TABLE documents ADD COLUMN IF NOT EXISTS extracted_text TEXT;"
             ))
-        print("✓ documents.extracted_text ensured")
+            await conn.execute(text(
+                "ALTER TABLE documents ADD COLUMN IF NOT EXISTS extracted_html TEXT;"
+            ))
+        print("✓ documents.extracted_text + extracted_html ensured")
     except Exception as e:
-        print(f"Error adding documents.extracted_text: {e}")
+        print(f"Error adding documents extraction columns: {e}")
     finally:
         await engine.dispose()
 

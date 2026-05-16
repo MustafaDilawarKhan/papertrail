@@ -41,6 +41,9 @@ class Document(Base):
     # Plain-text content used by the document-grounded AI chat. Nullable so older
     # rows keep working — the chat router will extract on demand when missing.
     extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Rich-HTML rendering of the document used by the in-browser viewer
+    # (DOCX → mammoth; PDF/TXT leave NULL and fall back to other renderers).
+    extracted_html: Mapped[str | None] = mapped_column(Text, nullable=True)
     upload_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
