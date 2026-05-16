@@ -124,8 +124,8 @@ function DocConstellation() {
         ))}
       </svg>
       {/* center */}
-      <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", width: 64, height: 64, borderRadius: 14, background: "var(--ink)", color: "var(--paper)", display: "grid", placeItems: "center", fontFamily: "var(--serif)", fontSize: 28, boxShadow: "0 8px 24px rgba(0,0,0,0.18)" }}>
-        A
+      <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", width: 64, height: 64, borderRadius: 14, background: "var(--ink)", color: "var(--paper)", display: "grid", placeItems: "center", fontFamily: "var(--serif)", fontSize: 24, boxShadow: "0 8px 24px rgba(0,0,0,0.18)", letterSpacing: "-0.02em", fontWeight: 600 }}>
+        PT
       </div>
       {docs.map((d, i) => (
         <div key={i} style={{ position: "absolute", left: `${d.x}%`, top: `${d.y}%`, transform: "translate(-50%,-50%)", padding: "5px 9px", background: "var(--paper)", border: "1px solid var(--line)", borderRadius: 6, fontSize: 11, color: "var(--ink-3)", display: "flex", alignItems: "center", gap: 6, animation: `float-y ${4 + (i % 3)}s ease-in-out infinite`, animationDelay: `${i * 0.3}s`, fontFamily: "var(--mono)" }}>
