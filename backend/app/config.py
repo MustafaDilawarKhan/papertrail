@@ -9,11 +9,11 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/paper_trail_db"
-    DATABASE_URL_SYNC: str = "postgresql://postgres:postgres@localhost:5432/paper_trail_db"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/aid_db"
+    DATABASE_URL_SYNC: str = "postgresql://postgres:postgres@localhost:5432/aid_db"
 
     # JWT Authentication
-    SECRET_KEY: str = "paper-trail-secret-key-change-in-production"
+    SECRET_KEY: str = "aid-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
 
