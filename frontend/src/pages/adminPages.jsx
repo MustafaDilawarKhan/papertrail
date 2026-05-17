@@ -91,6 +91,33 @@ function AdminShell({ active, breadcrumbs, children }) {
 }
 
 // =================== ADMIN OVERVIEW ===================
+// Password input with an eye-toggle that flips the input type between
+// "password" and "text" so the admin can verify what they typed.
+function PasswordField({ value, onChange, visible, onToggleVisible, autoComplete, required, minLength }) {
+  return (
+    <div className="relative mb-3">
+      <input
+        type={visible ? "text" : "password"}
+        autoComplete={autoComplete}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full pr-10 px-3 py-2 border border-border-subtle rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+        required={required}
+        minLength={minLength}
+      />
+      <button
+        type="button"
+        onClick={onToggleVisible}
+        aria-label={visible ? "Hide password" : "Show password"}
+        title={visible ? "Hide password" : "Show password"}
+        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-on-surface-variant hover:bg-surface-container-low transition-colors"
+      >
+        <Icon name={visible ? "visibility_off" : "visibility"} size={18} />
+      </button>
+    </div>
+  );
+}
+
 // Small card on the admin overview that lets the signed-in admin rotate their
 // own password without leaving the admin section. Hits the existing
 // `/api/auth/password` endpoint.
@@ -98,6 +125,9 @@ function ChangePasswordCard() {
   const [current, setCurrent] = useStateAdmin("");
   const [next, setNext] = useStateAdmin("");
   const [confirm, setConfirm] = useStateAdmin("");
+  const [showCurrent, setShowCurrent] = useStateAdmin(false);
+  const [showNext, setShowNext] = useStateAdmin(false);
+  const [showConfirm, setShowConfirm] = useStateAdmin(false);
   const [busy, setBusy] = useStateAdmin(false);
   const [status, setStatus] = useStateAdmin(null); // { kind: "ok"|"err", msg }
 
@@ -130,27 +160,35 @@ function ChangePasswordCard() {
       <p className="text-[11px] text-on-surface-variant mb-4">Change the password for your admin account.</p>
 
       <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">Current password</label>
-      <input
-        type="password" autoComplete="current-password"
-        value={current} onChange={e => setCurrent(e.target.value)}
-        className="w-full mb-3 px-3 py-2 border border-border-subtle rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+      <PasswordField
+        value={current}
+        onChange={setCurrent}
+        visible={showCurrent}
+        onToggleVisible={() => setShowCurrent(v => !v)}
+        autoComplete="current-password"
         required
       />
 
       <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">New password</label>
-      <input
-        type="password" autoComplete="new-password"
-        value={next} onChange={e => setNext(e.target.value)}
-        className="w-full mb-3 px-3 py-2 border border-border-subtle rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-        required minLength={6}
+      <PasswordField
+        value={next}
+        onChange={setNext}
+        visible={showNext}
+        onToggleVisible={() => setShowNext(v => !v)}
+        autoComplete="new-password"
+        required
+        minLength={6}
       />
 
       <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">Confirm new password</label>
-      <input
-        type="password" autoComplete="new-password"
-        value={confirm} onChange={e => setConfirm(e.target.value)}
-        className="w-full mb-4 px-3 py-2 border border-border-subtle rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-        required minLength={6}
+      <PasswordField
+        value={confirm}
+        onChange={setConfirm}
+        visible={showConfirm}
+        onToggleVisible={() => setShowConfirm(v => !v)}
+        autoComplete="new-password"
+        required
+        minLength={6}
       />
 
       {status && (
@@ -198,6 +236,7 @@ function AdminOverviewPage() {
   const cards = stats ? [
     { label: "Total Users", value: stats.users.total, sub: `${stats.users.verified} verified · ${stats.users.admins} admin`, icon: "group" },
     { label: "Documents", value: stats.documents.total, sub: `${stats.documents.with_extracted_text} ready for AI`, icon: "description" },
+    { label: "Papers Written", value: stats.papers?.total ?? 0, sub: `${stats.papers?.authors ?? 0} authors · ${stats.papers?.new_24h ?? 0} new in 24h`, icon: "draft" },
     { label: "AI Messages (24h)", value: stats.chats.messages_24h, sub: `${stats.chats.sessions} sessions all-time`, icon: "smart_toy" },
     { label: "Workspaces", value: stats.workspaces.total, sub: `${stats.users.new_24h} new users today`, icon: "workspaces" },
   ] : [];
@@ -211,7 +250,7 @@ function AdminOverviewPage() {
       {error && <p className="text-sm text-error mb-4">Error: {error}</p>}
 
       {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           {cards.map((s, i) => (
             <div key={i} className="bg-white border border-border-subtle p-5 rounded-xl">
               <div className="flex items-center justify-between mb-3">

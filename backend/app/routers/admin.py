@@ -20,6 +20,7 @@ from app.database import get_db
 from app.middleware.auth import get_current_admin
 from app.models.chat import ChatMessage, ChatSession
 from app.models.document import Document
+from app.models.paper import Paper
 from app.models.subscription import SubscriptionPlan, UserSubscription
 from app.models.user import User
 from app.models.workspace import Workspace
@@ -51,11 +52,15 @@ async def stats(
     total_workspaces = (await db.execute(select(func.count(Workspace.workspace_id)))).scalar() or 0
     total_sessions = (await db.execute(select(func.count(ChatSession.session_id)))).scalar() or 0
     total_messages = (await db.execute(select(func.count(ChatMessage.message_id)))).scalar() or 0
+    total_papers = (await db.execute(select(func.count(Paper.paper_id)))).scalar() or 0
 
     since_24h = datetime.now(timezone.utc) - timedelta(hours=24)
     new_users_24h = (await db.execute(select(func.count(User.user_id)).where(User.created_at >= since_24h))).scalar() or 0
     new_docs_24h = (await db.execute(select(func.count(Document.document_id)).where(Document.upload_date >= since_24h))).scalar() or 0
     new_msgs_24h = (await db.execute(select(func.count(ChatMessage.message_id)).where(ChatMessage.created_at >= since_24h))).scalar() or 0
+    new_papers_24h = (await db.execute(select(func.count(Paper.paper_id)).where(Paper.created_at >= since_24h))).scalar() or 0
+    # Distinct authors give us a "writers" count separate from raw drafts.
+    paper_authors = (await db.execute(select(func.count(func.distinct(Paper.user_id))))).scalar() or 0
 
     # Doc-grounded chat health: how many docs have extracted text?
     docs_with_text = (await db.execute(
@@ -113,6 +118,7 @@ async def stats(
         "signups": await daily_count(User, User.created_at),
         "uploads": await daily_count(Document, Document.upload_date),
         "messages": await daily_count(ChatMessage, ChatMessage.created_at),
+        "papers": await daily_count(Paper, Paper.created_at),
     }
 
     return {
@@ -132,6 +138,11 @@ async def stats(
             "sessions": total_sessions,
             "messages": total_messages,
             "messages_24h": new_msgs_24h,
+        },
+        "papers": {
+            "total": total_papers,
+            "new_24h": new_papers_24h,
+            "authors": paper_authors,
         },
         "plan_distribution": plan_distribution,
         "timeseries": timeseries,
