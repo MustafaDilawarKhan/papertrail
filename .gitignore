@@ -1,0 +1,24 @@
+# Repo-wide ignore — supplements backend/.gitignore and frontend/.gitignore
+# for paths that don't live under either of those folders (e.g. test
+# caches under report/, RAG vector-store data, IDE/OS files).
+
+# Python bytecode + caches (any depth)
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# RAG vector-store persistence (file-based ChromaDB)
+.chroma_db/
+rag/.chroma_db/
+
+# Local env files
+.env
+.env.local
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp

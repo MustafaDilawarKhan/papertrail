@@ -159,7 +159,7 @@ function UpgradePromoCard({ collapsed }) {
   );
 }
 
-export function Sidebar({ active, collapsed, onToggle }) {
+export function Sidebar({ active, collapsed, onToggle, mobileOpen = false, onMobileClose }) {
   const { user } = useAuth();
   const displayName = user?.name || "User";
 
@@ -177,12 +177,28 @@ export function Sidebar({ active, collapsed, onToggle }) {
   if (user?.is_admin) {
     items.push({ id: "admin", label: "Admin", icon: "admin_panel_settings", to: "/admin" });
   }
+  // On mobile (< md) the sidebar is a slide-out drawer: hidden off-screen
+  // by default, slid in when `mobileOpen` is true. On md+ it's a fixed
+  // column whose width depends on `collapsed`.
+  const mobileTransform = mobileOpen ? "translate-x-0" : "-translate-x-full";
   return (
-    <aside className={`fixed left-0 top-0 h-screen bg-background-sidebar border-r border-border-subtle flex flex-col p-4 gap-4 z-40 transition-all duration-300 ease-in-out ${collapsed ? "w-[68px]" : "w-sidebar-width"}`}>
-      <div className={`flex items-center ${collapsed ? "justify-center" : "justify-between px-2"} mb-2`}>
+    <>
+      {/* Backdrop, only on mobile and only when the drawer is open. */}
+      {mobileOpen && (
+        <div
+          onClick={onMobileClose}
+          className="md:hidden fixed inset-0 bg-black/40 z-30 transition-opacity"
+        />
+      )}
+      <aside className={`fixed left-0 top-0 h-screen bg-background-sidebar border-r border-border-subtle flex flex-col p-4 gap-4 z-40 transition-all duration-300 ease-in-out w-sidebar-width ${collapsed ? "md:w-[68px]" : "md:w-sidebar-width"} ${mobileTransform} md:translate-x-0`}>
+      <div className={`flex items-center ${collapsed ? "md:justify-center" : "justify-between px-2"} mb-2`}>
         {!collapsed && <Brand />}
-        <button onClick={onToggle} className="p-1.5 rounded-lg hover:bg-surface-container-low text-on-surface-variant transition-colors active:scale-90" title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
+        <button onClick={onToggle} className="hidden md:inline-flex p-1.5 rounded-lg hover:bg-surface-container-low text-on-surface-variant transition-colors active:scale-90" title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
           <Icon name={collapsed ? "menu" : "menu_open"} size={20} />
+        </button>
+        {/* Mobile-only close button. */}
+        <button onClick={onMobileClose} className="md:hidden p-1.5 rounded-lg hover:bg-surface-container-low text-on-surface-variant transition-colors active:scale-90" title="Close menu">
+          <Icon name="close" size={20} />
         </button>
       </div>
       <nav className="flex flex-col gap-1 flex-grow">
@@ -192,18 +208,21 @@ export function Sidebar({ active, collapsed, onToggle }) {
             <Link
               key={it.id}
               to={it.to}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all duration-200 group ${isActive ? "bg-sidebar-active text-primary font-bold" : "text-on-surface-variant hover:bg-surface-container-low hover:translate-x-0.5"} ${collapsed ? "justify-center px-2" : ""}`}
+              onClick={onMobileClose}
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all duration-200 group ${isActive ? "bg-sidebar-active text-primary font-bold" : "text-on-surface-variant hover:bg-surface-container-low hover:translate-x-0.5"} ${collapsed ? "md:justify-center md:px-2" : ""}`}
               title={collapsed ? it.label : undefined}
             >
               <Icon name={it.icon} filled={isActive} />
-              {!collapsed && <span className="text-body-main">{it.label}</span>}
+              {/* Always show the label on mobile (the drawer is wide there).
+                  On md+ hide it when collapsed. */}
+              <span className={`text-body-main ${collapsed ? "md:hidden" : ""}`}>{it.label}</span>
             </Link>
           );
         })}
       </nav>
       <UpgradePromoCard collapsed={collapsed} />
 
-      <div className={`${collapsed ? "px-1" : "px-2"}`}>
+      <div className={`${collapsed ? "md:px-1 px-2" : "px-2"}`}>
         {collapsed ? (
           <div className="relative group">
             <ProfileDropdown side="top" collapsed={true} />
@@ -216,15 +235,25 @@ export function Sidebar({ active, collapsed, onToggle }) {
         )}
       </div>
     </aside>
+    </>
   );
 }
 
 // ---- Top Nav (user app) ----
 // ---- TopNav with notifications ----
-export function TopNav({ breadcrumbs = [], onSearchOpen, collapsed }) {
+export function TopNav({ breadcrumbs = [], onSearchOpen, collapsed, onMobileNavOpen }) {
   return (
-    <header className={`fixed top-0 right-0 h-16 bg-background-primary/80 backdrop-blur-md border-b border-border-subtle flex justify-between items-center px-container-padding z-30 transition-all duration-300 ${collapsed ? "w-[calc(100%-68px)]" : "w-[calc(100%-240px)]"}`}>
-      <nav className="flex items-center gap-2 font-breadcrumb text-breadcrumb">
+    <header className={`fixed top-0 right-0 left-0 md:left-auto h-16 bg-background-primary/80 backdrop-blur-md border-b border-border-subtle flex justify-between items-center px-container-padding z-30 transition-all duration-300 w-full ${collapsed ? "md:w-[calc(100%-68px)]" : "md:w-[calc(100%-240px)]"}`}>
+      {/* Hamburger — visible only on mobile (the desktop sidebar handles
+          its own toggle). */}
+      <button
+        onClick={onMobileNavOpen}
+        className="md:hidden mr-2 p-2 rounded-lg hover:bg-surface-container-low text-on-surface-variant transition-colors"
+        aria-label="Open menu"
+      >
+        <Icon name="menu" size={22} />
+      </button>
+      <nav className="hidden md:flex items-center gap-2 font-breadcrumb text-breadcrumb">
         {breadcrumbs.map((b, i) => (
           <React.Fragment key={i}>
             {i > 0 && <Icon name="chevron_right" className="text-[14px] text-on-surface-variant" />}
@@ -447,11 +476,18 @@ export function AppShell({ active, breadcrumbs, children, onSearchOpen }) {
   const [collapsed, setCollapsed] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const route = useRoute();
 
   useEffect(() => {
     if (route === "/upload") setUploadOpen(true);
     else setUploadOpen(false);
+  }, [route]);
+
+  // Close the mobile drawer when the route changes so a tap on a nav item
+  // navigates AND dismisses the overlay.
+  useEffect(() => {
+    setMobileNavOpen(false);
   }, [route]);
 
   useEffect(() => {
@@ -467,9 +503,20 @@ export function AppShell({ active, breadcrumbs, children, onSearchOpen }) {
 
   return (
     <div className="min-h-screen bg-background-primary">
-      <Sidebar active={active} collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
-      <TopNav breadcrumbs={breadcrumbs} onSearchOpen={() => setSearchOpen(true)} collapsed={collapsed} />
-      <main className={`pt-16 min-h-screen transition-all duration-300 ${collapsed ? "ml-[68px]" : "ml-sidebar-width"}`}>
+      <Sidebar
+        active={active}
+        collapsed={collapsed}
+        onToggle={() => setCollapsed(c => !c)}
+        mobileOpen={mobileNavOpen}
+        onMobileClose={() => setMobileNavOpen(false)}
+      />
+      <TopNav
+        breadcrumbs={breadcrumbs}
+        onSearchOpen={() => setSearchOpen(true)}
+        collapsed={collapsed}
+        onMobileNavOpen={() => setMobileNavOpen(true)}
+      />
+      <main className={`pt-16 min-h-screen transition-all duration-300 ml-0 ${collapsed ? "md:ml-[68px]" : "md:ml-sidebar-width"}`}>
         <div className="px-container-padding py-8 max-w-7xl">{children}</div>
       </main>
       <CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} />

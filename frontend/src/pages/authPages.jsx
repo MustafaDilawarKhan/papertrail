@@ -71,14 +71,6 @@ function LoginPage() {
     setError("");
     setLoading(true);
 
-    // Hardcoded Admin Logic
-    if (email === "justaiuseai@gmail.com" && pw === "admin123") {
-      setLoading(false);
-      await login("hardcoded-admin-token");
-      navigate("/admin");
-      return;
-    }
-
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",

@@ -46,7 +46,7 @@ function Verification({ tweaks }) {
           </FadeUp>
 
           <FadeUp delay={120}>
-            <div style={{ position: "relative" }}>
+            <div className="screen-mockup" style={{ position: "relative" }}>
               <Window title="Smith et al. (2023) — Methodology">
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", minHeight: 360 }}>
                   {/* Doc */}

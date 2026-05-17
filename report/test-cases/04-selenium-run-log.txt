@@ -1,0 +1,16 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.13, pytest-9.0.3, pluggy-1.6.0 -- C:\Users\Laptop\Downloads\AIDoc\aid (1)\backend\venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\Laptop\Downloads\AIDoc\aid (1)
+plugins: anyio-4.13.0, asyncio-1.3.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 12 items
+
+report/test-cases/selenium/test_auth.py::TestAuthFlows::test_login_with_bad_credentials_shows_error PASSED [  8%]
+report/test-cases/selenium/test_auth.py::TestAuthFlows::test_register_redirects_to_authenticated_area PASSED [ 16%]
+report/test-cases/selenium/test_landing.py::TestLandingPage::test_hero_headline_visible PASSED [ 25%]
+report/test-cases/selenium/test_landing.py::TestLandingPage::test_has_signup_and_login_links PASSED [ 33%]
+report/test-cases/selenium/test_landing.py::TestLandingPage::test_page_title_set PASSED [ 41%]
+report/test-cases/selenium/test_navigation.py::TestSidebarNavigation::test_sidebar_links_present PASSED [ 50%]
+report/test-cases/selenium/test_navigation.py::TestSidebarNavigation::test_navigate_to_my_papers PASSED [ 58%]
+report/test-cases/selenium/test_responsive.py::TestLandingResponsive::test_landing_renders_at[size0-360-mobile] 

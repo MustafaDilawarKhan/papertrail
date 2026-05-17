@@ -9,7 +9,7 @@ export function AuthProvider({ children }) {
 
   const warmBootstrap = async (tokenOverride) => {
     const token = tokenOverride || localStorage.getItem('aid_token');
-    if (!token || token === 'hardcoded-admin-token') {
+    if (!token) {
       sessionStorage.removeItem('aid_bootstrap');
       return;
     }
@@ -31,17 +31,6 @@ export function AuthProvider({ children }) {
 
   const fetchUser = async (tokenOverride) => {
     const token = tokenOverride || localStorage.getItem('aid_token');
-    
-    // Handle hardcoded admin token
-    if (token === 'hardcoded-admin-token') {
-      setUser({
-        name: 'Admin User',
-        email: 'justaiuseai@gmail.com',
-        role: 'Admin'
-      });
-      setLoading(false);
-      return;
-    }
 
     if (!token) {
       setUser(null);

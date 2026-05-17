@@ -595,3 +595,116 @@ body.theme-dark::before { mix-blend-mode: screen; opacity: 0.35; }
 body.theme-dark .window-bar {
   background: linear-gradient(to bottom, #211c14, #1a1610);
 }
+
+/* =====================================================================
+   Responsive — landing & app shell adapt down to phone widths.
+
+   Strategy: the landing page is desktop-first by design, but it has to
+   read sensibly on phone/tablet too. The two real overflow offenders are
+   (a) the Hero ProductWindow (sidebar 200 + chat 320 + doc flex), and
+   (b) any horizontal padding leaking out. The rules below stack the
+   three Hero panes vertically on tablet and hide the demo sidebar on
+   phones so the document pane remains readable. The global rules cap
+   media so a stray fixed-width child can't extend the document past the
+   viewport (no horizontal scrollbar).
+   ===================================================================== */
+
+/* Global safety net — nothing should produce horizontal scroll. */
+html, body { max-width: 100%; overflow-x: hidden; }
+img, video, svg { max-width: 100%; height: auto; }
+
+/* Container padding tightens on small screens so the content doesn't
+   waste edge real estate. */
+@media (max-width: 767px) {
+  .container { padding: 0 16px; }
+  .display { font-size: clamp(32px, 9vw, 56px) !important; line-height: 1.05 !important; }
+  .lead    { font-size: clamp(14px, 3.6vw, 18px) !important; }
+}
+
+/* Landing-page "screen mockup" wrappers (Hero ProductWindow, Verification
+   doc/answer window, etc.) — these are visual demos of the 3-pane app
+   UI. We don't want to restructure them on mobile (that destroys the
+   "this is what the app looks like" concept). Instead we shrink the
+   whole mockup proportionally with `zoom`. `zoom` is layout-aware (it
+   reflows surrounding content correctly) and supported in Chromium,
+   WebKit, and Firefox 126+. On older Firefox the page just keeps the
+   native size and gets clipped by body's overflow-x: hidden. */
+.screen-mockup {
+  /* Pin top-left so the zoom origin doesn't drift the element. */
+  transform-origin: top left;
+}
+
+@media (max-width: 1099px) {
+  /* The Hero ProductWindow's native max-width is 1080px. We give it
+     16px of breathing room each side (the container's mobile padding)
+     and let it scale down to fit. The expression caps at 1.0 so it
+     never zooms UP on slightly-wider screens. */
+  .hero-window {
+    zoom: min(1, calc((100vw - 32px) / 1080));
+  }
+}
+
+@media (max-width: 767px) {
+  /* The Verification window lives in a (formerly) 2-column section.
+     Its native render width is roughly 540px; on mobile the column
+     becomes full-width so we scale to fit. */
+  .screen-mockup:not(.hero-window) {
+    zoom: min(1, calc((100vw - 32px) / 540));
+  }
+}
+
+/* TrustBar marquee — already overflow-clipped, but the spacing between
+   logos chews up the small width. Halve the gaps on phones. */
+@media (max-width: 640px) {
+  .marquee span { margin: 0 12px !important; gap: 16px !important; }
+}
+
+/* Plus-mark decorations on Hero — pull them inside the viewport on
+   narrow widths so they don't widen the scroll area. */
+@media (max-width: 767px) {
+  .plus-mark { display: none !important; }
+}
+
+/* Authenticated app shell — the Sidebar slides out as a drawer on mobile
+   (see Tailwind classes in shared/components.jsx). This rule just
+   neutralises any stray left-padding from the older fixed-offset layout
+   so the main content really does start at x=0. */
+@media (max-width: 767px) {
+  main { padding-left: 0 !important; }
+}
+
+/* Landing-page multi-column inline grids — collapse to one column on
+   mobile. We target by the actual rendered style attribute (React
+   serialises `gridTemplateColumns` to `grid-template-columns` in the
+   DOM), and use `!important` to win against the inline rule.
+
+   `.screen-mockup` and its descendants are EXEMPT — those are intact
+   demos of the 3-pane app UI; we shrink them via `zoom` instead so
+   the composition is preserved (see rules above).
+
+   Comparison's pricing table (1.4fr 1fr 1fr) is also exempt — a
+   3-column comparison reads correctly as a horizontal-scroll table
+   on mobile. */
+@media (max-width: 767px) {
+  section :not(.screen-mockup):not(.screen-mockup *)[style*="grid-template-columns: 1fr 1fr"]:not([style*="1.4fr 1fr 1fr"]),
+  section :not(.screen-mockup):not(.screen-mockup *)[style*="grid-template-columns: 1.4fr 1fr"],
+  section :not(.screen-mockup):not(.screen-mockup *)[style*="grid-template-columns: 1fr 1.4fr"],
+  section :not(.screen-mockup):not(.screen-mockup *)[style*="grid-template-columns: repeat(2"],
+  section :not(.screen-mockup):not(.screen-mockup *)[style*="grid-template-columns: repeat(3"],
+  section :not(.screen-mockup):not(.screen-mockup *)[style*="grid-template-columns: 1fr 1fr 1fr"],
+  section :not(.screen-mockup):not(.screen-mockup *)[style*="grid-template-columns: 1.4fr 1fr 1fr 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Pricing-table style 3-column grids (Comparison) — instead of stacking,
+   give them a horizontal scroll on narrow screens so the table reads
+   correctly when scrolled. */
+@media (max-width: 767px) {
+  section [style*="1.4fr 1fr 1fr"] {
+    min-width: 560px;
+  }
+  /* Wrap the table grid in a scrolling container by styling the
+     immediate parent of any 1.4fr-1fr-1fr grid row that has multiple
+     siblings (the comparison table structure). */
+}

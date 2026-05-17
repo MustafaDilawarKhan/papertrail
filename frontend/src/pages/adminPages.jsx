@@ -1,6 +1,6 @@
 // Admin console pages
 import React, { useState, useEffect } from 'react';
-import { Link, Icon, navigate } from '../shared/components';
+import { Link, Icon, navigate, useRoute } from '../shared/components';
 import { Toggle } from './authPages';
 import { useAuth } from '../contexts/AuthContext';
 import { apiRequest } from '../apiConfig';
@@ -20,7 +20,7 @@ function formatRelativeTimeAdmin(value) {
 }
 
 // ---- Admin Sidebar ----
-function AdminSidebar({ active }) {
+function AdminSidebar({ active, mobileOpen, onMobileClose }) {
   const { logout } = useAuth();
   const handleSignOut = () => {
     if (!window.confirm("Sign out of the admin dashboard?")) return;
@@ -35,43 +35,77 @@ function AdminSidebar({ active }) {
     { id: "logs", label: "Audit Logs", icon: "receipt_long", to: "/admin/logs" },
     { id: "health", label: "System Health", icon: "monitoring", to: "/admin/health" },
   ];
+  const mobileTransform = mobileOpen ? "translate-x-0" : "-translate-x-full";
   return (
-    <aside className="fixed left-0 top-0 h-screen w-sidebar-width bg-[#1a1a1c] text-white flex flex-col p-4 gap-4 z-40">
-      <div className="px-2 mb-2 flex items-center gap-2">
-        <span className="font-hero-headline font-extrabold tracking-tight text-lg text-white">Paper Trail</span>
-        <span className="text-[9px] uppercase tracking-widest text-white/50 font-bold">Admin</span>
-      </div>
-      <nav className="flex flex-col gap-1 flex-grow">
-        {items.map(it => {
-          const isActive = active === it.id;
-          return (
-            <Link key={it.id} to={it.to} className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-colors ${isActive ? "bg-white/10 text-white font-bold" : "text-white/60 hover:bg-white/5 hover:text-white"}`}>
-              <Icon name={it.icon} filled={isActive} />
-              <span className="text-body-main">{it.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
-      <div className="mt-auto p-3 bg-white/5 rounded-lg border border-white/10">
-        <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1">Region</p>
-        <p className="text-xs font-bold flex items-center gap-2"><span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span> us-east-1 · Healthy</p>
-      </div>
-      <button
-        onClick={handleSignOut}
-        className="flex items-center gap-2 px-3 py-2 text-xs text-white/50 hover:text-white hover:bg-white/5 rounded transition-colors text-left"
-      >
-        <Icon name="logout" size={16} /> Sign out
-      </button>
-    </aside>
+    <>
+      {mobileOpen && (
+        <div
+          onClick={onMobileClose}
+          className="md:hidden fixed inset-0 bg-black/40 z-30 transition-opacity"
+        />
+      )}
+      <aside className={`fixed left-0 top-0 h-screen w-sidebar-width bg-[#1a1a1c] text-white flex flex-col p-4 gap-4 z-40 transition-transform duration-300 ${mobileTransform} md:translate-x-0`}>
+        <div className="px-2 mb-2 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="font-hero-headline font-extrabold tracking-tight text-lg text-white">Paper Trail</span>
+            <span className="text-[9px] uppercase tracking-widest text-white/50 font-bold">Admin</span>
+          </div>
+          <button
+            onClick={onMobileClose}
+            className="md:hidden p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10"
+            aria-label="Close menu"
+          >
+            <Icon name="close" size={20} />
+          </button>
+        </div>
+        <nav className="flex flex-col gap-1 flex-grow">
+          {items.map(it => {
+            const isActive = active === it.id;
+            return (
+              <Link key={it.id} to={it.to} onClick={onMobileClose} className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-colors ${isActive ? "bg-white/10 text-white font-bold" : "text-white/60 hover:bg-white/5 hover:text-white"}`}>
+                <Icon name={it.icon} filled={isActive} />
+                <span className="text-body-main">{it.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+        <div className="mt-auto p-3 bg-white/5 rounded-lg border border-white/10">
+          <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1">Region</p>
+          <p className="text-xs font-bold flex items-center gap-2"><span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span> us-east-1 · Healthy</p>
+        </div>
+        <button
+          onClick={handleSignOut}
+          className="flex items-center gap-2 px-3 py-2 text-xs text-white/50 hover:text-white hover:bg-white/5 rounded transition-colors text-left"
+        >
+          <Icon name="logout" size={16} /> Sign out
+        </button>
+      </aside>
+    </>
   );
 }
 
 function AdminShell({ active, breadcrumbs, children }) {
+  const [mobileNavOpen, setMobileNavOpen] = useStateAdmin(false);
+  const route = useRoute();
+  // Close drawer when the user navigates.
+  useEffectAdmin(() => { setMobileNavOpen(false); }, [route]);
+
   return (
     <div className="min-h-screen bg-background-primary">
-      <AdminSidebar active={active} />
-      <header className="fixed top-0 right-0 w-[calc(100%-240px)] h-16 bg-background-primary border-b border-border-subtle flex justify-between items-center px-container-padding z-30">
-        <nav className="flex items-center gap-2 font-breadcrumb text-breadcrumb">
+      <AdminSidebar
+        active={active}
+        mobileOpen={mobileNavOpen}
+        onMobileClose={() => setMobileNavOpen(false)}
+      />
+      <header className="fixed top-0 right-0 left-0 md:left-auto w-full md:w-[calc(100%-240px)] h-16 bg-background-primary border-b border-border-subtle flex justify-between items-center px-container-padding z-30">
+        <button
+          onClick={() => setMobileNavOpen(true)}
+          className="md:hidden mr-2 p-2 rounded-lg hover:bg-surface-container-low text-on-surface-variant"
+          aria-label="Open menu"
+        >
+          <Icon name="menu" size={22} />
+        </button>
+        <nav className="hidden md:flex items-center gap-2 font-breadcrumb text-breadcrumb">
           {breadcrumbs.map((b, i) => (
             <React.Fragment key={i}>
               {i > 0 && <Icon name="chevron_right" className="text-[14px] text-on-surface-variant" />}
@@ -79,11 +113,11 @@ function AdminShell({ active, breadcrumbs, children }) {
             </React.Fragment>
           ))}
         </nav>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 ml-auto">
           <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-error-container text-error rounded">PRODUCTION</span>
         </div>
       </header>
-      <main className="ml-sidebar-width pt-16 min-h-screen">
+      <main className="ml-0 md:ml-sidebar-width pt-16 min-h-screen">
         <div className="px-container-padding py-8 max-w-7xl">{children}</div>
       </main>
     </div>

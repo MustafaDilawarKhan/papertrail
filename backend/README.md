@@ -55,10 +55,16 @@ python seed.py
 | `/api/annotations/*` | CRUD | Document annotations |
 | `/api/citations/*` | CRUD | Formatted citations |
 
-## Demo Account
+## Admin access
 
-- **Email**: `justaiuseai@gmail.com`
-- **Password**: `admin123`
+Admin privileges are granted by setting `is_admin = true` on a regular user row.
+After signing up through the normal `/register` flow, promote your account with:
+
+```
+python make_admin.py <email>
+```
+
+(run from inside the backend container or your venv).
 
 
 .\venv\Scripts\python.exe -m uvicorn app.main:app --reload

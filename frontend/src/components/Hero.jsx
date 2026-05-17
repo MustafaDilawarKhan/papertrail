@@ -62,11 +62,11 @@ function ProductWindow({ step, accent }) {
   const [hovered, setHovered] = useState(null);
 
   return (
-    <div style={{ position: "relative", maxWidth: 1080, margin: "0 auto" }}>
+    <div className="hero-window screen-mockup" style={{ position: "relative", maxWidth: 1080, margin: "0 auto" }}>
       <Window title="papertrail.app/library/cognitive-bias-review">
-        <div className="row" style={{ minHeight: 460 }}>
+        <div className="row hero-window-row" style={{ minHeight: 460 }}>
           {/* Sidebar */}
-          <aside style={{ width: 200, borderRight: "1px solid var(--line)", padding: "16px 14px", background: "color-mix(in oklab, var(--paper) 80%, var(--bg))" }}>
+          <aside className="hero-pane-sidebar" style={{ width: 200, borderRight: "1px solid var(--line)", padding: "16px 14px", background: "color-mix(in oklab, var(--paper) 80%, var(--bg))" }}>
             <div className="mono" style={{ fontSize: 10, color: "var(--ink-4)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>Library</div>
             <div className="col gap-8">
               <div style={{ padding: "6px 8px", borderRadius: 6, background: "color-mix(in oklab, var(--ink) 8%, transparent)", fontSize: 12.5, color: "var(--ink-2)", display: "flex", alignItems: "center", gap: 8 }}>
@@ -93,7 +93,7 @@ function ProductWindow({ step, accent }) {
           </aside>
 
           {/* Document pane */}
-          <div style={{ flex: 1, padding: "18px 22px", borderRight: "1px solid var(--line)", position: "relative" }}>
+          <div className="hero-pane-doc" style={{ flex: 1, padding: "18px 22px", borderRight: "1px solid var(--line)", position: "relative" }}>
             <div className="row between center" style={{ marginBottom: 14 }}>
               <div className="mono" style={{ fontSize: 11, color: "var(--ink-4)" }}>SMITH ET AL. (2023) · PAGE 12 / 28</div>
               <div className="row gap-8 mono" style={{ fontSize: 11, color: "var(--ink-4)" }}>
@@ -132,7 +132,7 @@ function ProductWindow({ step, accent }) {
           </div>
 
           {/* Chat pane */}
-          <div style={{ width: 320, padding: "18px 18px", display: "flex", flexDirection: "column", position: "relative" }}>
+          <div className="hero-pane-chat" style={{ width: 320, padding: "18px 18px", display: "flex", flexDirection: "column", position: "relative" }}>
             <div className="mono" style={{ fontSize: 10, color: "var(--ink-4)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>Conversation</div>
 
             {/* Hardcoded background so the user bubble stays a dark chat
