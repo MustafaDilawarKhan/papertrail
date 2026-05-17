@@ -16,6 +16,7 @@ class UserResponse(BaseModel):
     affiliation: str | None = None
     bio: str | None = None
     email_verified: bool
+    is_admin: bool = False
     created_at: datetime
     updated_at: datetime
 

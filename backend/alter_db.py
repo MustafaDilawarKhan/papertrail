@@ -12,6 +12,53 @@ async def main():
     await ensure_workspace_columns()
     await ensure_notifications_table()
     await ensure_document_text_column()
+    await ensure_user_admin_column()
+
+
+async def ensure_user_admin_column():
+    """
+    Add the `is_admin` column to users and auto-promote the project owner
+    (whose email is hard-coded below) so the admin dashboard works out of
+    the box on a fresh setup.
+
+    To promote any OTHER user later, run `python make_admin.py <email>`.
+    """
+    # The canonical platform-admin account. Created + maintained by
+    # `create_admin.py`. We re-promote here only as a belt-and-braces measure
+    # in case someone accidentally demoted it from the SQL console.
+    BOOTSTRAP_ADMIN_EMAIL = "admin@pt.com"
+
+    print("Adding users.is_admin column…")
+    engine = create_async_engine(
+        DATABASE_URL,
+        connect_args={
+            "prepared_statement_cache_size": 0,
+            "statement_cache_size": 0,
+        },
+        echo=False,
+    )
+
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;"
+            ))
+            print("✓ users.is_admin ensured")
+
+            # Bootstrap the project owner as admin if they exist and aren't already.
+            result = await conn.execute(
+                text("UPDATE users SET is_admin = TRUE WHERE email = :email AND is_admin = FALSE RETURNING email"),
+                {"email": BOOTSTRAP_ADMIN_EMAIL},
+            )
+            promoted = result.fetchall()
+            if promoted:
+                print(f"✓ Promoted {BOOTSTRAP_ADMIN_EMAIL} to admin")
+            else:
+                print(f"  (skip) {BOOTSTRAP_ADMIN_EMAIL} either not registered yet or already admin")
+    except Exception as e:
+        print(f"Error adding users.is_admin: {e}")
+    finally:
+        await engine.dispose()
 
 
 async def ensure_document_text_column():

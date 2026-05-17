@@ -5,7 +5,7 @@ import 'react-pdf/dist/Page/TextLayer.css';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import pdfjsWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import DOMPurify from 'dompurify';
-import { Link, Icon, Brand, Sidebar, TopNav, AppShell, CommandPalette, EmptyState, Modal, navigate, useRoute } from '../shared/components';
+import { Link, Icon, Brand, Sidebar, TopNav, AppShell, CommandPalette, EmptyState, Modal, UploadModal, navigate, useRoute } from '../shared/components';
 import { DocTabBar, useDocTabs } from '../shared/docTabs';
 import { useAuth } from '../contexts/AuthContext';
 import { apiRequest, API_BASE_URL } from '../apiConfig';
@@ -362,6 +362,54 @@ function LibraryPage() {
     : collectionFilteredDocuments.filter(document => document.file_type === filter);
   const selectedCollection = collections.find(collection => String(collection.collection_id) === selectedCollectionId);
 
+  // Library document actions — wired into both list and grid views.
+  const [openMenuId, setOpenMenuId] = useStateP1(null);
+  const closeMenu = () => setOpenMenuId(null);
+
+  const handleRename = async (doc) => {
+    closeMenu();
+    const name = window.prompt("Rename document", doc.filename);
+    if (!name || !name.trim() || name.trim() === doc.filename) return;
+    try {
+      const updated = await apiRequest(`/documents/${doc.document_id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ filename: name.trim() }),
+      });
+      setDocuments(prev => prev.map(d => d.document_id === doc.document_id ? { ...d, filename: updated.filename } : d));
+    } catch (err) {
+      window.alert(err.message || "Could not rename");
+    }
+  };
+
+  const handleDelete = async (doc) => {
+    closeMenu();
+    if (!window.confirm(`Delete "${doc.filename}"? This cannot be undone.`)) return;
+    try {
+      await apiRequest(`/documents/${doc.document_id}`, { method: "DELETE" });
+      setDocuments(prev => prev.filter(d => d.document_id !== doc.document_id));
+    } catch (err) {
+      window.alert(err.message || "Could not delete");
+    }
+  };
+
+  const handleDownload = async (doc) => {
+    closeMenu();
+    try {
+      const res = await apiRequest(`/documents/${doc.document_id}/view-url`);
+      if (res?.view_url) window.open(res.view_url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      window.alert(err.message || "Could not download");
+    }
+  };
+
+  // Close the open menu when clicking outside.
+  useEffectP1(() => {
+    if (!openMenuId) return;
+    const onDoc = () => closeMenu();
+    window.addEventListener("click", onDoc);
+    return () => window.removeEventListener("click", onDoc);
+  }, [openMenuId]);
+
   return (
     <>
       <CommandPalette open={search} onClose={() => setSearch(false)} />
@@ -466,9 +514,23 @@ function LibraryPage() {
                       {r.processing_status === "ready" ? <Icon name="check_circle" filled className="text-green-600" /> : <Icon name="schedule" className="text-on-surface-variant/40" />}
                     </td>
                     <td className="px-6 py-5 text-right">
-                      <button onClick={(e) => e.stopPropagation()} className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-primary p-1">
-                        <Icon name="more_horiz" />
-                      </button>
+                      <div className="relative inline-block">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === r.document_id ? null : r.document_id); }}
+                          className="opacity-100 text-on-surface-variant hover:text-primary p-1"
+                        >
+                          <Icon name="more_horiz" />
+                        </button>
+                        {openMenuId === r.document_id && (
+                          <div onClick={(e) => e.stopPropagation()} className="absolute right-0 mt-1 w-44 bg-white border border-border-subtle rounded-lg shadow-lg z-50 py-1">
+                            <button onClick={(e) => { e.stopPropagation(); navigate(`/library/doc/${r.document_id}`); }} className="w-full text-left px-3 py-2 text-sm hover:bg-surface-container-low flex items-center gap-2"><Icon name="open_in_new" size={14} /> Open</button>
+                            <button onClick={() => handleDownload(r)} className="w-full text-left px-3 py-2 text-sm hover:bg-surface-container-low flex items-center gap-2"><Icon name="download" size={14} /> Download</button>
+                            <button onClick={() => handleRename(r)} className="w-full text-left px-3 py-2 text-sm hover:bg-surface-container-low flex items-center gap-2"><Icon name="edit" size={14} /> Rename</button>
+                            <div className="border-t border-border-subtle my-1" />
+                            <button onClick={() => handleDelete(r)} className="w-full text-left px-3 py-2 text-sm hover:bg-error-container text-error flex items-center gap-2"><Icon name="delete" size={14} /> Delete</button>
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -479,15 +541,35 @@ function LibraryPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {rows.map((r, i) => (
-              <Link key={r.document_id || i} to={`/library/doc/${r.document_id}`} className="bg-white border border-border-subtle p-5 rounded-xl hover:shadow-md transition-shadow block">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-accent-source-highlight">{r.file_type}</span>
-                  {r.processing_status === "ready" && <Icon name="check_circle" filled size={14} className="text-green-600" />}
+              <div key={r.document_id || i} className="relative bg-white border border-border-subtle p-5 rounded-xl hover:shadow-md transition-shadow group">
+                <Link to={`/library/doc/${r.document_id}`} className="block">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-accent-source-highlight">{r.file_type}</span>
+                    {r.processing_status === "ready" && <Icon name="check_circle" filled size={14} className="text-green-600" />}
+                  </div>
+                  <h4 className="font-card-title text-card-title mb-2 line-clamp-2 pr-8">{r.filename}</h4>
+                  <p className="text-[11px] text-on-surface-variant mb-3">{formatFileSize(r.file_size)} • {r.processing_status}</p>
+                  <p className="text-[10px] text-on-surface-variant">{formatRelativeTime(r.upload_date)}</p>
+                </Link>
+                {/* Action menu — positioned above the card link so clicks don't navigate */}
+                <div className="absolute top-3 right-3" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); setOpenMenuId(openMenuId === r.document_id ? null : r.document_id); }}
+                    className="p-1.5 rounded-full hover:bg-surface-container-low text-on-surface-variant"
+                    title="Actions"
+                  >
+                    <Icon name="more_vert" size={16} />
+                  </button>
+                  {openMenuId === r.document_id && (
+                    <div className="absolute right-0 mt-1 w-44 bg-white border border-border-subtle rounded-lg shadow-lg z-50 py-1">
+                      <button onClick={() => handleDownload(r)} className="w-full text-left px-3 py-2 text-sm hover:bg-surface-container-low flex items-center gap-2"><Icon name="download" size={14} /> Download</button>
+                      <button onClick={() => handleRename(r)} className="w-full text-left px-3 py-2 text-sm hover:bg-surface-container-low flex items-center gap-2"><Icon name="edit" size={14} /> Rename</button>
+                      <div className="border-t border-border-subtle my-1" />
+                      <button onClick={() => handleDelete(r)} className="w-full text-left px-3 py-2 text-sm hover:bg-error-container text-error flex items-center gap-2"><Icon name="delete" size={14} /> Delete</button>
+                    </div>
+                  )}
                 </div>
-                <h4 className="font-card-title text-card-title mb-2 line-clamp-2">{r.filename}</h4>
-                <p className="text-[11px] text-on-surface-variant mb-3">{formatFileSize(r.file_size)} • {r.processing_status}</p>
-                <p className="text-[10px] text-on-surface-variant">{formatRelativeTime(r.upload_date)}</p>
-              </Link>
+              </div>
             ))}
           </div>
         )}
@@ -505,7 +587,11 @@ function LibraryPage() {
 // text layer, applies a yellow background, and scrolls the first match into
 // view. This replaces the previous iframe-based viewer that could only
 // navigate to page granularity via the `#page=N` URL fragment.
-function PdfDocumentView({ docName, fileUrl, highlight, focusNonce }) {
+function PdfDocumentView({ docName, fileUrl, highlights, focusNonce }) {
+  // First highlight in the array is the "primary" (clicked) one — drives scroll.
+  // Subsequent entries are sibling sources marked but not scrolled to.
+  const primaryHighlight = Array.isArray(highlights) ? highlights[0] : null;
+  const allHighlights = Array.isArray(highlights) ? highlights : [];
   const [numPages, setNumPages] = useStateP1(0);
   const [loadError, setLoadError] = useStateP1("");
   const [pageWidth, setPageWidth] = useStateP1(720);
@@ -561,7 +647,8 @@ function PdfDocumentView({ docName, fileUrl, highlight, focusNonce }) {
             key={pageNumber}
             pageNumber={pageNumber}
             width={pageWidth}
-            highlight={highlight && highlight.page === pageNumber ? highlight : null}
+            highlights={allHighlights.filter(h => h && h.page === pageNumber)}
+            isPrimaryPage={!!primaryHighlight && primaryHighlight.page === pageNumber}
             focusNonce={focusNonce}
           />
         ))}
@@ -572,12 +659,13 @@ function PdfDocumentView({ docName, fileUrl, highlight, focusNonce }) {
 
 // Render one PDF page. After the text layer is ready, scan it for the cited
 // excerpt and highlight the matching spans (also scroll the first into view).
-function PdfPageWithHighlight({ pageNumber, width, highlight, focusNonce }) {
+function PdfPageWithHighlight({ pageNumber, width, highlights, isPrimaryPage, focusNonce }) {
   const pageContainerRef = useRefP1(null);
+  const list = Array.isArray(highlights) ? highlights : [];
 
-  // Re-apply the highlight + scroll into view. Pulled out so we can call it
-  // BOTH on initial text-layer render AND on every subsequent click (via the
-  // focusNonce useEffect below).
+  // Re-apply highlights + scroll if this is the primary page. Pulled out so
+  // we can call it BOTH on initial text-layer render AND on every subsequent
+  // click (via the focusNonce useEffect below).
   const reapplyHighlight = useCallback(() => {
     const root = pageContainerRef.current;
     if (!root) return;
@@ -589,9 +677,17 @@ function PdfPageWithHighlight({ pageNumber, width, highlight, focusNonce }) {
       el.classList.remove('pt-pdf-highlight');
     });
 
-    if (!highlight || !highlight.excerpt) return;
-    const ok = applyExcerptHighlight(layer, highlight.excerpt);
-    if (ok) {
+    if (list.length === 0) return;
+
+    let anyMatched = false;
+    list.forEach(h => {
+      if (!h?.excerpt) return;
+      if (applyExcerptHighlight(layer, h.excerpt)) anyMatched = true;
+    });
+
+    if (!isPrimaryPage) return;
+
+    if (anyMatched) {
       const firstMark = layer.querySelector('.pt-pdf-highlight');
       if (firstMark) firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } else {
@@ -599,7 +695,7 @@ function PdfPageWithHighlight({ pageNumber, width, highlight, focusNonce }) {
       // fallback so the user lands in the right neighbourhood.
       root.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [highlight?.excerpt, highlight?.page]);
+  }, [list, isPrimaryPage]);
 
   // Fires once when react-pdf finishes rendering the text layer.
   const handleTextLayerSuccess = useCallback(() => {
@@ -609,9 +705,9 @@ function PdfPageWithHighlight({ pageNumber, width, highlight, focusNonce }) {
   // Fires every time the user clicks a citation badge (even the same one twice).
   // The text layer is already rendered at this point, so we just re-apply.
   useEffectP1(() => {
-    if (!highlight) return;
+    if (list.length === 0) return;
     reapplyHighlight();
-  }, [focusNonce, reapplyHighlight, highlight]);
+  }, [focusNonce, reapplyHighlight, list]);
 
   return (
     <div ref={pageContainerRef} className="my-4 flex flex-col items-center" data-pdf-page={pageNumber}>
@@ -688,23 +784,32 @@ function applyExcerptHighlight(textLayer, rawExcerpt) {
 //      on the concatenation of all text-node content.
 //   4. Split the matching text node(s), wrap the matched range in a <mark>,
 //      and scroll the first <mark> into view.
-function DocxHtmlView({ docName, html, fallbackUrl, highlight, focusNonce }) {
+function DocxHtmlView({ docName, html, fallbackUrl, highlights, focusNonce }) {
   const containerRef = useRefP1(null);
 
   // Sanitise once per html change.
   const safeHtml = useMemoP1(() => sanitiseDocxHtml(html || ""), [html]);
 
-  // Re-apply the highlight + scroll. Runs on every focusNonce / highlight change.
+  // Re-apply highlights + scroll to the primary. Runs whenever `highlights`
+  // or `focusNonce` change.
   const reapply = useCallback(() => {
     const root = containerRef.current;
     if (!root) return;
-    // Clear any previous marks first.
     clearDomHighlights(root);
-    if (!highlight || !highlight.excerpt) return;
-    const ok = applyHtmlHighlight(root, highlight.excerpt);
-    const target = ok ? root.querySelector('.pt-html-highlight') : root;
-    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, [highlight?.excerpt, highlight?.page]);
+    const list = Array.isArray(highlights) ? highlights : [];
+    if (list.length === 0) return;
+
+    // Mark every cited passage. The first one is the "primary" (latest click)
+    // and gets a marker class we use to scroll it into view.
+    list.forEach((src, i) => {
+      if (!src?.excerpt) return;
+      applyHtmlHighlight(root, src.excerpt, i === 0);
+    });
+
+    const primary = root.querySelector('.pt-html-highlight.pt-html-primary')
+                 || root.querySelector('.pt-html-highlight');
+    if (primary) primary.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [highlights]);
 
   useEffectP1(() => {
     // Defer one tick so React has painted the new HTML before we walk it.
@@ -765,7 +870,10 @@ function clearDomHighlights(root) {
 // string with a position map, locate the excerpt (with the same fuzzy
 // fallbacks as the plain-text path), then wrap the matched range in <mark>.
 // Returns true if a match was found and wrapped.
-function applyHtmlHighlight(root, rawExcerpt) {
+//
+// `isPrimary` adds an extra class on the wrapped <mark> so the caller can
+// distinguish the "click target" from sibling-source marks (e.g. for scroll).
+function applyHtmlHighlight(root, rawExcerpt, isPrimary) {
   const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, " ");
   const target = norm(rawExcerpt).trim();
   if (target.length < 6) return false;
@@ -815,28 +923,46 @@ function applyHtmlHighlight(root, rawExcerpt) {
 
   // 3. Convert (start, end) in `concat` back to per-node ranges, wrapping the
   //    overlapping portion of each node in a fresh <mark>.
+  //
+  // The match span can cross many text nodes, so for each node we figure out
+  // the longest contiguous chunk of its ORIGINAL text that corresponds to the
+  // overlap. We don't cap to 40 chars any more — that was a holdover from the
+  // PDF text layer (where spans are tiny) and was throwing away most of the
+  // highlight on DOCX/HTML where a single text node can contain a whole
+  // sentence.
   for (const item of nodes) {
     if (item.end <= span.start || item.start >= span.end) continue;
     const localStart = Math.max(0, span.start - item.start);
     const localEnd = Math.min(item.end - item.start, span.end - item.start);
     if (localEnd <= localStart) continue;
 
-    // The normalised string drops repeated whitespace, so we cannot just slice
-    // by index on the original node value. Best effort: search for the
-    // (lowercased) overlap substring in the original node text.
     const original = item.node.nodeValue || "";
     const overlap = concat.slice(item.start + localStart, item.start + localEnd);
-    const probe = overlap.slice(0, Math.min(40, overlap.length));
-    if (probe.length < 4) continue;
-    const at = original.toLowerCase().indexOf(probe);
+
+    // Try the FULL overlap text first. If the original node has extra
+    // whitespace (which the normalised concatenation collapsed), shrink the
+    // probe one word at a time until we get a substring match. This means
+    // long matches still render as long highlights, and short matches still
+    // work — no artificial 40-char ceiling.
+    let probe = overlap;
+    let at = -1;
+    while (probe.length >= 4) {
+      at = original.toLowerCase().indexOf(probe);
+      if (at !== -1) break;
+      const lastSpace = probe.lastIndexOf(' ');
+      if (lastSpace <= 0) break;
+      probe = probe.slice(0, lastSpace);
+    }
     if (at === -1) continue;
-    wrapRange(item.node, at, at + probe.length);
+    wrapRange(item.node, at, at + probe.length, isPrimary);
   }
   return !!root.querySelector('mark.pt-html-highlight');
 }
 
-// Split a text node and wrap the [start, end) substring in <mark>.
-function wrapRange(textNode, start, end) {
+// Split a text node and wrap the [start, end) substring in <mark>. When
+// `isPrimary` is true, the mark gets an extra `.pt-html-primary` class so the
+// caller can scroll just that one into view.
+function wrapRange(textNode, start, end, isPrimary) {
   const original = textNode.nodeValue || "";
   if (start < 0 || end > original.length || end <= start) return;
   const parent = textNode.parentNode;
@@ -845,7 +971,7 @@ function wrapRange(textNode, start, end) {
   const middle = original.slice(start, end);
   const after = document.createTextNode(original.slice(end));
   const mark = document.createElement('mark');
-  mark.className = 'pt-html-highlight';
+  mark.className = 'pt-html-highlight' + (isPrimary ? ' pt-html-primary' : '');
   mark.appendChild(document.createTextNode(middle));
   parent.insertBefore(before, textNode);
   parent.insertBefore(mark, textNode);
@@ -857,9 +983,12 @@ function wrapRange(textNode, start, end) {
 // (drawn from the active AI source). Splits the text on [Page N] markers
 // emitted by the server-side extractor so we can show "PAGE 12 / 28" style
 // headers and scroll the matching chunk into view.
-function TextDocumentView({ docName, text, highlight, fallbackUrl, isDocx, focusNonce }) {
+function TextDocumentView({ docName, text, highlights, fallbackUrl, isDocx, focusNonce }) {
   const containerRef = useRefP1(null);
   const matchRef = useRefP1(null);
+  // For this renderer, only the primary highlight is used (this is the legacy
+  // path; the mammoth-rendered DocxHtmlView handles multi-source itself).
+  const highlight = Array.isArray(highlights) ? highlights[0] : null;
 
   // Split on [Page N] markers so we render one block per "page".
   const pages = useMemoP1(() => {
@@ -1146,7 +1275,7 @@ function renderAnswerWithCitations(content, sources, focusSource, activeSource) 
     return (
       <button
         key={idx}
-        onClick={() => focusSource(src)}
+        onClick={() => focusSource(src, safeSources)}
         title={`p.${src.page} · ${src.section || ""}\n"${src.excerpt || ""}"`}
         className={
           "inline-flex items-center justify-center align-baseline mx-0.5 min-w-[18px] h-[18px] rounded-full text-[10px] font-bold leading-none transition-colors " +
@@ -1180,14 +1309,29 @@ function DocViewerPage({ params }) {
   const [context, setContext] = useStateP1("Current Document");
   const [sessionId, setSessionId] = useStateP1(null);
   const [streaming, setStreaming] = useStateP1(false);
-  // The source the user most recently clicked → drives the PDF page anchor
-  // and the highlight in the TextDocumentView (DOCX/TXT).
-  const [activeSource, setActiveSource] = useStateP1(null);
+  // Sources highlighted in the doc pane. Always an array: index 0 is the
+  // PRIMARY (drives scroll), the rest are also marked so when the AI cites
+  // [1] [2] [3] all three appear highlighted at once. Cleared on manual scroll.
+  const [activeSources, setActiveSources] = useStateP1(null);
+  // Convenience alias — many existing checks only need the primary source.
+  const activeSource = activeSources?.[0] || null;
   // Server-extracted plain text used by TextDocumentView. Fetched lazily for
   // DOCX (which has no usable inline rendering) and DOCX-like cases.
   const [extractedTextContent, setExtractedTextContent] = useStateP1("");
   // Server-rendered DOCX HTML (mammoth) used by DocxHtmlView for rich display.
   const [extractedHtmlContent, setExtractedHtmlContent] = useStateP1("");
+  // Ref to the bottom of the chat message list. Used by an effect below to
+  // auto-scroll to the newest message on every state change.
+  const chatBottomRef = useRefP1(null);
+  // Sidebar collapsed-state for the doc viewer. The DocViewer doesn't use
+  // AppShell (it has a custom layout) so we manage this here.
+  const [sidebarCollapsed, setSidebarCollapsed] = useStateP1(false);
+  // In-place upload modal triggered by the "+" button on the tab bar. We render
+  // the modal locally so the current document stays visible behind it (vs.
+  // navigating to /upload which would unmount the viewer). The UploadModal
+  // already calls `openTabImperative` for each successful upload, so the new
+  // file automatically appears as a tab in this same viewer.
+  const [uploadModalOpen, setUploadModalOpen] = useStateP1(false);
 
   const { tabs, openTab, closeTab, reorderTab } = useDocTabs(documentId);
 
@@ -1303,6 +1447,63 @@ function DocViewerPage({ params }) {
     openTab({ id: documentId, name: documentData.filename || 'Document', type: documentData.file_type || 'DOC' });
   }, [documentId, documentData, openTab]);
 
+  // Auto-scroll the chat to the bottom whenever a message lands or content
+  // streams in. Also fires on `draft` so the most recent message stays visible
+  // while the user is typing.
+  useEffectP1(() => {
+    const el = chatBottomRef.current;
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages, draft]);
+
+  // If the user clicked "Resume chat" on /chats for this document, the
+  // sessionStorage handoff key tells us which session to load.
+  //
+  // NB: React 18 strict mode double-mounts effects in dev. We must NOT clear
+  // the sessionStorage key before the fetch finishes — otherwise the second
+  // mount sees an empty key and bails, and the first mount's cleanup runs
+  // before the fetch resolves so its setState gets discarded. The fix is to
+  // (a) only remove the key after a successful state update, and (b) not
+  // gate the setState behind an `active` flag (idempotent GETs are fine).
+  useEffectP1(() => {
+    if (!documentId) return;
+    const key = `pt.resumeSession.${documentId}`;
+    const sid = sessionStorage.getItem(key);
+    if (!sid) return;
+
+    (async () => {
+      try {
+        const detail = await apiRequest(`/chat/sessions/${sid}`);
+        if (!detail?.session_id) return;
+        setSessionId(detail.session_id);
+        const msgs = (detail.messages || []).map(m => ({
+          role: m.role === "assistant" ? "assistant" : "user",
+          content: m.content,
+          time: new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          sources: (m.source_highlights || []).map(sh => ({
+            page: sh.page_number,
+            section: "",
+            excerpt: sh.chunk_text,
+            relevance: (sh.similarity_score || 0) >= 1 ? "primary" : "supporting",
+          })),
+        }));
+        setMessages(msgs);
+        // Clear the handoff key only AFTER we've successfully hydrated state.
+        sessionStorage.removeItem(key);
+      } catch (err) {
+        console.warn("Could not resume chat session", sid, err);
+        // Leave the key in place so a refresh can retry.
+      }
+    })();
+  }, [documentId]);
+
+  const startNewChat = () => {
+    setMessages([]);
+    setSessionId(null);
+    setActiveSources(null);
+    setDraft("");
+  };
+
   const send = async () => {
     const text = draft.trim();
     if (!text || streaming || !documentId) return;
@@ -1402,9 +1603,12 @@ function DocViewerPage({ params }) {
               return next;
             });
             // Auto-highlight the primary source so the PDF scrolls to it.
-            const primary = (payload.sources || []).find(s => s.relevance === "primary")
-                          || (payload.sources || [])[0];
-            if (primary) setActiveSource(primary);
+            // Auto-focus the primary source once the AI message lands so the
+            // user sees the highlighted passage without a click. All siblings
+            // get marked too.
+            const all = payload.sources || [];
+            const primary = all.find(s => s.relevance === "primary") || all[0];
+            if (primary) focusSource(primary, all);
           } else if (payload.type === "error") {
             throw new Error(payload.error || "AI provider error.");
           }
@@ -1437,11 +1641,14 @@ function DocViewerPage({ params }) {
   const [focusNonce, setFocusNonce] = useStateP1(0);
 
   // Clicking a source citation scrolls the doc pane to the cited passage and
-  // highlights it. Always increments focusNonce so the scroll fires even if
-  // the same badge is clicked repeatedly.
-  const focusSource = (src) => {
+  // highlights it AND any sibling sources in the same AI message. The clicked
+  // source is placed first so it drives the scroll.
+  // Always bumps focusNonce so a repeat click re-triggers the scroll even
+  // though the highlight list itself didn't change.
+  const focusSource = (src, siblingSources) => {
     if (!src) return;
-    setActiveSource(src);
+    const others = (siblingSources || []).filter(s => s !== src);
+    setActiveSources([src, ...others]);
     setFocusNonce(n => n + 1);
   };
 
@@ -1480,7 +1687,7 @@ function DocViewerPage({ params }) {
         <PdfDocumentView
           docName={docName}
           fileUrl={viewUrl}
-          highlight={activeSource}
+          highlights={activeSources}
           focusNonce={focusNonce}
         />
       );
@@ -1491,7 +1698,7 @@ function DocViewerPage({ params }) {
         <TextDocumentView
           docName={docName}
           text={textContent}
-          highlight={activeSource}
+          highlights={activeSources}
           fallbackUrl={viewUrl}
           focusNonce={focusNonce}
         />
@@ -1508,7 +1715,7 @@ function DocViewerPage({ params }) {
             docName={docName}
             html={extractedHtmlContent}
             fallbackUrl={viewUrl}
-            highlight={activeSource}
+            highlights={activeSources}
             focusNonce={focusNonce}
           />
         );
@@ -1517,7 +1724,7 @@ function DocViewerPage({ params }) {
         <TextDocumentView
           docName={docName}
           text={extractedTextContent}
-          highlight={activeSource}
+          highlights={activeSources}
           fallbackUrl={viewUrl}
           focusNonce={focusNonce}
           isDocx
@@ -1536,10 +1743,18 @@ function DocViewerPage({ params }) {
     );
   };
 
+  // Used several times below: width of the sidebar depending on collapse state.
+  const sidebarWidthClass = sidebarCollapsed ? "ml-[68px]" : "ml-sidebar-width";
+  const headerWidthClass  = sidebarCollapsed ? "w-[calc(100%-68px)]" : "w-[calc(100%-240px)]";
+
   return (
     <div className="h-screen flex flex-col bg-background-primary overflow-hidden">
-      <Sidebar active="library" />
-      <header className="fixed top-0 right-0 w-[calc(100%-240px)] h-16 bg-white border-b border-border-subtle flex justify-between items-center px-container-padding z-30">
+      <Sidebar
+        active="library"
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed(c => !c)}
+      />
+      <header className={`fixed top-0 right-0 ${headerWidthClass} h-16 bg-white border-b border-border-subtle flex justify-between items-center px-container-padding z-30 transition-all duration-300`}>
         <nav className="flex items-center gap-2 font-breadcrumb text-breadcrumb">
           <Link to="/library" className="text-on-surface-variant hover:text-primary">Library</Link>
           <Icon name="chevron_right" className="text-[14px] text-on-surface-variant" />
@@ -1558,18 +1773,19 @@ function DocViewerPage({ params }) {
         </div>
       </header>
 
-      <div className="ml-sidebar-width pt-16 fixed top-0 right-0 left-0 z-20" style={{ pointerEvents: 'none' }}>
+      <div className={`${sidebarWidthClass} pt-16 fixed top-0 right-0 left-0 z-20 transition-all duration-300`} style={{ pointerEvents: 'none' }}>
         <div style={{ pointerEvents: 'auto' }}>
           <DocTabBar
             activeId={documentId}
             tabs={tabs}
             onClose={closeTab}
             onReorder={reorderTab}
+            onAdd={() => setUploadModalOpen(true)}
           />
         </div>
       </div>
 
-      <main className="ml-sidebar-width h-screen flex" style={{ paddingTop: 64 + (tabs.length ? 44 : 0) }}>
+      <main className={`${sidebarWidthClass} h-screen flex transition-all duration-300`} style={{ paddingTop: 64 + (tabs.length ? 44 : 0) }}>
         {/* PDF pane */}
         <section
           className="flex-1 bg-surface-container-low overflow-y-auto p-8 flex flex-col items-center"
@@ -1577,8 +1793,8 @@ function DocViewerPage({ params }) {
           // by hand. `scrollIntoView` does NOT trigger wheel/touchmove, so
           // these handlers fire only on real user input. The next badge
           // click re-sets activeSource and the highlight comes back.
-          onWheel={() => { if (activeSource) setActiveSource(null); }}
-          onTouchMove={() => { if (activeSource) setActiveSource(null); }}
+          onWheel={() => { if (activeSources) setActiveSources(null); }}
+          onTouchMove={() => { if (activeSources) setActiveSources(null); }}
         >
           <div className="sticky top-0 mb-8 bg-white/90 backdrop-blur-md border border-border-subtle px-3 py-2 rounded-xl flex items-center gap-4 z-10 shadow-sm">
             <div className="flex items-center gap-2 border-r border-border-subtle pr-3 text-xs">
@@ -1599,7 +1815,14 @@ function DocViewerPage({ params }) {
                 <Icon name="smart_toy" filled className="text-primary" />
                 <h2 className="font-card-title text-card-title">Research Assistant</h2>
               </div>
-              <button className="text-on-surface-variant hover:text-primary"><Icon name="more_horiz" /></button>
+              <button
+                onClick={startNewChat}
+                disabled={streaming || (messages.length === 0 && !sessionId)}
+                className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md text-on-surface-variant hover:bg-surface-container-low hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Start a new chat for this document"
+              >
+                <Icon name="edit_square" size={14} /> New chat
+              </button>
             </div>
             <div className="relative">
               <button onClick={() => setContextOpen(o => !o)} className="text-[11px] flex items-center gap-1.5 px-2 py-1 bg-surface-container-low rounded-md hover:bg-surface-container">
@@ -1668,6 +1891,8 @@ function DocViewerPage({ params }) {
                 </div>
               </div>
             ))}
+            {/* Sentinel scrolled into view whenever messages/draft change. */}
+            <div ref={chatBottomRef} />
           </div>
 
           <div className="p-4 border-t border-border-subtle">
@@ -1680,28 +1905,26 @@ function DocViewerPage({ params }) {
                 className="w-full bg-transparent border-none focus:ring-0 text-body-main resize-none p-2 h-16 outline-none disabled:opacity-60"
                 placeholder={streaming ? "Waiting for the AI…" : `Ask anything about ${docName}…`}
               />
-              <div className="flex items-center justify-between pt-1 px-1">
-                <div className="flex bg-surface-container-highest p-1 rounded-full">
-                  {["Short", "Med", "Detailed"].map(l => (
-                    <button key={l} onClick={() => setLength(l)} className={`px-3 py-1 text-[10px] font-bold rounded-full transition-colors ${length === l ? "bg-primary text-white" : "text-on-surface-variant hover:text-primary"}`}>{l}</button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button className="p-2 text-on-surface-variant hover:text-primary rounded-full"><Icon name="attach_file" size={18} /></button>
-                  <button
-                    onClick={send}
-                    disabled={streaming || !draft.trim()}
-                    className="bg-primary text-white p-2 rounded-full hover:opacity-90 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
-                    title={streaming ? "Streaming…" : "Send"}
-                  >
-                    <Icon name={streaming ? "stop_circle" : "send"} size={18} />
-                  </button>
-                </div>
+              <div className="flex items-center justify-end pt-1 px-1">
+                <button
+                  onClick={send}
+                  disabled={streaming || !draft.trim()}
+                  className="bg-primary text-white p-2 rounded-full hover:opacity-90 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={streaming ? "Streaming…" : "Send"}
+                >
+                  <Icon name={streaming ? "stop_circle" : "send"} size={18} />
+                </button>
               </div>
             </div>
           </div>
         </section>
       </main>
+
+      {/* Local upload modal triggered by the "+" tab button. Keeps the user on
+          the current doc viewer; on success the UploadModal calls
+          openTabImperative and navigates to the first new doc, which becomes
+          the new active tab without ever leaving the viewer. */}
+      <UploadModal open={uploadModalOpen} onClose={() => setUploadModalOpen(false)} />
     </div>
   );
 }
@@ -2360,5 +2583,124 @@ function IntegrationsPage() {
   );
 }
 
-export { DashboardPage, LibraryPage, DocViewerPage, WorkspacesPage, WorkspaceDetailPage, IntegrationsPage };
+// =================== CHATS (session history) ===================
+function ChatsPage() {
+  const [sessions, setSessions] = useStateP1([]);
+  const [docNames, setDocNames] = useStateP1({}); // doc_id -> filename
+  const [loading, setLoading] = useStateP1(true);
+  const [error, setError] = useStateP1("");
+
+  useEffectP1(() => {
+    let active = true;
+    (async () => {
+      try {
+        const list = await apiRequest("/chat/sessions");
+        if (!active) return;
+        const sessArr = Array.isArray(list) ? list : [];
+        setSessions(sessArr);
+
+        // Resolve document names for sessions scoped to a doc. The library
+        // bootstrap probably already has them — fall back to per-doc fetch.
+        const docIds = [...new Set(sessArr.filter(s => s.context_type === "document" && s.context_id).map(s => s.context_id))];
+        if (docIds.length > 0) {
+          try {
+            const allDocs = await apiRequest("/documents");
+            const lookup = {};
+            for (const d of (allDocs || [])) lookup[d.document_id] = d.filename;
+            if (active) setDocNames(lookup);
+          } catch { /* names are nice-to-have */ }
+        }
+      } catch (err) {
+        if (active) setError(err.message || "Could not load chats");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const handleResume = (session) => {
+    if (session.context_type === "document" && session.context_id) {
+      // Hand off to DocViewerPage via sessionStorage; the doc page checks
+      // this key on mount and loads the matching session's messages.
+      sessionStorage.setItem(`pt.resumeSession.${session.context_id}`, session.session_id);
+      navigate(`/library/doc/${session.context_id}`);
+    } else {
+      // Workspace / collection / global sessions — not yet wired into a viewer.
+      window.alert("This chat is not scoped to a single document and cannot be resumed yet.");
+    }
+  };
+
+  const handleDelete = async (session) => {
+    if (!window.confirm("Delete this chat? This cannot be undone.")) return;
+    try {
+      await apiRequest(`/chat/sessions/${session.session_id}`, { method: "DELETE" });
+      setSessions(prev => prev.filter(s => s.session_id !== session.session_id));
+    } catch (err) {
+      window.alert("Could not delete: " + (err.message || "unknown error"));
+    }
+  };
+
+  return (
+    <AppShell active="chats" breadcrumbs={[{ label: "Chats" }]}>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="font-section-heading text-section-heading text-primary mb-1">Chats</h1>
+          <p className="text-on-surface-variant text-sm">Resume a previous conversation or start a new one from any document.</p>
+        </div>
+        <Link to="/library" className="bg-primary text-on-primary px-4 py-2 rounded-lg text-xs font-bold hover:opacity-90 inline-flex items-center gap-2">
+          <Icon name="add" size={16} /> New chat
+        </Link>
+      </div>
+
+      {loading && <p className="text-sm text-on-surface-variant">Loading chats…</p>}
+      {error && <p className="text-sm text-error">Error: {error}</p>}
+
+      {!loading && !error && sessions.length === 0 && (
+        <div className="border border-border-subtle rounded-2xl p-10 text-center bg-white">
+          <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-surface-container-high flex items-center justify-center">
+            <Icon name="forum" filled className="text-on-surface-variant" size={24} />
+          </div>
+          <h3 className="font-card-title text-card-title mb-1">No chats yet</h3>
+          <p className="text-xs text-on-surface-variant mb-4">Open a document and ask a question to start your first chat.</p>
+          <Link to="/library" className="inline-block bg-primary text-on-primary px-4 py-2 rounded-lg text-xs font-bold">Go to library</Link>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {sessions.map(s => {
+          const docName = s.context_id ? (docNames[s.context_id] || "Untitled document") : "Workspace / Collection chat";
+          return (
+            <div key={s.session_id} className="bg-white border border-border-subtle rounded-xl p-4 hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2 text-[11px] text-on-surface-variant font-bold uppercase tracking-wider">
+                  <Icon name={s.context_type === "document" ? "description" : s.context_type === "workspace" ? "workspaces" : "forum"} size={14} />
+                  {s.context_type}
+                </div>
+                <button
+                  onClick={() => handleDelete(s)}
+                  className="text-on-surface-variant hover:text-error p-1 rounded transition-colors"
+                  title="Delete chat"
+                >
+                  <Icon name="delete" size={14} />
+                </button>
+              </div>
+              <h3 className="font-card-title text-card-title mb-1 line-clamp-2">{s.title || "Untitled conversation"}</h3>
+              <p className="text-[11px] text-on-surface-variant mb-1 line-clamp-1">{docName}</p>
+              <p className="text-[10px] text-on-surface-variant mb-3">Last active {formatRelativeTime(s.updated_at)}</p>
+              <button
+                onClick={() => handleResume(s)}
+                className="w-full bg-surface-container-low hover:bg-surface-container text-primary text-xs font-bold py-2 rounded-lg transition-colors"
+              >
+                Resume chat
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </AppShell>
+  );
+}
+
+export { DashboardPage, LibraryPage, DocViewerPage, WorkspacesPage, WorkspaceDetailPage, IntegrationsPage, ChatsPage };
 

@@ -111,7 +111,7 @@ function typeMeta(type) {
 }
 
 // ─── Tab bar component ────────────────────────────────────────────────────────
-export function DocTabBar({ activeId, tabs, onClose, onReorder }) {
+export function DocTabBar({ activeId, tabs, onClose, onReorder, onAdd }) {
   const scrollRef = useRef(null);
   const [dragIdx, setDragIdx] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
@@ -177,8 +177,8 @@ export function DocTabBar({ activeId, tabs, onClose, onReorder }) {
         ))}
       </div>
       <button
-        title="Open another document"
-        onClick={() => navigate('/library')}
+        title="Upload another document"
+        onClick={() => { if (onAdd) onAdd(); else navigate('/upload'); }}
         style={{
           alignSelf: 'center', width: 28, height: 28, marginLeft: 6,
           display: 'flex', alignItems: 'center', justifyContent: 'center',

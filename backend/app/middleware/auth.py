@@ -65,3 +65,17 @@ async def get_current_user(
         )
 
     return user
+
+
+async def get_current_admin(user: User = Depends(get_current_user)) -> User:
+    """
+    Dependency that authorises an admin-only endpoint. Wraps `get_current_user`
+    and adds a 403 if the user lacks `is_admin`. Mount on every /api/admin/*
+    endpoint.
+    """
+    if not getattr(user, "is_admin", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required",
+        )
+    return user

@@ -1,9 +1,22 @@
 // Admin console pages
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, Icon, navigate } from '../shared/components';
 import { Toggle } from './authPages';
+import { apiRequest } from '../apiConfig';
 
 const useStateAdmin = useState;
+const useEffectAdmin = useEffect;
+
+// Tiny helper — same shape as elsewhere in the app.
+function formatRelativeTimeAdmin(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60) return `${Math.floor(diff)}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
 
 // ---- Admin Sidebar ----
 function AdminSidebar({ active }) {
@@ -58,7 +71,6 @@ function AdminShell({ active, breadcrumbs, children }) {
         </nav>
         <div className="flex items-center gap-3">
           <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-error-container text-error rounded">PRODUCTION</span>
-          <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-[11px] font-bold">MD</div>
         </div>
       </header>
       <main className="ml-sidebar-width pt-16 min-h-screen">
@@ -69,198 +81,465 @@ function AdminShell({ active, breadcrumbs, children }) {
 }
 
 // =================== ADMIN OVERVIEW ===================
-function AdminOverviewPage() {
-  const stats = [
-    { label: "Active Users (DAU)", value: "12,847", delta: "+8.2%", up: true, icon: "trending_up" },
-    { label: "Documents Indexed", value: "2.4M", delta: "+124K", up: true, icon: "description" },
-    { label: "AI Queries (24h)", value: "184,302", delta: "-2.1%", up: false, icon: "smart_toy" },
-    { label: "Avg Response Time", value: "1.4s", delta: "+0.2s", up: false, icon: "schedule" },
-  ];
+// Small card on the admin overview that lets the signed-in admin rotate their
+// own password without leaving the admin section. Hits the existing
+// `/api/auth/password` endpoint.
+function ChangePasswordCard() {
+  const [current, setCurrent] = useStateAdmin("");
+  const [next, setNext] = useStateAdmin("");
+  const [confirm, setConfirm] = useStateAdmin("");
+  const [busy, setBusy] = useStateAdmin(false);
+  const [status, setStatus] = useStateAdmin(null); // { kind: "ok"|"err", msg }
 
-  // Sparkline-ish chart data
-  const sample = [12, 18, 15, 22, 28, 24, 30, 35, 32, 38, 42, 40, 45, 50, 48];
-  const max = Math.max(...sample);
+  const submit = async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    setStatus(null);
+    if (next.length < 6) { setStatus({ kind: "err", msg: "New password must be at least 6 characters." }); return; }
+    if (next !== confirm) { setStatus({ kind: "err", msg: "New passwords don't match." }); return; }
+    if (next === current) { setStatus({ kind: "err", msg: "New password must differ from current." }); return; }
+
+    setBusy(true);
+    try {
+      await apiRequest("/auth/password", {
+        method: "POST",
+        body: JSON.stringify({ current_password: current, new_password: next }),
+      });
+      setStatus({ kind: "ok", msg: "Password changed. Use the new one next time you sign in." });
+      setCurrent(""); setNext(""); setConfirm("");
+    } catch (err) {
+      setStatus({ kind: "err", msg: err.message || "Could not change password." });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="bg-white border border-border-subtle rounded-xl p-6">
+      <h3 className="font-card-title text-card-title mb-1">My account</h3>
+      <p className="text-[11px] text-on-surface-variant mb-4">Change the password for your admin account.</p>
+
+      <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">Current password</label>
+      <input
+        type="password" autoComplete="current-password"
+        value={current} onChange={e => setCurrent(e.target.value)}
+        className="w-full mb-3 px-3 py-2 border border-border-subtle rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+        required
+      />
+
+      <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">New password</label>
+      <input
+        type="password" autoComplete="new-password"
+        value={next} onChange={e => setNext(e.target.value)}
+        className="w-full mb-3 px-3 py-2 border border-border-subtle rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+        required minLength={6}
+      />
+
+      <label className="block text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">Confirm new password</label>
+      <input
+        type="password" autoComplete="new-password"
+        value={confirm} onChange={e => setConfirm(e.target.value)}
+        className="w-full mb-4 px-3 py-2 border border-border-subtle rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+        required minLength={6}
+      />
+
+      {status && (
+        <p className={`text-xs mb-3 ${status.kind === "ok" ? "text-green-700" : "text-error"}`}>
+          {status.msg}
+        </p>
+      )}
+
+      <button
+        type="submit" disabled={busy}
+        className="w-full bg-primary text-on-primary text-xs font-bold py-2.5 rounded-lg hover:opacity-90 disabled:opacity-50"
+      >
+        {busy ? "Updating…" : "Change password"}
+      </button>
+    </form>
+  );
+}
+
+function AdminOverviewPage() {
+  const [stats, setStats] = useStateAdmin(null);
+  const [activity, setActivity] = useStateAdmin([]);
+  const [loading, setLoading] = useStateAdmin(true);
+  const [error, setError] = useStateAdmin("");
+
+  useEffectAdmin(() => {
+    let active = true;
+    (async () => {
+      try {
+        const [s, a] = await Promise.all([
+          apiRequest("/admin/stats"),
+          apiRequest("/admin/activity?limit=8"),
+        ]);
+        if (!active) return;
+        setStats(s);
+        setActivity(Array.isArray(a) ? a : []);
+      } catch (err) {
+        if (active) setError(err.message || "Could not load admin data");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const cards = stats ? [
+    { label: "Total Users", value: stats.users.total, sub: `${stats.users.verified} verified · ${stats.users.admins} admin`, icon: "group" },
+    { label: "Documents", value: stats.documents.total, sub: `${stats.documents.with_extracted_text} ready for AI`, icon: "description" },
+    { label: "AI Messages (24h)", value: stats.chats.messages_24h, sub: `${stats.chats.sessions} sessions all-time`, icon: "smart_toy" },
+    { label: "Workspaces", value: stats.workspaces.total, sub: `${stats.users.new_24h} new users today`, icon: "workspaces" },
+  ] : [];
 
   return (
     <AdminShell active="overview" breadcrumbs={[{ label: "Admin" }, { label: "Overview" }]}>
       <h1 className="font-section-heading text-section-heading text-primary mb-2">System Overview</h1>
-      <p className="text-on-surface-variant mb-8">Real-time platform health and usage metrics.</p>
+      <p className="text-on-surface-variant mb-8">Live platform metrics, served from the Supabase database.</p>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {stats.map((s, i) => (
-          <div key={i} className="bg-white border border-border-subtle p-5 rounded-xl">
-            <div className="flex items-center justify-between mb-3">
-              <Icon name={s.icon} className="text-on-surface-variant" />
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${s.up ? "bg-green-50 text-green-700" : "bg-error-container text-error"}`}>{s.delta}</span>
-            </div>
-            <p className="text-2xl font-bold text-primary">{s.value}</p>
-            <p className="text-[11px] text-on-surface-variant mt-1">{s.label}</p>
-          </div>
-        ))}
-      </div>
+      {loading && <p className="text-sm text-on-surface-variant">Loading…</p>}
+      {error && <p className="text-sm text-error mb-4">Error: {error}</p>}
 
-      <div className="grid grid-cols-12 gap-6">
-        <div className="col-span-12 lg:col-span-8 bg-white border border-border-subtle rounded-xl p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="font-card-title text-card-title">AI Query Volume</h3>
-              <p className="text-[11px] text-on-surface-variant">Last 14 days</p>
-            </div>
-            <div className="flex bg-surface-container p-1 rounded-md text-xs">
-              {["24h", "7d", "14d", "30d"].map(r => (
-                <button key={r} className={`px-2.5 py-1 rounded ${r === "14d" ? "bg-white shadow-sm font-bold text-primary" : "text-on-surface-variant"}`}>{r}</button>
-              ))}
-            </div>
-          </div>
-          <div className="h-48 flex items-end gap-2">
-            {sample.map((v, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-2">
-                <div className="w-full bg-primary/80 rounded-t hover:bg-primary transition-colors" style={{ height: `${(v / max) * 100}%` }}></div>
-                <span className="text-[9px] text-on-surface-variant">D{i+1}</span>
+      {stats && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {cards.map((s, i) => (
+            <div key={i} className="bg-white border border-border-subtle p-5 rounded-xl">
+              <div className="flex items-center justify-between mb-3">
+                <Icon name={s.icon} className="text-on-surface-variant" />
               </div>
-            ))}
+              <p className="text-2xl font-bold text-primary">{s.value.toLocaleString()}</p>
+              <p className="text-[11px] text-on-surface-variant mt-1">{s.label}</p>
+              <p className="text-[10px] text-on-surface-variant mt-0.5 opacity-70">{s.sub}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Charts row */}
+      {stats?.timeseries && (
+        <div className="grid grid-cols-12 gap-6 mb-6">
+          <div className="col-span-12 lg:col-span-4 bg-white border border-border-subtle rounded-xl p-6">
+            <h3 className="font-card-title text-card-title mb-1">Signups · last 14 days</h3>
+            <p className="text-[11px] text-on-surface-variant mb-4">New accounts per day</p>
+            <BarChart series={stats.timeseries.signups} color="#16a34a" />
+          </div>
+          <div className="col-span-12 lg:col-span-4 bg-white border border-border-subtle rounded-xl p-6">
+            <h3 className="font-card-title text-card-title mb-1">AI messages · last 14 days</h3>
+            <p className="text-[11px] text-on-surface-variant mb-4">Chat usage per day</p>
+            <BarChart series={stats.timeseries.messages} color="#7c3aed" />
+          </div>
+          <div className="col-span-12 lg:col-span-4 bg-white border border-border-subtle rounded-xl p-6">
+            <h3 className="font-card-title text-card-title mb-1">Plan distribution</h3>
+            <p className="text-[11px] text-on-surface-variant mb-4">Active subscriptions by tier</p>
+            <PlanBar distribution={stats.plan_distribution} />
           </div>
         </div>
+      )}
 
-        <div className="col-span-12 lg:col-span-4 bg-white border border-border-subtle rounded-xl p-6">
-          <h3 className="font-card-title text-card-title mb-1">Recent Incidents</h3>
-          <p className="text-[11px] text-on-surface-variant mb-5">All systems operational.</p>
-          <div className="space-y-4">
-            {[
-              { color: "bg-green-500", title: "Embedding pipeline restored", time: "2h ago", desc: "us-west-2 backlog cleared." },
-              { color: "bg-yellow-500", title: "Elevated API latency", time: "Yesterday", desc: "p95 spiked to 2.4s for 14 min." },
-              { color: "bg-green-500", title: "Scheduled maintenance complete", time: "3d ago", desc: "Vector DB reindex finished." },
-            ].map((it, i) => (
-              <div key={i} className="flex gap-3">
-                <span className={`w-2 h-2 rounded-full ${it.color} mt-1.5 flex-shrink-0`}></span>
-                <div className="flex-1">
+      <div className="grid grid-cols-12 gap-6">
+        <div className="col-span-12 lg:col-span-4">
+          <ChangePasswordCard />
+        </div>
+        <div className="col-span-12 lg:col-span-8 bg-white border border-border-subtle rounded-xl p-6">
+          <h3 className="font-card-title text-card-title mb-1">Recent activity</h3>
+          <p className="text-[11px] text-on-surface-variant mb-5">Last platform-wide events. Newest first.</p>
+          {activity.length === 0 && !loading && (
+            <p className="text-xs text-on-surface-variant">No activity yet.</p>
+          )}
+          <div className="space-y-3">
+            {activity.map((ev, i) => (
+              <div key={i} className="flex gap-3 items-start">
+                <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-[12px] flex-shrink-0
+                  ${ev.kind === "signup" ? "bg-green-50 text-green-700"
+                    : ev.kind === "upload" ? "bg-blue-50 text-blue-700"
+                    : "bg-purple-50 text-purple-700"}`}>
+                  <Icon name={ev.kind === "signup" ? "person_add" : ev.kind === "upload" ? "upload_file" : "forum"} size={14} />
+                </span>
+                <div className="flex-1 min-w-0">
                   <div className="flex items-baseline justify-between gap-2">
-                    <p className="text-xs font-bold">{it.title}</p>
-                    <span className="text-[10px] text-on-surface-variant whitespace-nowrap">{it.time}</span>
+                    <p className="text-sm"><span className="font-bold">{ev.actor}</span> {ev.summary}</p>
+                    <span className="text-[10px] text-on-surface-variant whitespace-nowrap">{formatRelativeTimeAdmin(ev.timestamp)}</span>
                   </div>
-                  <p className="text-[11px] text-on-surface-variant">{it.desc}</p>
                 </div>
               </div>
             ))}
           </div>
-        </div>
-
-        <div className="col-span-12 bg-white border border-border-subtle rounded-xl p-6">
-          <h3 className="font-card-title text-card-title mb-1">Top Workspaces (by query volume)</h3>
-          <table className="w-full mt-4">
-            <thead>
-              <tr className="border-b border-border-subtle text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
-                <th className="text-left py-2">Workspace</th>
-                <th className="text-left py-2">Org</th>
-                <th className="text-right py-2">Queries (24h)</th>
-                <th className="text-right py-2">Docs</th>
-                <th className="text-right py-2">Members</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {[
-                ["Genomics Lab", "Stanford", "8,402", "1,247", "23"],
-                ["Climate Modeling", "MIT", "6,128", "892", "18"],
-                ["HCI Research", "CMU", "4,901", "624", "12"],
-                ["Trust & Safety", "OpenAI", "3,872", "418", "8"],
-              ].map((row, i) => (
-                <tr key={i} className="hover:bg-surface-container-low">
-                  {row.map((c, j) => <td key={j} className={`py-3 text-sm ${j >= 2 ? "text-right tabular-nums" : ""} ${j === 0 ? "font-bold" : "text-on-surface-variant"}`}>{c}</td>)}
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </div>
     </AdminShell>
   );
 }
 
+// Daily bar chart for a `[{date, count}, ...]` timeseries.
+// Uses real HTML/CSS layout (not a stretched SVG) so the bars stay a sensible
+// thickness regardless of card width, and so we can put value labels above
+// each bar. Zero-days render as a thin grey baseline so the eye still groups
+// them with the rest of the series instead of looking like "missing data".
+function BarChart({ series, color }) {
+  const safe = Array.isArray(series) ? series : [];
+  const total = safe.reduce((a, p) => a + (p.count || 0), 0);
+  const max = Math.max(1, ...safe.map(p => p.count || 0));
+
+  return (
+    <div>
+      <div className="relative h-36 flex items-end gap-[3px] pb-5">
+        {/* baseline */}
+        <div className="absolute left-0 right-0 bottom-5 h-px bg-border-subtle" />
+        {safe.map((p, i) => {
+          const heightPct = p.count === 0 ? 0 : Math.max(6, (p.count / max) * 100);
+          const dayLabel  = p.date.slice(8);   // DD
+          const monthDay  = p.date.slice(5);   // MM-DD
+          const showXLabel = i === 0 || i === safe.length - 1 || i === Math.floor(safe.length / 2);
+          return (
+            <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group relative" title={`${p.date}: ${p.count}`}>
+              {/* value label above the bar (only when non-zero, so it doesn't clutter) */}
+              {p.count > 0 && (
+                <span className="text-[9px] font-bold text-on-surface mb-0.5 tabular-nums">{p.count}</span>
+              )}
+              {/* the bar */}
+              <div
+                className="w-full rounded-t transition-all"
+                style={{
+                  height: `${heightPct}%`,
+                  backgroundColor: p.count === 0 ? "transparent" : color,
+                  minHeight: p.count === 0 ? 1 : 4,
+                  border: p.count === 0 ? "1px dashed #e5e7eb" : "none",
+                  borderBottomLeftRadius: 0,
+                  borderBottomRightRadius: 0,
+                }}
+              />
+              {/* date axis tick (only some show to avoid label collision) */}
+              <span className={`absolute -bottom-0.5 text-[9px] tabular-nums ${showXLabel ? "text-on-surface-variant" : "text-transparent"}`}>
+                {dayLabel}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center justify-between text-[10px] text-on-surface-variant mt-2 px-0.5">
+        <span>{safe.length > 0 ? safe[0].date : ""}</span>
+        <span className="font-bold tabular-nums">{total} total · peak {max}</span>
+        <span>{safe.length > 0 ? safe[safe.length - 1].date : ""}</span>
+      </div>
+    </div>
+  );
+}
+
+// Plan distribution as a single horizontal stacked bar with a legend below.
+// Shows percentages alongside raw counts so the admin can read at a glance.
+function PlanBar({ distribution }) {
+  const dist = distribution || {};
+  const total = Object.values(dist).reduce((a, b) => a + (b || 0), 0);
+  const segments = [
+    { key: "Free", color: "#9ca3af" },
+    { key: "Plus", color: "#3b82f6" },
+    { key: "Pro",  color: "#15130f" },
+  ];
+  const denom = total || 1;
+  return (
+    <div>
+      <div className="w-full h-4 rounded-full overflow-hidden bg-surface-container-high flex shadow-inner">
+        {segments.map(s => {
+          const n = dist[s.key] || 0;
+          const pct = (n / denom) * 100;
+          if (pct <= 0) return null;
+          return (
+            <div
+              key={s.key}
+              style={{ width: `${pct}%`, background: s.color }}
+              title={`${s.key}: ${n} (${pct.toFixed(0)}%)`}
+            />
+          );
+        })}
+      </div>
+      <div className="mt-4 space-y-2">
+        {segments.map(s => {
+          const n = dist[s.key] || 0;
+          const pct = total > 0 ? (n / total) * 100 : 0;
+          return (
+            <div key={s.key} className="flex items-center justify-between text-xs">
+              <span className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-sm" style={{ background: s.color }} />
+                <span className="font-bold">{s.key}</span>
+                <span className="text-on-surface-variant">{pct.toFixed(0)}%</span>
+              </span>
+              <span className="tabular-nums font-bold text-on-surface">{n}</span>
+            </div>
+          );
+        })}
+        <div className="pt-2 border-t border-border-subtle flex items-center justify-between text-[11px] text-on-surface-variant">
+          <span>Total users</span>
+          <span className="tabular-nums font-bold">{total}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // =================== ADMIN USERS ===================
 function AdminUsersPage() {
-  const users = [
-    { name: "Anna Petrova", email: "anna@stanford.edu", plan: "Lab", role: "Admin", status: "Active", last: "2m ago" },
-    { name: "John Carter", email: "john@mit.edu", plan: "Pro", role: "User", status: "Active", last: "1h ago" },
-    { name: "Mira Cohen", email: "mira@cmu.edu", plan: "Pro", role: "User", status: "Active", last: "4h ago" },
-    { name: "Liam O'Connor", email: "liam@gmail.com", plan: "Free", role: "User", status: "Suspended", last: "2d ago" },
-    { name: "Yuki Tanaka", email: "y.tanaka@u-tokyo.ac.jp", plan: "Lab", role: "User", status: "Active", last: "12m ago" },
-    { name: "Sara Khan", email: "sara@oxford.edu", plan: "Pro", role: "User", status: "Active", last: "30m ago" },
-    { name: "Daniel Reyes", email: "d.reyes@example.com", plan: "Free", role: "User", status: "Pending", last: "—" },
-  ];
+  const [users, setUsers] = useStateAdmin([]);
+  const [loading, setLoading] = useStateAdmin(true);
+  const [error, setError] = useStateAdmin("");
   const [q, setQ] = useStateAdmin("");
-  const filtered = users.filter(u => u.name.toLowerCase().includes(q.toLowerCase()) || u.email.toLowerCase().includes(q.toLowerCase()));
+  const [planFilter, setPlanFilter] = useStateAdmin("all"); // all | Free | Plus | Pro
+  const [verifiedFilter, setVerifiedFilter] = useStateAdmin("all"); // all | verified | unverified
+
+  useEffectAdmin(() => {
+    let active = true;
+    (async () => {
+      try {
+        const data = await apiRequest("/admin/users?limit=500");
+        if (active) setUsers(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if (active) setError(err.message || "Could not load users");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const changePlan = async (u, nextPlan) => {
+    if (!nextPlan || nextPlan === u.plan) return;
+    try {
+      const result = await apiRequest(`/admin/users/${u.user_id}/plan`, {
+        method: "PATCH",
+        body: JSON.stringify({ plan: nextPlan }),
+      });
+      setUsers(prev => prev.map(x => x.user_id === u.user_id ? { ...x, plan: result.plan } : x));
+    } catch (err) {
+      window.alert(err.message || "Could not change plan");
+    }
+  };
+
+  const filtered = users.filter(u => {
+    if (q) {
+      const needle = q.toLowerCase();
+      const hay = `${u.name || ""} ${u.email || ""}`.toLowerCase();
+      if (!hay.includes(needle)) return false;
+    }
+    if (planFilter !== "all") {
+      const plan = u.plan || "Free";
+      if (plan !== planFilter) return false;
+    }
+    if (verifiedFilter === "verified" && !u.email_verified) return false;
+    if (verifiedFilter === "unverified" && u.email_verified) return false;
+    return true;
+  });
 
   return (
     <AdminShell active="users" breadcrumbs={[{ label: "Admin", to: "/admin" }, { label: "Users" }]}>
       <div className="flex justify-between items-end mb-8">
         <div>
           <h1 className="font-section-heading text-section-heading text-primary mb-2">Users</h1>
-          <p className="text-on-surface-variant">12,847 total · 248 new this week</p>
-        </div>
-        <div className="flex gap-2">
-          <button className="px-4 py-2 rounded-lg border border-border-subtle text-xs font-bold hover:bg-surface-container-low flex items-center gap-2">
-            <Icon name="download" size={16} /> Export CSV
-          </button>
-          <button className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-bold flex items-center gap-2">
-            <Icon name="person_add" size={16} /> Invite User
-          </button>
+          <p className="text-on-surface-variant">
+            {loading ? "Loading…"
+              : `${users.length} registered · ${users.filter(u => u.plan === "Pro").length} Pro · ${users.filter(u => u.plan === "Plus").length} Plus · ${users.filter(u => u.plan === "Free" || !u.plan).length} Free`}
+          </p>
         </div>
       </div>
 
+      {error && <p className="text-sm text-error mb-4">Error: {error}</p>}
+
       <div className="bg-white border border-border-subtle rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-border-subtle flex items-center gap-3">
-          <div className="flex-1 flex items-center gap-2 bg-surface-container-lowest border border-border-subtle rounded-lg px-3 py-2">
+        <div className="px-4 py-3 border-b border-border-subtle flex items-center gap-3 flex-wrap">
+          <div className="flex-1 min-w-[200px] flex items-center gap-2 bg-surface-container-lowest border border-border-subtle rounded-lg px-3 py-2">
             <Icon name="search" size={18} className="text-on-surface-variant" />
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search by name or email..." className="flex-1 bg-transparent outline-none text-sm" />
           </div>
-          <select className="px-3 py-2 border border-border-subtle rounded-lg text-xs bg-white"><option>All plans</option><option>Free</option><option>Pro</option><option>Lab</option></select>
-          <select className="px-3 py-2 border border-border-subtle rounded-lg text-xs bg-white"><option>All statuses</option><option>Active</option><option>Suspended</option><option>Pending</option></select>
+          <select
+            value={planFilter}
+            onChange={e => setPlanFilter(e.target.value)}
+            className="text-xs font-bold px-3 py-2 border border-border-subtle rounded-lg bg-white cursor-pointer"
+            title="Filter by plan"
+          >
+            <option value="all">All plans</option>
+            <option value="Free">Free</option>
+            <option value="Plus">Plus</option>
+            <option value="Pro">Pro</option>
+          </select>
+          <select
+            value={verifiedFilter}
+            onChange={e => setVerifiedFilter(e.target.value)}
+            className="text-xs font-bold px-3 py-2 border border-border-subtle rounded-lg bg-white cursor-pointer"
+            title="Filter by verification"
+          >
+            <option value="all">All users</option>
+            <option value="verified">Verified</option>
+            <option value="unverified">Unverified</option>
+          </select>
         </div>
         <table className="w-full">
           <thead>
             <tr className="border-b border-border-subtle bg-surface-container-lowest">
-              <th className="px-4 py-3 text-left"><input type="checkbox" /></th>
               <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">User</th>
-              <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Plan</th>
-              <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Role</th>
-              <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Status</th>
-              <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Last seen</th>
-              <th className="px-4 py-3 w-12"></th>
+              <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Affiliation</th>
+              <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Docs</th>
+              <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Chats</th>
+              <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Verified</th>
+              <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Last active</th>
+              <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Joined</th>
+              <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Plan</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle">
-            {filtered.map((u, i) => (
-              <tr key={i} className="hover:bg-surface-container-low group">
-                <td className="px-4 py-3"><input type="checkbox" /></td>
+            {filtered.map((u) => (
+              <tr key={u.user_id} className="hover:bg-surface-container-low group">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-[10px] font-bold">{u.name.split(" ").map(n=>n[0]).join("")}</div>
+                    <div className="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-[10px] font-bold">
+                      {(u.name || "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                    </div>
                     <div>
-                      <p className="text-sm font-bold">{u.name}</p>
+                      <p className="text-sm font-bold">{u.name || "(no name)"}</p>
                       <p className="text-[11px] text-on-surface-variant">{u.email}</p>
                     </div>
                   </div>
                 </td>
-                <td className="px-4 py-3"><span className={`text-[10px] font-bold px-2 py-0.5 rounded ${u.plan === "Lab" ? "bg-primary text-white" : u.plan === "Pro" ? "bg-secondary-container text-on-secondary-container" : "bg-surface-container-high"}`}>{u.plan}</span></td>
-                <td className="px-4 py-3 text-sm">{u.role}</td>
+                <td className="px-4 py-3 text-xs text-on-surface-variant">{u.affiliation || "—"}</td>
+                <td className="px-4 py-3 text-sm text-right tabular-nums">{u.doc_count}</td>
+                <td className="px-4 py-3 text-sm text-right tabular-nums">{u.chat_count}</td>
                 <td className="px-4 py-3">
-                  <span className={`inline-flex items-center gap-1.5 text-xs ${u.status === "Active" ? "text-green-700" : u.status === "Suspended" ? "text-error" : "text-on-surface-variant"}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${u.status === "Active" ? "bg-green-500" : u.status === "Suspended" ? "bg-error" : "bg-yellow-500"}`}></span>
-                    {u.status}
-                  </span>
+                  {u.email_verified
+                    ? <span className="inline-flex items-center gap-1.5 text-xs text-green-700"><span className="w-1.5 h-1.5 rounded-full bg-green-500" />Yes</span>
+                    : <span className="inline-flex items-center gap-1.5 text-xs text-on-surface-variant"><span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />No</span>}
                 </td>
-                <td className="px-4 py-3 text-sm text-on-surface-variant">{u.last}</td>
-                <td className="px-4 py-3 text-right"><button className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-primary"><Icon name="more_horiz" size={18} /></button></td>
+                <td className="px-4 py-3 text-xs text-on-surface-variant">
+                  {u.last_active ? formatRelativeTimeAdmin(u.last_active) : <span className="text-on-surface-variant/50">never</span>}
+                </td>
+                <td className="px-4 py-3 text-xs text-on-surface-variant">{u.created_at ? formatRelativeTimeAdmin(u.created_at) : "—"}</td>
+                <td className="px-4 py-3 text-right">
+                  {u.is_admin ? (
+                    // The platform admin is a fixed role — not a tier and
+                    // not changeable from this list. Just label it.
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-primary text-white inline-flex items-center gap-1">
+                      <Icon name="shield" size={12} /> Admin
+                    </span>
+                  ) : (
+                    <select
+                      value={u.plan || "Free"}
+                      onChange={e => changePlan(u, e.target.value)}
+                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded border cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary
+                        ${u.plan === "Pro" ? "bg-primary text-white border-primary"
+                          : u.plan === "Plus" ? "bg-secondary-container text-on-secondary-container border-secondary-container"
+                          : "bg-surface-container-high text-on-surface border-border-subtle"}`}
+                    >
+                      <option value="Free">Free</option>
+                      <option value="Plus">Plus</option>
+                      <option value="Pro">Pro</option>
+                    </select>
+                  )}
+                </td>
               </tr>
             ))}
+            {!loading && filtered.length === 0 && (
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-on-surface-variant">No users match the search.</td></tr>
+            )}
           </tbody>
         </table>
         <div className="px-4 py-3 border-t border-border-subtle flex items-center justify-between text-xs">
-          <span className="text-on-surface-variant">Showing 1–{filtered.length} of 12,847</span>
-          <div className="flex gap-1">
-            <button className="px-2 py-1 border border-border-subtle rounded hover:bg-surface-container-low" disabled><Icon name="chevron_left" size={14} /></button>
-            <button className="px-2 py-1 border border-border-subtle rounded hover:bg-surface-container-low"><Icon name="chevron_right" size={14} /></button>
-          </div>
+          <span className="text-on-surface-variant">Showing {filtered.length} of {users.length}</span>
         </div>
       </div>
     </AdminShell>
@@ -275,6 +554,7 @@ function AdminModelsPage() {
         <div>
           <h1 className="font-section-heading text-section-heading text-primary mb-2">AI Models</h1>
           <p className="text-on-surface-variant">Configure routing, fallback chains, and rate limits.</p>
+          <p className="text-[11px] text-on-surface-variant mt-2 px-2 py-1 inline-block bg-yellow-50 border border-yellow-200 rounded">Demo view — real model chain lives in <code>backend/.env</code> (<code>OPENROUTER_MODEL</code> + <code>OPENROUTER_FALLBACK_MODELS</code>).</p>
         </div>
         <button className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-bold flex items-center gap-2"><Icon name="add" size={16} /> Add Model</button>
       </div>
@@ -331,8 +611,8 @@ function AdminFlagsPage() {
         <div>
           <h1 className="font-section-heading text-section-heading text-primary mb-2">Feature Flags</h1>
           <p className="text-on-surface-variant">Control feature rollouts across users, plans, and regions.</p>
+          <p className="text-[11px] text-on-surface-variant mt-2 px-2 py-1 inline-block bg-yellow-50 border border-yellow-200 rounded">Demo view — there is no feature-flag system wired into the backend yet.</p>
         </div>
-        <button className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-bold flex items-center gap-2"><Icon name="add" size={16} /> New Flag</button>
       </div>
       <div className="bg-white border border-border-subtle rounded-xl divide-y divide-border-subtle">
         {flags.map((f, i) => (
@@ -361,43 +641,104 @@ function AdminFlagsPage() {
 
 // =================== ADMIN LOGS ===================
 function AdminLogsPage() {
-  const logs = [
-    { time: "10:42:18", actor: "anna@stanford.edu", action: "feature_flag.update", target: "agent-mentions", meta: "rollout: 25% → 35%", level: "info" },
-    { time: "10:38:02", actor: "system", action: "model.canary_promote", target: "paper-trail-exp-v5", meta: "0.1% → 0.5%", level: "info" },
-    { time: "10:31:55", actor: "mustafa@example.com", action: "user.suspend", target: "liam@gmail.com", meta: "reason: ToS violation", level: "warn" },
-    { time: "10:24:11", actor: "system", action: "billing.invoice_failed", target: "lab_org_412", meta: "stripe_err: card_declined", level: "error" },
-    { time: "10:18:47", actor: "anna@stanford.edu", action: "user.role_grant", target: "john@mit.edu", meta: "role: workspace_admin", level: "info" },
-    { time: "10:12:09", actor: "system", action: "embedding.batch_complete", target: "doc_batch_8821", meta: "1,247 docs · 4.2 GB", level: "info" },
-    { time: "10:04:22", actor: "system", action: "rate_limit.tripped", target: "anon_ip_47.92.x.x", meta: "204 req/min on /api/chat", level: "warn" },
-  ];
+  const [events, setEvents] = useStateAdmin([]);
+  const [loading, setLoading] = useStateAdmin(true);
+  const [error, setError] = useStateAdmin("");
+  const [kindFilter, setKindFilter] = useStateAdmin("all"); // all | signup | upload | chat
+  const [actorQ, setActorQ] = useStateAdmin("");
+
+  useEffectAdmin(() => {
+    let active = true;
+    (async () => {
+      try {
+        const data = await apiRequest("/admin/activity?limit=400");
+        if (active) setEvents(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if (active) setError(err.message || "Could not load activity");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const colorFor = (kind) => kind === "signup" ? "text-green-400" : kind === "upload" ? "text-blue-300" : "text-purple-300";
+
+  const filtered = events.filter(ev => {
+    if (kindFilter !== "all" && ev.kind !== kindFilter) return false;
+    if (actorQ && !(ev.actor || "").toLowerCase().includes(actorQ.toLowerCase())) return false;
+    return true;
+  });
+
+  // Counts per kind for the filter chips so the admin can see distribution at a glance.
+  const counts = events.reduce((acc, ev) => {
+    acc[ev.kind] = (acc[ev.kind] || 0) + 1;
+    return acc;
+  }, {});
+
   return (
-    <AdminShell active="logs" breadcrumbs={[{ label: "Admin", to: "/admin" }, { label: "Audit Logs" }]}>
-      <div className="flex justify-between items-end mb-8">
+    <AdminShell active="logs" breadcrumbs={[{ label: "Admin", to: "/admin" }, { label: "Activity" }]}>
+      <div className="flex justify-between items-end mb-6">
         <div>
-          <h1 className="font-section-heading text-section-heading text-primary mb-2">Audit Logs</h1>
-          <p className="text-on-surface-variant">Immutable record of admin actions and system events.</p>
-        </div>
-        <div className="flex gap-2">
-          <select className="px-3 py-2 border border-border-subtle rounded-lg text-xs bg-white"><option>Last 1 hour</option><option>Last 24 hours</option><option>Last 7 days</option></select>
-          <button className="px-4 py-2 rounded-lg border border-border-subtle text-xs font-bold hover:bg-surface-container-low flex items-center gap-2"><Icon name="download" size={16} /> Export</button>
+          <h1 className="font-section-heading text-section-heading text-primary mb-2">Activity</h1>
+          <p className="text-on-surface-variant">Signups, document uploads, and chat sessions across the platform.</p>
         </div>
       </div>
+
+      {/* Filter row */}
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        {[
+          { id: "all",    label: "All",     n: events.length },
+          { id: "signup", label: "Signups", n: counts.signup || 0 },
+          { id: "upload", label: "Uploads", n: counts.upload || 0 },
+          { id: "chat",   label: "Chats",   n: counts.chat   || 0 },
+        ].map(f => (
+          <button
+            key={f.id}
+            onClick={() => setKindFilter(f.id)}
+            className={`text-xs font-bold px-3 py-1.5 rounded-full border transition-colors flex items-center gap-2 ${
+              kindFilter === f.id
+                ? "bg-primary text-white border-primary"
+                : "bg-white border-border-subtle text-on-surface hover:bg-surface-container-low"
+            }`}
+          >
+            {f.label}
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${kindFilter === f.id ? "bg-white/20" : "bg-surface-container-high text-on-surface-variant"}`}>{f.n}</span>
+          </button>
+        ))}
+        <div className="flex-1 min-w-[200px] flex items-center gap-2 bg-white border border-border-subtle rounded-lg px-3 py-1.5">
+          <Icon name="search" size={16} className="text-on-surface-variant" />
+          <input
+            value={actorQ}
+            onChange={e => setActorQ(e.target.value)}
+            placeholder="Filter by actor email…"
+            className="flex-1 bg-transparent outline-none text-xs"
+          />
+        </div>
+      </div>
+
+      {error && <p className="text-sm text-error mb-4">Error: {error}</p>}
       <div className="bg-[#0d0d0e] text-white rounded-xl border border-border-subtle overflow-hidden">
         <div className="px-4 py-2 border-b border-white/10 bg-white/5 flex items-center gap-3 text-[10px] font-mono uppercase tracking-wider text-white/50">
-          <span className="w-20">TIME</span>
-          <span className="w-48">ACTOR</span>
-          <span className="w-44">ACTION</span>
-          <span className="flex-1">DETAILS</span>
+          <span className="w-32">TIME</span>
+          <span className="w-20">KIND</span>
+          <span className="w-56">ACTOR</span>
+          <span className="flex-1">SUMMARY</span>
         </div>
-        <div className="divide-y divide-white/5">
-          {logs.map((l, i) => (
+        <div className="divide-y divide-white/5 max-h-[70vh] overflow-y-auto">
+          {filtered.map((ev, i) => (
             <div key={i} className="px-4 py-2.5 flex items-start gap-3 text-xs font-mono hover:bg-white/5">
-              <span className="w-20 text-white/40">{l.time}</span>
-              <span className="w-48 text-white/70 truncate">{l.actor}</span>
-              <span className={`w-44 truncate ${l.level === "error" ? "text-red-400" : l.level === "warn" ? "text-yellow-400" : "text-blue-300"}`}>{l.action}</span>
-              <span className="flex-1 text-white/60"><span className="text-white">{l.target}</span> · {l.meta}</span>
+              <span className="w-32 text-white/40">{ev.timestamp ? new Date(ev.timestamp).toLocaleString() : "—"}</span>
+              <span className={`w-20 ${colorFor(ev.kind)}`}>{ev.kind}</span>
+              <span className="w-56 text-white/70 truncate">{ev.actor}</span>
+              <span className="flex-1 text-white/60">{ev.summary}</span>
             </div>
           ))}
+          {!loading && filtered.length === 0 && (
+            <div className="px-4 py-8 text-center text-xs text-white/40">
+              {events.length === 0 ? "No activity yet." : "No events match the current filter."}
+            </div>
+          )}
         </div>
       </div>
     </AdminShell>
@@ -406,68 +747,55 @@ function AdminLogsPage() {
 
 // =================== ADMIN HEALTH ===================
 function AdminHealthPage() {
-  const services = [
-    { name: "API Gateway", status: "Operational", uptime: "99.98%", latency: "42ms" },
-    { name: "Inference Service", status: "Operational", uptime: "99.95%", latency: "1.4s" },
-    { name: "Vector Database", status: "Operational", uptime: "99.99%", latency: "18ms" },
-    { name: "Embedding Pipeline", status: "Degraded", uptime: "98.71%", latency: "4.2s" },
-    { name: "Document Storage (S3)", status: "Operational", uptime: "100.00%", latency: "55ms" },
-    { name: "Auth Service", status: "Operational", uptime: "99.97%", latency: "78ms" },
-  ];
-  const colorFor = (s) => s === "Operational" ? "bg-green-500" : s === "Degraded" ? "bg-yellow-500" : "bg-error";
-  const textFor = (s) => s === "Operational" ? "text-green-700" : s === "Degraded" ? "text-yellow-700" : "text-error";
+  const [checks, setChecks] = useStateAdmin([]);
+  const [loading, setLoading] = useStateAdmin(true);
+  const [error, setError] = useStateAdmin("");
+
+  const refresh = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await apiRequest("/admin/health");
+      setChecks(Array.isArray(data?.checks) ? data.checks : []);
+    } catch (err) {
+      setError(err.message || "Health check failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffectAdmin(() => { refresh(); }, []);
+
+  const statusColor = (s) => s === "ok" ? "bg-green-500" : s === "degraded" ? "bg-yellow-500" : "bg-error";
+  const statusText  = (s) => s === "ok" ? "text-green-700" : s === "degraded" ? "text-yellow-700" : "text-error";
 
   return (
     <AdminShell active="health" breadcrumbs={[{ label: "Admin", to: "/admin" }, { label: "System Health" }]}>
       <div className="flex justify-between items-end mb-8">
         <div>
           <h1 className="font-section-heading text-section-heading text-primary mb-2">System Health</h1>
-          <p className="text-on-surface-variant">All services across us-east-1, eu-west-1, and ap-northeast-1.</p>
+          <p className="text-on-surface-variant">Live checks against the database, storage, and AI provider.</p>
         </div>
-        <span className="flex items-center gap-2 text-sm font-bold text-yellow-700"><span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span> 1 service degraded</span>
+        <button onClick={refresh} disabled={loading} className="px-3 py-2 rounded-lg border border-border-subtle text-xs font-bold hover:bg-surface-container-low flex items-center gap-2 disabled:opacity-50">
+          <Icon name="refresh" size={16} /> {loading ? "Checking…" : "Refresh"}
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        {services.map((s, i) => (
+      {error && <p className="text-sm text-error mb-4">Error: {error}</p>}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {checks.map((c, i) => (
           <div key={i} className="bg-white border border-border-subtle rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
-                <span className={`w-2.5 h-2.5 rounded-full ${colorFor(s.status)}`}></span>
-                <p className="font-bold">{s.name}</p>
+                <span className={`w-2.5 h-2.5 rounded-full ${statusColor(c.status)}`}></span>
+                <p className="font-bold">{c.name}</p>
               </div>
-              <span className={`text-xs font-bold ${textFor(s.status)}`}>{s.status}</span>
+              <span className={`text-xs font-bold uppercase ${statusText(c.status)}`}>{c.status}</span>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><p className="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider">Uptime (30d)</p><p className="text-lg font-bold tabular-nums">{s.uptime}</p></div>
-              <div><p className="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider">p95 latency</p><p className="text-lg font-bold tabular-nums">{s.latency}</p></div>
-            </div>
-            {/* mini bars */}
-            <div className="mt-4 flex gap-px h-6">
-              {Array.from({ length: 30 }).map((_, j) => {
-                const isBad = s.status === "Degraded" && (j === 22 || j === 23);
-                return <div key={j} className={`flex-1 rounded-sm ${isBad ? "bg-yellow-500" : "bg-green-500/80"}`}></div>;
-              })}
-            </div>
-            <p className="text-[10px] text-on-surface-variant mt-1">30-day uptime</p>
+            <p className="text-sm text-on-surface-variant">{c.detail}</p>
           </div>
         ))}
-      </div>
-
-      <div className="bg-white border border-border-subtle rounded-xl p-6">
-        <h3 className="font-card-title text-card-title mb-4">Active Alerts</h3>
-        <div className="p-4 border border-yellow-200 bg-yellow-50 rounded-lg">
-          <div className="flex items-start gap-3">
-            <Icon name="warning" filled className="text-yellow-600 mt-0.5" />
-            <div>
-              <p className="text-sm font-bold">Embedding pipeline backlog</p>
-              <p className="text-xs text-yellow-800 mt-0.5">Queue depth: 14,228 jobs · Estimated drain time: 22 min</p>
-              <div className="flex gap-2 mt-3">
-                <button className="px-3 py-1.5 rounded-lg bg-yellow-600 text-white text-xs font-bold">Scale workers</button>
-                <button className="px-3 py-1.5 rounded-lg border border-yellow-600 text-yellow-800 text-xs font-bold">Acknowledge</button>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </AdminShell>
   );

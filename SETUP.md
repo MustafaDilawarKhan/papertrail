@@ -69,6 +69,50 @@ After installing or updating dependencies, run the DB migration to add the
 ```bash
 python alter_db.py
 ```
+
+### Admin access
+
+The admin dashboard (`/admin/*` in the UI, `/api/admin/*` on the backend) is
+gated on a `users.is_admin` flag.
+
+**Bootstrap admin credentials** (created automatically by `create_admin.py`,
+or by the running stack on first migration):
+
+```
+Email:    admin@pt.com
+Password: admin123
+```
+
+> **Rotate immediately.** Sign in once, then go to **Admin → My account** and
+> use the **Change password** form. The credentials above are only
+> appropriate for a fresh dev / demo install.
+
+If `admin@pt.com` doesn't exist yet, create it:
+
+```bash
+docker compose -f docker-compose.dev.yml exec backend python create_admin.py
+```
+
+The script is idempotent — re-running it resets the password back to
+`admin123` and re-promotes the account.
+
+To grant admin to an account that has registered + verified email:
+
+```bash
+# Local venv:
+python make_admin.py <email>
+
+# Docker:
+docker compose -f docker-compose.dev.yml exec backend python make_admin.py <email>
+
+# To demote later:
+python make_admin.py <email> --demote
+```
+
+After running `alter_db.py`, the script tries to auto-promote the project
+owner's email (see `BOOTSTRAP_ADMIN_EMAIL` in `alter_db.py`); change that
+constant if your owner email differs. Once you are admin, the **Admin** link
+appears in the sidebar (with a shield icon).
 Run the server:
 ```bash
 uvicorn app.main:app --reload

@@ -12,7 +12,7 @@ import Testimonials from './components/Testimonials'
 import FAQ from './components/FAQ'
 import CTA from './components/CTA'
 import Footer from './components/Footer'
-import { useRoute, Icon, AppShell, Link } from './shared/components'
+import { useRoute, Icon, AppShell, Link, navigate } from './shared/components'
 import * as AppPages from './pages/appPages'
 import EditorPage from './pages/EditorPage'
 import * as AuthPages from './pages/authPages'
@@ -52,22 +52,107 @@ function HelpPage() {
   );
 }
 
+// Authorisation wrapper for /admin/* routes. Shows a friendly 403 if the
+// current user is not flagged as admin in the database. Backend admin
+// endpoints enforce this independently — this is purely a UX guard.
+function AdminGate({ route }) {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center"><p>Loading…</p></div>;
+  }
+  if (!user) {
+    return <div className="min-h-screen flex items-center justify-center"><p>Please <Link to="/login" className="text-primary underline">sign in</Link>.</p></div>;
+  }
+  if (!user.is_admin) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 text-center px-4">
+        <Icon name="lock" size={48} className="text-on-surface-variant" />
+        <h1 className="text-xl font-bold">Admin only</h1>
+        <p className="text-sm text-on-surface-variant max-w-md">
+          Your account does not have admin privileges. Ask the project owner to run
+          <code className="bg-surface-container-low px-1 mx-1 rounded">python make_admin.py {user.email}</code>
+          inside the backend container.
+        </p>
+        <Link to="/dashboard" className="bg-primary text-on-primary px-4 py-2 rounded-lg text-xs font-bold">Back to dashboard</Link>
+      </div>
+    );
+  }
+  // Admin path → dispatch to the matching page.
+  if (route === '/admin' || route === '/admin/') return <AdminPages.AdminOverviewPage />;
+  if (route.startsWith('/admin/users')) return <AdminPages.AdminUsersPage />;
+  if (route.startsWith('/admin/models')) return <AdminPages.AdminModelsPage />;
+  if (route.startsWith('/admin/flags')) return <AdminPages.AdminFlagsPage />;
+  if (route.startsWith('/admin/logs')) return <AdminPages.AdminLogsPage />;
+  if (route.startsWith('/admin/health')) return <AdminPages.AdminHealthPage />;
+  return <AdminPages.AdminOverviewPage />;
+}
+
+// Public routes that don't require an authenticated user. Anything not in
+// this set forces a redirect to /login.
+const PUBLIC_ROUTE_PREFIXES = ['/login', '/register', '/verify'];
+
+// Drops the visitor on /login when they hit a gated route without a session.
+// Stashes the URL they tried in sessionStorage so we can return them there
+// after they sign in.
+function RedirectToLogin({ intendedRoute }) {
+  useEffect(() => {
+    try {
+      if (intendedRoute && intendedRoute !== '/login') {
+        sessionStorage.setItem('pt.intendedRoute', intendedRoute);
+      }
+    } catch { /* sessionStorage might be disabled in private mode */ }
+    navigate('/login');
+  }, [intendedRoute]);
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-3 text-center px-4">
+      <Icon name="lock" size={32} className="text-on-surface-variant" />
+      <p className="text-sm text-on-surface-variant">Redirecting to sign-in…</p>
+    </div>
+  );
+}
+
 function AppRouter() {
   const route = useRoute();
+  const { user, loading } = useAuth();
   if (!route || route === '/') return null;
 
-  // Auth routes
-  if (route.startsWith('/login')) return <AuthPages.LoginPage />;
-  if (route.startsWith('/register')) return <AuthPages.RegisterPage />;
-  if (route.startsWith('/verify')) return <AuthPages.VerifyPage />;
+  // Resolve public-route check up-front. These render WITHOUT requiring auth.
+  const isPublic = PUBLIC_ROUTE_PREFIXES.some(p => route.startsWith(p));
 
-  // App routes
+  if (isPublic) {
+    if (route.startsWith('/login'))    return <AuthPages.LoginPage />;
+    if (route.startsWith('/register')) return <AuthPages.RegisterPage />;
+    if (route.startsWith('/verify'))   return <AuthPages.VerifyPage />;
+  }
+
+  // From here down, the user must be authenticated.
+  // While the bootstrap is still resolving, show a neutral splash instead of
+  // briefly flashing the page underneath (which can leak content).
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-sm text-on-surface-variant">Loading…</p>
+      </div>
+    );
+  }
+  if (!user) {
+    return <RedirectToLogin intendedRoute={route} />;
+  }
+
+  // Admin-first landing — if a platform admin lands on /dashboard or the
+  // post-login redirect, send them straight to the admin overview.
+  if (route.startsWith('/dashboard') && user.is_admin) {
+    return <AdminGate route="/admin" />;
+  }
+
+  // Authenticated app routes
   if (route.startsWith('/dashboard')) return <AppPages.DashboardPage />;
   if (route.match(/^\/library\/(.+?)\/(.+)/)) {
     const parts = route.replace('/library/', '').split('/');
     return <AppPages.DocViewerPage params={parts} />;
   }
   if (route.startsWith('/library')) return <AppPages.LibraryPage />;
+  if (route.startsWith('/chats')) return <AppPages.ChatsPage />;
   if (route.match(/^\/workspaces\/(.+)/)) {
     const name = route.replace('/workspaces/', '');
     return <AppPages.WorkspaceDetailPage params={[name]} />;
@@ -80,13 +165,10 @@ function AppRouter() {
   if (route.startsWith('/upgrade')) return <AuthPages.UpgradePage />;
   if (route.startsWith('/help')) return <HelpPage />;
 
-  // Admin routes
-  if (route === '/admin' || route === '/admin/') return <AdminPages.AdminOverviewPage />;
-  if (route.startsWith('/admin/users')) return <AdminPages.AdminUsersPage />;
-  if (route.startsWith('/admin/models')) return <AdminPages.AdminModelsPage />;
-  if (route.startsWith('/admin/flags')) return <AdminPages.AdminFlagsPage />;
-  if (route.startsWith('/admin/logs')) return <AdminPages.AdminLogsPage />;
-  if (route.startsWith('/admin/health')) return <AdminPages.AdminHealthPage />;
+  // Admin routes — additionally gated on user.is_admin inside AdminGate.
+  if (route.startsWith('/admin')) {
+    return <AdminGate route={route} />;
+  }
 
   return <div className="min-h-screen flex items-center justify-center"><p>Unknown route: {route}</p></div>;
 }

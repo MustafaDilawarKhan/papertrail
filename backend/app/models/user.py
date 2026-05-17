@@ -27,6 +27,11 @@ class User(Base):
     affiliation: Mapped[str | None] = mapped_column(String(255), nullable=True)
     bio: Mapped[str | None] = mapped_column(String, nullable=True)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Platform administrator flag — controls access to /api/admin/* and the
+    # /admin/* frontend routes. Bootstrapped via alter_db.py (your account is
+    # promoted automatically on first migration). To promote others, run
+    # `python make_admin.py <email>` from the backend container.
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

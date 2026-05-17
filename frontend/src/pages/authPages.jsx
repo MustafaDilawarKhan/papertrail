@@ -81,9 +81,19 @@ function LoginPage() {
         throw new Error(data.detail || "Invalid email or password.");
       }
 
-      // Store the token and redirect to dashboard
+      // Store the token, then send the user back to whatever they were
+      // trying to open before the auth gate intercepted them. Falls back
+      // to /dashboard for fresh logins.
       await login(data.access_token);
-      navigate("/dashboard");
+      let intended = "/dashboard";
+      try {
+        const saved = sessionStorage.getItem("pt.intendedRoute");
+        if (saved && !saved.startsWith("/login") && !saved.startsWith("/register") && !saved.startsWith("/verify")) {
+          intended = saved;
+        }
+        sessionStorage.removeItem("pt.intendedRoute");
+      } catch { /* ignore */ }
+      navigate(intended);
     } catch (err) {
       setError(err.message || "Failed to connect to the server.");
     } finally {

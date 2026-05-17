@@ -121,6 +121,44 @@ export function ProfileDropdown({ side = "bottom", align = "right", collapsed = 
 }
 
 // ---- Collapsible Sidebar (user app) ----
+// "Upgrade to Pro" promo at the bottom of the sidebar. Hides itself when the
+// user dismisses it via the × button; dismissal is remembered for the rest of
+// the browser tab session only (sessionStorage), so it reappears in fresh
+// tabs but doesn't nag during one demo. Pro users never see it.
+function UpgradePromoCard({ collapsed }) {
+  const { user } = useAuth();
+  const [dismissed, setDismissed] = useState(() => {
+    try { return sessionStorage.getItem("pt.dismissUpgrade.v1") === "1"; }
+    catch { return false; }
+  });
+  if (collapsed || dismissed) return null;
+  // Pro users (or admins) don't need the upsell.
+  if (user?.is_admin) return null;
+  // The user's plan isn't on the bootstrap response yet, but we can hide for
+  // explicit "Pro" plan names in the future without a code change.
+
+  const dismiss = () => {
+    try { sessionStorage.setItem("pt.dismissUpgrade.v1", "1"); } catch { /* ignore */ }
+    setDismissed(true);
+  };
+
+  return (
+    <div className="mt-auto relative p-4 bg-surface-container-low rounded-xl border border-border-subtle mb-4">
+      <button
+        onClick={dismiss}
+        aria-label="Dismiss upgrade prompt"
+        className="absolute top-2 right-2 w-6 h-6 rounded-full text-on-surface-variant hover:bg-surface-container hover:text-primary flex items-center justify-center transition-colors"
+        title="Hide for this session"
+      >
+        <Icon name="close" size={14} />
+      </button>
+      <p className="text-xs font-bold text-primary mb-1">Upgrade to Pro</p>
+      <p className="text-[11px] text-on-surface-variant mb-3 leading-snug">Unlimited citations &amp; collaboration.</p>
+      <Link to="/upgrade" className="block w-full bg-primary text-on-primary text-[11px] py-2 rounded-lg font-bold text-center hover:opacity-90 transition-opacity">Upgrade</Link>
+    </div>
+  );
+}
+
 export function Sidebar({ active, collapsed, onToggle }) {
   const { user } = useAuth();
   const displayName = user?.name || "User";
@@ -128,11 +166,16 @@ export function Sidebar({ active, collapsed, onToggle }) {
   const items = [
     { id: "home", label: "Home", icon: "home", to: "/dashboard" },
     { id: "library", label: "Library", icon: "library_books", to: "/library" },
+    { id: "chats", label: "Chats", icon: "forum", to: "/chats" },
     { id: "workspaces", label: "Workspaces", icon: "workspaces", to: "/workspaces" },
     { id: "integrations", label: "Integrations", icon: "extension", to: "/integrations" },
     { id: "settings", label: "Settings", icon: "settings", to: "/settings" },
     { id: "help", label: "Help", icon: "help", to: "/help" },
+    // Admin link is added below only if the current user has the is_admin flag.
   ];
+  if (user?.is_admin) {
+    items.push({ id: "admin", label: "Admin", icon: "admin_panel_settings", to: "/admin" });
+  }
   return (
     <aside className={`fixed left-0 top-0 h-screen bg-background-sidebar border-r border-border-subtle flex flex-col p-4 gap-4 z-40 transition-all duration-300 ease-in-out ${collapsed ? "w-[68px]" : "w-sidebar-width"}`}>
       <div className={`flex items-center ${collapsed ? "justify-center" : "justify-between px-2"} mb-2`}>
@@ -157,13 +200,8 @@ export function Sidebar({ active, collapsed, onToggle }) {
           );
         })}
       </nav>
-      {!collapsed && (
-        <div className="mt-auto p-4 bg-surface-container-low rounded-xl border border-border-subtle mb-4">
-          <p className="text-xs font-bold text-primary mb-1">Upgrade to Pro</p>
-          <p className="text-[11px] text-on-surface-variant mb-3 leading-snug">Unlimited citations &amp; collaboration.</p>
-          <Link to="/upgrade" className="block w-full bg-primary text-on-primary text-[11px] py-2 rounded-lg font-bold text-center hover:opacity-90 transition-opacity">Upgrade</Link>
-        </div>
-      )}
+      <UpgradePromoCard collapsed={collapsed} />
+
       <div className={`${collapsed ? "px-1" : "px-2"}`}>
         {collapsed ? (
           <div className="relative group">
