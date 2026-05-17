@@ -139,9 +139,12 @@ function AppRouter() {
     return <RedirectToLogin intendedRoute={route} />;
   }
 
-  // Admin-first landing — if a platform admin lands on /dashboard or the
-  // post-login redirect, send them straight to the admin overview.
-  if (route.startsWith('/dashboard') && user.is_admin) {
+  // Admin lock — platform admins can ONLY use the /admin/* surface. Any other
+  // route (including /dashboard, /library, /chats, /workspaces, /integrations,
+  // /settings, /upgrade, /help, /write, /upload, single-doc viewer) is
+  // rewritten to /admin. They can sign out from the AdminSidebar to use the
+  // regular user surface with a non-admin account.
+  if (user.is_admin && !route.startsWith('/admin')) {
     return <AdminGate route="/admin" />;
   }
 

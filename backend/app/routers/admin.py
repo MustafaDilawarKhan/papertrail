@@ -297,6 +297,67 @@ async def set_user_plan(
     return {"user_id": str(user_row.user_id), "plan": plan_row.plan_type}
 
 
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: str,
+    me: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Delete a user account and ALL their data.
+
+    Cascade behaviour (set up in the model FKs): documents, chat sessions and
+    their messages, source highlights, annotations, citations, collections,
+    workspaces, workspace memberships, notifications, and subscriptions all
+    cascade-delete with the user row. We additionally clean up the user's
+    uploaded files in Supabase Storage so we don't leak orphaned objects.
+
+    Safety guards:
+      - You cannot delete your own account from this endpoint.
+      - You cannot delete the last admin (would lock everyone out of /admin).
+    """
+    # Local import to avoid an import cycle at module load.
+    from app.services.document_service import delete_file
+
+    target = (await db.execute(
+        select(User).options(noload("*")).where(User.user_id == user_id)
+    )).scalar_one_or_none()
+    if not target:
+        raise HTTPException(404, "User not found")
+
+    if target.user_id == me.user_id:
+        raise HTTPException(400, "You cannot delete your own account from this endpoint")
+
+    if target.is_admin:
+        admin_count = (await db.execute(
+            select(func.count(User.user_id)).where(User.is_admin == True)
+        )).scalar() or 0
+        if admin_count <= 1:
+            raise HTTPException(400, "Cannot delete the last admin")
+
+    # Collect storage paths up-front so we can clean Supabase Storage after
+    # the cascade-delete has happened.
+    docs_result = await db.execute(
+        select(Document.storage_path).where(Document.user_id == target.user_id)
+    )
+    storage_paths = [row[0] for row in docs_result if row[0]]
+
+    # The actual deletion. FK cascade handles all related rows.
+    await db.delete(target)
+    await db.flush()
+
+    # Best-effort storage cleanup. Failures here are logged but don't roll
+    # back the DB delete — the alternative (rolling back) would leak a user
+    # account because Supabase had a hiccup.
+    for path in storage_paths:
+        try:
+            delete_file(path)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not delete storage object %s: %s", path, exc)
+
+    return None
+
+
 @router.patch("/users/{user_id}/admin")
 async def set_user_admin(
     user_id: str,

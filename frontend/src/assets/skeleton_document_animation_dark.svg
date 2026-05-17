@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="480" viewBox="190 25 305 390"
+  role="img" aria-label="Aid document animation dark">
+  <defs>
+    <linearGradient id="shimmerDk" x1="-120%" y1="0%" x2="120%" y2="0%">
+      <stop offset="0%"   stop-color="#5d5a54" stop-opacity="0.55"/>
+      <stop offset="45%"  stop-color="#c7c0b5" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#5d5a54" stop-opacity="0.55"/>
+      <animateTransform attributeName="gradientTransform" type="translate"
+        from="-1 0" to="1 0" dur="1.4s" repeatCount="indefinite"/>
+    </linearGradient>
+    <linearGradient id="btnDk" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#3b3935"/>
+      <stop offset="100%" stop-color="#25231f"/>
+    </linearGradient>
+    <filter id="shadowDk" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="1.2" stdDeviation="1.8"
+        flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <g transform="translate(190 30)">
+    <!-- Paper -->
+    <rect x="0" y="0" width="300" height="380" rx="7"
+      fill="#111111" stroke="#3e3a34" stroke-width="1"/>
+
+    <!-- Lines -->
+    <g transform="translate(25 0)">
+      <rect fill="#8b857c" x="0" y="80"  width="180" height="8"  rx="2"/>
+      <rect fill="#5b5751" x="0" y="95"  width="120" height="6"  rx="2"/>
+      <rect fill="#5b5751" x="0" y="120" width="250" height="6"  rx="2"/>
+      <rect fill="#5b5751" x="0" y="132" width="238" height="6"  rx="2"/>
+      <rect fill="#5b5751" x="0" y="144" width="244" height="6"  rx="2"/>
+      <rect fill="#5b5751" x="0" y="156" width="210" height="6"  rx="2"/>
+      <rect fill="#5b5751" x="0" y="168" width="230" height="6"  rx="2"/>
+      <rect fill="#5b5751" x="0" y="192" width="250" height="6"  rx="2"/>
+      <rect fill="#5b5751" x="0" y="204" width="228" height="6"  rx="2"/>
+      <rect fill="#5b5751" x="0" y="216" width="245" height="6"  rx="2"/>
+      <rect fill="#5b5751" x="0" y="228" width="200" height="6"  rx="2"/>
+      <rect fill="#5b5751" x="0" y="264" width="250" height="6"  rx="2"/>
+      <rect fill="#5b5751" x="0" y="276" width="220" height="6"  rx="2"/>
+      <rect fill="#5b5751" x="0" y="288" width="245" height="6"  rx="2"/>
+      <rect fill="#5b5751" x="0" y="300" width="185" height="6"  rx="2"/>
+    </g>
+
+    <!-- Highlights -->
+    <rect fill="#FFE55C" x="25" y="132" width="238" height="8" rx="2">
+      <animate attributeName="opacity"
+        values="0;0;1;1;0;0" keyTimes="0;0.25;0.30;0.70;0.78;1"
+        dur="4s" repeatCount="indefinite" calcMode="linear"/>
+    </rect>
+    <rect fill="#FFE55C" x="25" y="204" width="228" height="6" rx="2">
+      <animate attributeName="opacity"
+        values="0;0;1;1;0;0" keyTimes="0;0.30;0.35;0.70;0.78;1"
+        dur="4s" repeatCount="indefinite" calcMode="linear"/>
+    </rect>
+    <rect fill="#FFE55C" x="25" y="276" width="220" height="6" rx="2">
+      <animate attributeName="opacity"
+        values="0;0;1;1;0;0" keyTimes="0;0.35;0.40;0.70;0.78;1"
+        dur="4s" repeatCount="indefinite" calcMode="linear"/>
+    </rect>
+
+    <!-- Scan line -->
+    <rect fill="#FFD700" x="0" y="0" width="300" height="3">
+      <animate attributeName="opacity"
+        values="0;0;1;1;0;0" keyTimes="0;0.125;0.175;0.45;0.50;1"
+        dur="4s" repeatCount="indefinite" calcMode="linear"/>
+      <animate attributeName="y"
+        values="0;0;380;380;0;0" keyTimes="0;0.125;0.40;0.945;0.95;1"
+        dur="4s" repeatCount="indefinite" calcMode="linear"/>
+    </rect>
+
+    <!-- Search bar -->
+    <g transform="translate(25 340)">
+      <rect fill="#191817" stroke="#403c36" stroke-width="1"
+        x="-2" y="-14" width="260" height="38" rx="6"/>
+      <rect fill="url(#shimmerDk)" x="4" y="-3" width="60" height="10" rx="4" opacity="0.95"/>
+      <g transform="translate(224 -10)" filter="url(#shadowDk)">
+        <rect fill="url(#btnDk)" stroke="#4b463f" stroke-width="1"
+          x="0" y="0" width="30" height="30" rx="6"/>
+        <path d="M10.5 12 H18.5 M14.5 8.2 L18.5 12 L14.5 15.8"
+          fill="none" stroke="#d8d1c4" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+    </g>
+  </g>
+</svg>

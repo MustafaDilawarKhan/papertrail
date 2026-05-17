@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, Icon, navigate } from '../shared/components';
 import { Toggle } from './authPages';
+import { useAuth } from '../contexts/AuthContext';
 import { apiRequest } from '../apiConfig';
 
 const useStateAdmin = useState;
@@ -20,6 +21,12 @@ function formatRelativeTimeAdmin(value) {
 
 // ---- Admin Sidebar ----
 function AdminSidebar({ active }) {
+  const { logout } = useAuth();
+  const handleSignOut = () => {
+    if (!window.confirm("Sign out of the admin dashboard?")) return;
+    logout();
+    navigate("/login");
+  };
   const items = [
     { id: "overview", label: "Overview", icon: "dashboard", to: "/admin" },
     { id: "users", label: "Users", icon: "group", to: "/admin/users" },
@@ -49,9 +56,12 @@ function AdminSidebar({ active }) {
         <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1">Region</p>
         <p className="text-xs font-bold flex items-center gap-2"><span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span> us-east-1 · Healthy</p>
       </div>
-      <Link to="/" className="flex items-center gap-2 px-3 py-2 text-xs text-white/50 hover:text-white">
-        <Icon name="logout" size={16} /> Exit admin
-      </Link>
+      <button
+        onClick={handleSignOut}
+        className="flex items-center gap-2 px-3 py-2 text-xs text-white/50 hover:text-white hover:bg-white/5 rounded transition-colors text-left"
+      >
+        <Icon name="logout" size={16} /> Sign out
+      </button>
     </aside>
   );
 }
@@ -378,12 +388,18 @@ function PlanBar({ distribution }) {
 
 // =================== ADMIN USERS ===================
 function AdminUsersPage() {
+  const { user: me } = useAuth();
   const [users, setUsers] = useStateAdmin([]);
   const [loading, setLoading] = useStateAdmin(true);
   const [error, setError] = useStateAdmin("");
   const [q, setQ] = useStateAdmin("");
   const [planFilter, setPlanFilter] = useStateAdmin("all"); // all | Free | Plus | Pro
   const [verifiedFilter, setVerifiedFilter] = useStateAdmin("all"); // all | verified | unverified
+  // Selection for bulk operations. Stored as a Set of user_id strings so the
+  // selection survives filter changes that hide/show rows.
+  const [selectedIds, setSelectedIds] = useStateAdmin(() => new Set());
+  const [bulkDeleting, setBulkDeleting] = useStateAdmin(false);
+  const [bulkPlanBusy, setBulkPlanBusy] = useStateAdmin(false);
 
   useEffectAdmin(() => {
     let active = true;
@@ -410,6 +426,94 @@ function AdminUsersPage() {
       setUsers(prev => prev.map(x => x.user_id === u.user_id ? { ...x, plan: result.plan } : x));
     } catch (err) {
       window.alert(err.message || "Could not change plan");
+    }
+  };
+
+  // ---- selection + delete helpers ----
+  const isSelectable = (u) => me?.user_id !== u.user_id; // can't select self
+  const toggleSelect = (u) => {
+    if (!isSelectable(u)) return;
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(u.user_id)) next.delete(u.user_id);
+      else next.add(u.user_id);
+      return next;
+    });
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const deleteSingle = async (u) => {
+    if (!window.confirm(`Permanently delete ${u.email} and all their data?\n\nThis cascades to:\n• documents + uploaded files\n• chat sessions + messages\n• workspaces, collections, citations, annotations\n• notifications + subscription\n\nThis cannot be undone.`)) return;
+    try {
+      await apiRequest(`/admin/users/${u.user_id}`, { method: "DELETE" });
+      setUsers(prev => prev.filter(x => x.user_id !== u.user_id));
+      setSelectedIds(prev => { const n = new Set(prev); n.delete(u.user_id); return n; });
+    } catch (err) {
+      window.alert(err.message || "Could not delete user");
+    }
+  };
+
+  const deleteSelected = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    if (!window.confirm(`Permanently delete ${ids.length} user${ids.length === 1 ? "" : "s"}?\n\nEvery selected account's documents, chats, workspaces and uploaded files will be removed. This cannot be undone.`)) return;
+
+    setBulkDeleting(true);
+    // Fire all deletes in parallel; collect failures so we can report.
+    const results = await Promise.all(ids.map(async id => {
+      try {
+        await apiRequest(`/admin/users/${id}`, { method: "DELETE" });
+        return { id, ok: true };
+      } catch (err) {
+        return { id, ok: false, error: err.message || String(err) };
+      }
+    }));
+    const okIds = new Set(results.filter(r => r.ok).map(r => r.id));
+    const failed = results.filter(r => !r.ok);
+
+    setUsers(prev => prev.filter(u => !okIds.has(u.user_id)));
+    setSelectedIds(prev => {
+      const n = new Set(prev);
+      okIds.forEach(id => n.delete(id));
+      return n;
+    });
+    setBulkDeleting(false);
+
+    if (failed.length > 0) {
+      const userById = new Map(users.map(u => [u.user_id, u]));
+      const lines = failed.map(f => `• ${userById.get(f.id)?.email || f.id}: ${f.error}`).join("\n");
+      window.alert(`Deleted ${okIds.size} of ${ids.length}. The following could not be removed:\n\n${lines}`);
+    }
+  };
+
+  // ---- Bulk plan change ----
+  // Fires PATCH /admin/users/:id/plan in parallel for every selected user.
+  // Per-user failures are collected and reported in a single alert; rows
+  // that succeeded update their plan badge inline without a full refetch.
+  const bulkChangePlan = async (nextPlan) => {
+    const ids = [...selectedIds];
+    if (ids.length === 0 || !nextPlan) return;
+    if (!window.confirm(`Change ${ids.length} user${ids.length === 1 ? "" : "s"} to the ${nextPlan} plan?`)) return;
+    setBulkPlanBusy(true);
+    const results = await Promise.all(ids.map(async id => {
+      try {
+        const r = await apiRequest(`/admin/users/${id}/plan`, {
+          method: "PATCH",
+          body: JSON.stringify({ plan: nextPlan }),
+        });
+        return { id, ok: true, plan: r.plan };
+      } catch (err) {
+        return { id, ok: false, error: err.message || String(err) };
+      }
+    }));
+    const okMap = new Map(results.filter(r => r.ok).map(r => [r.id, r.plan]));
+    setUsers(prev => prev.map(u => okMap.has(u.user_id) ? { ...u, plan: okMap.get(u.user_id) } : u));
+    setBulkPlanBusy(false);
+    const failed = results.filter(r => !r.ok);
+    if (failed.length > 0) {
+      const userById = new Map(users.map(u => [u.user_id, u]));
+      const lines = failed.map(f => `• ${userById.get(f.id)?.email || f.id}: ${f.error}`).join("\n");
+      window.alert(`Updated ${okMap.size} of ${ids.length}. The following failed:\n\n${lines}`);
     }
   };
 
@@ -442,6 +546,47 @@ function AdminUsersPage() {
 
       {error && <p className="text-sm text-error mb-4">Error: {error}</p>}
 
+      {/* Sticky bulk action bar — only visible when at least one row is selected. */}
+      {selectedIds.size > 0 && (
+        <div className="sticky top-16 z-20 mb-3 bg-primary text-on-primary rounded-xl px-4 py-3 flex items-center justify-between shadow-lg flex-wrap gap-2">
+          <div className="flex items-center gap-3 text-sm">
+            <Icon name="check_circle" filled size={18} />
+            <b>{selectedIds.size}</b> user{selectedIds.size === 1 ? "" : "s"} selected
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Bulk plan change — commits the moment a plan is picked, then
+                resets so picking the same plan again is possible. */}
+            <select
+              value=""
+              onChange={(e) => { const v = e.target.value; e.target.value = ""; if (v) bulkChangePlan(v); }}
+              disabled={bulkPlanBusy || bulkDeleting}
+              className="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-white/10 text-white border border-white/20 cursor-pointer hover:bg-white/20 disabled:opacity-50"
+              title="Change plan for all selected users"
+            >
+              <option value="" className="text-on-surface">{bulkPlanBusy ? "Updating…" : "Change plan to…"}</option>
+              <option value="Free" className="text-on-surface">Free</option>
+              <option value="Plus" className="text-on-surface">Plus</option>
+              <option value="Pro"  className="text-on-surface">Pro</option>
+            </select>
+            <button
+              onClick={clearSelection}
+              disabled={bulkDeleting || bulkPlanBusy}
+              className="text-xs px-3 py-1.5 rounded-lg border border-white/20 hover:bg-white/10 transition-colors disabled:opacity-50"
+            >
+              Clear
+            </button>
+            <button
+              onClick={deleteSelected}
+              disabled={bulkDeleting || bulkPlanBusy}
+              className="text-xs px-3 py-1.5 rounded-lg bg-error text-white font-bold hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <Icon name="delete" size={14} />
+              {bulkDeleting ? "Deleting…" : `Delete ${selectedIds.size}`}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white border border-border-subtle rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-border-subtle flex items-center gap-3 flex-wrap">
           <div className="flex-1 min-w-[200px] flex items-center gap-2 bg-surface-container-lowest border border-border-subtle rounded-lg px-3 py-2">
@@ -473,6 +618,39 @@ function AdminUsersPage() {
         <table className="w-full">
           <thead>
             <tr className="border-b border-border-subtle bg-surface-container-lowest">
+              <th className="px-4 py-3 text-left w-10">
+                {/* Select-all checkbox: selects every CURRENTLY-VISIBLE selectable row */}
+                {(() => {
+                  const selectableFiltered = filtered.filter(isSelectable);
+                  const allSelected = selectableFiltered.length > 0
+                    && selectableFiltered.every(u => selectedIds.has(u.user_id));
+                  const someSelected = selectableFiltered.some(u => selectedIds.has(u.user_id));
+                  return (
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      ref={el => { if (el) el.indeterminate = !allSelected && someSelected; }}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedIds(prev => {
+                            const n = new Set(prev);
+                            selectableFiltered.forEach(u => n.add(u.user_id));
+                            return n;
+                          });
+                        } else {
+                          setSelectedIds(prev => {
+                            const n = new Set(prev);
+                            selectableFiltered.forEach(u => n.delete(u.user_id));
+                            return n;
+                          });
+                        }
+                      }}
+                      className="w-4 h-4 cursor-pointer"
+                      title="Select all visible (except your own account)"
+                    />
+                  );
+                })()}
+              </th>
               <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">User</th>
               <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Affiliation</th>
               <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Docs</th>
@@ -481,11 +659,25 @@ function AdminUsersPage() {
               <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Last active</th>
               <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Joined</th>
               <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Plan</th>
+              <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-on-surface-variant w-12"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle">
             {filtered.map((u) => (
-              <tr key={u.user_id} className="hover:bg-surface-container-low group">
+              <tr
+                key={u.user_id}
+                className={`hover:bg-surface-container-low group ${selectedIds.has(u.user_id) ? "bg-secondary-container/40" : ""}`}
+              >
+                <td className="px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(u.user_id)}
+                    onChange={() => toggleSelect(u)}
+                    disabled={!isSelectable(u)}
+                    title={isSelectable(u) ? "Select this user" : "You cannot select your own account"}
+                    className="w-4 h-4 cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
+                  />
+                </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-[10px] font-bold">
@@ -531,10 +723,22 @@ function AdminUsersPage() {
                     </select>
                   )}
                 </td>
+                <td className="px-4 py-3 text-right">
+                  {/* Per-row delete. Disabled for your own account; the backend
+                      will additionally refuse the last admin. */}
+                  <button
+                    onClick={() => deleteSingle(u)}
+                    disabled={!isSelectable(u)}
+                    title={isSelectable(u) ? "Delete this user" : "You cannot delete your own account"}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-error-container text-on-surface-variant hover:text-error disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                  >
+                    <Icon name="delete" size={16} />
+                  </button>
+                </td>
               </tr>
             ))}
             {!loading && filtered.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-on-surface-variant">No users match the search.</td></tr>
+              <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-on-surface-variant">No users match the search.</td></tr>
             )}
           </tbody>
         </table>
