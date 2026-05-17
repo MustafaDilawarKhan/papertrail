@@ -86,7 +86,6 @@ origins = [
     "http://127.0.0.1:5173",
     "http://127.0.0.1:3000",
     # Production
-    
     "https://ai-doc-mocha.vercel.app",
     "https://papertrail-self.vercel.app",
 ]
