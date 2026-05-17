@@ -480,7 +480,14 @@ function LibraryPage() {
         {loading && <div className="mb-6 text-xs text-on-surface-variant">Loading your library...</div>}
 
         {view === "list" ? (
-          <div className="bg-white rounded-xl border border-border-subtle overflow-hidden">
+          // The per-row Actions dropdown is position:absolute and extends
+          // *below* its trigger. Any overflow rule on this wrapper would
+          // clip it for rows near the bottom of the table. `overflow-x-clip`
+          // still clips horizontal table overflow (so the rounded corners
+          // stay tidy on narrow screens) but doesn't establish a vertical
+          // scroll context — so absolutely-positioned children remain
+          // visible above the page.
+          <div className="bg-white rounded-xl border border-border-subtle overflow-x-clip">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-border-subtle bg-surface-container-lowest">
