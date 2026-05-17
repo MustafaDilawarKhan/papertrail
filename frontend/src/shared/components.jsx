@@ -724,95 +724,196 @@ export function UploadModal({ open, onClose }) {
   );
 }
 
-// ---- Comprehensive Search Data ----
-const SEARCH_DATA = {
-  documents: [
-    { name: "Trustworthiness of AI in HRI", sub: "PDF • Oct 12 • L. Roberts", icon: "description", to: "/library/thesis/trust-ai-hri", category: "document" },
-    { name: "Measuring Trust in HRC", sub: "PDF • Oct 10 • S. Jenkins", icon: "description", to: "/library/thesis/measuring-trust", category: "document" },
-    { name: "Ethics of Large Language Models", sub: "DOC • Sep 28 • Dr. A. Turing", icon: "description", to: "/library/thesis/ethics-llm", category: "document" },
-    { name: "Cognitive Load Theory in Digital Env.", sub: "PDF • Sep 24 • Sweller, Paas", icon: "description", to: "/library/thesis/cognitive-load", category: "document" },
-    { name: "Hierarchical RAG Architecture", sub: "PDF • Sep 14 • Y. Tanaka", icon: "description", to: "/library/thesis/rag-arch", category: "document" },
-    { name: "Neural Networks in LLMs.pdf", sub: "PDF • 4.2 MB", icon: "description", to: "/library", category: "document" },
-    { name: "Thesis Proposal — Draft 3.docx", sub: "DOCX • 124 KB", icon: "article", to: "/library", category: "document" },
-  ],
-  collections: [
-    { name: "ML Research", sub: "12 Documents • 4 Citations", icon: "folder", to: "/library", category: "collection" },
-    { name: "Thesis Sources", sub: "28 Documents • 12 Citations", icon: "folder", to: "/library", category: "collection" },
-    { name: "Dataset Refs", sub: "8 Documents • 1 Citation", icon: "folder", to: "/library", category: "collection" },
-  ],
-  workspaces: [
-    { name: "Thesis — Spring '26", sub: "3 members • 42 docs", icon: "workspaces", to: "/workspaces/thesis", category: "workspace" },
-    { name: "HCI Lab Group", sub: "8 members • 128 docs", icon: "workspaces", to: "/workspaces/hci-lab", category: "workspace" },
-  ],
-  pages: [
-    { name: "Dashboard", sub: "Home", icon: "home", to: "/dashboard", category: "page" },
-    { name: "Library", sub: "All documents", icon: "library_books", to: "/library", category: "page" },
-    { name: "Settings", sub: "Account & preferences", icon: "settings", to: "/settings", category: "page" },
-    { name: "Integrations", sub: "Connected apps", icon: "extension", to: "/integrations", category: "page" },
-    { name: "Admin Panel", sub: "System management", icon: "admin_panel_settings", to: "/admin", category: "page" },
-    { name: "Upload Documents", sub: "Add to library", icon: "upload_file", to: "/upload", category: "page" },
-    { name: "Upgrade Plan", sub: "Pro & Lab plans", icon: "star", to: "/upgrade", category: "page" },
-  ],
-};
+// Static navigation targets. These are real app routes — kept inline because
+// they don't change at runtime. Admin entry is filtered out for non-admins
+// inside the palette.
+const STATIC_PAGES = [
+  { name: "Dashboard",         sub: "Home",                 icon: "home",                    to: "/dashboard",    category: "page" },
+  { name: "Library",           sub: "All documents",        icon: "library_books",           to: "/library",      category: "page" },
+  { name: "My Papers",         sub: "Drafts you're writing",icon: "draft",                   to: "/papers",       category: "page" },
+  { name: "Chats",             sub: "Conversations",        icon: "forum",                   to: "/chats",        category: "page" },
+  { name: "Workspaces",        sub: "Shared collections",   icon: "workspaces",              to: "/workspaces",   category: "page" },
+  { name: "Integrations",      sub: "Connected apps",       icon: "extension",               to: "/integrations", category: "page" },
+  { name: "Settings",          sub: "Account & preferences",icon: "settings",                to: "/settings",     category: "page" },
+  { name: "Upload Documents",  sub: "Add to library",       icon: "upload_file",             to: "/upload",       category: "page" },
+  { name: "Upgrade Plan",      sub: "Pro & Lab plans",      icon: "star",                    to: "/upgrade",      category: "page" },
+  { name: "Help",              sub: "Guides and shortcuts", icon: "help",                    to: "/help",         category: "page" },
+];
 
-// ---- Enhanced Command Palette ----
+const ADMIN_PAGE = { name: "Admin Panel", sub: "System management", icon: "admin_panel_settings", to: "/admin", category: "page" };
+
+function formatBytesShort(bytes) {
+  if (!bytes && bytes !== 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatShortDate(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+// ---- Command Palette — backed by the user's real data ----
 export function CommandPalette({ open, onClose }) {
+  const { user } = useAuth();
   const [q, setQ] = useState("");
   const [selectedIdx, setSelectedIdx] = useState(0);
   const inputRef = useRef(null);
 
+  // Real data — fetched on first open, then refreshed each time the palette
+  // is reopened so newly-created papers/docs show up without a hard reload.
+  const [documents, setDocuments] = useState([]);
+  const [papers, setPapers] = useState([]);
+  const [collections, setCollections] = useState([]);
+  const [workspaces, setWorkspaces] = useState([]);
+  const [loadError, setLoadError] = useState("");
+
   useEffect(() => {
-    if (open) { setQ(""); setSelectedIdx(0); setTimeout(() => inputRef.current?.focus(), 10); }
+    if (!open) return;
+    setQ("");
+    setSelectedIdx(0);
+    setTimeout(() => inputRef.current?.focus(), 10);
+
+    let active = true;
+    (async () => {
+      try {
+        setLoadError("");
+        const [docs, pps, cols, wks] = await Promise.all([
+          apiRequest("/documents").catch(() => []),
+          apiRequest("/papers").catch(() => []),
+          apiRequest("/collections").catch(() => []),
+          apiRequest("/workspaces").catch(() => []),
+        ]);
+        if (!active) return;
+        setDocuments(Array.isArray(docs) ? docs : []);
+        setPapers(Array.isArray(pps) ? pps : []);
+        setCollections(Array.isArray(cols) ? cols : []);
+        setWorkspaces(Array.isArray(wks) ? wks : []);
+      } catch (err) {
+        if (active) setLoadError(err.message || "Could not load search index");
+      }
+    })();
+    return () => { active = false; };
   }, [open]);
 
-  const allItems = [...SEARCH_DATA.documents, ...SEARCH_DATA.collections, ...SEARCH_DATA.workspaces, ...SEARCH_DATA.pages];
-  const filtered = q.trim()
-    ? allItems.filter(x => x.name.toLowerCase().includes(q.toLowerCase()) || (x.sub && x.sub.toLowerCase().includes(q.toLowerCase())))
+  // Project each domain object into the unified search-result shape.
+  const documentItems = documents.map(d => ({
+    name: d.filename || "Untitled document",
+    sub: [
+      (d.file_type || "").toUpperCase(),
+      formatShortDate(d.upload_date || d.updated_at),
+      formatBytesShort(d.file_size),
+    ].filter(Boolean).join(" • "),
+    icon: d.file_type === "DOCX" ? "article" : "description",
+    to: `/library/doc/${d.document_id}`,
+    category: "document",
+  }));
+  const paperItems = papers.map(p => ({
+    name: p.title || "Untitled paper",
+    sub: `Draft • Last edited ${formatShortDate(p.updated_at)}`,
+    icon: "draft",
+    to: `/write/${p.paper_id}`,
+    category: "paper",
+  }));
+  const collectionItems = collections.map(c => ({
+    name: c.name || "Untitled collection",
+    sub: c.description || "Collection",
+    icon: "folder",
+    to: `/library?collection_id=${c.collection_id}`,
+    category: "collection",
+  }));
+  const workspaceItems = workspaces.map(w => ({
+    name: w.name || "Workspace",
+    sub: w.description || "Workspace",
+    icon: "workspaces",
+    to: `/workspaces/${encodeURIComponent(w.name || w.workspace_id)}`,
+    category: "workspace",
+  }));
+  const pageItems = user?.is_admin ? [...STATIC_PAGES, ADMIN_PAGE] : STATIC_PAGES;
+
+  const allItems = [...documentItems, ...paperItems, ...collectionItems, ...workspaceItems, ...pageItems];
+
+  const term = q.trim().toLowerCase();
+  const filtered = term
+    ? allItems.filter(x =>
+        (x.name && x.name.toLowerCase().includes(term)) ||
+        (x.sub && x.sub.toLowerCase().includes(term))
+      )
     : [];
 
   const grouped = {};
   filtered.forEach(item => {
-    const cat = item.category;
-    if (!grouped[cat]) grouped[cat] = [];
-    grouped[cat].push(item);
+    if (!grouped[item.category]) grouped[item.category] = [];
+    grouped[item.category].push(item);
   });
 
-  const flatResults = q.trim() ? filtered : [];
-  const catLabels = { document: "Documents", collection: "Collections", workspace: "Workspaces", page: "Pages" };
+  const flatResults = term ? filtered : [];
+  const catLabels = {
+    document:   "Documents",
+    paper:      "My Papers",
+    collection: "Collections",
+    workspace:  "Workspaces",
+    page:       "Pages",
+  };
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === "Escape") { onClose(); return; }
     if (e.key === "ArrowDown") { e.preventDefault(); setSelectedIdx(i => Math.min(i + 1, flatResults.length - 1)); }
-    if (e.key === "ArrowUp") { e.preventDefault(); setSelectedIdx(i => Math.max(i - 1, 0)); }
+    if (e.key === "ArrowUp")   { e.preventDefault(); setSelectedIdx(i => Math.max(i - 1, 0)); }
     if (e.key === "Enter" && flatResults[selectedIdx]) { navigate(flatResults[selectedIdx].to); onClose(); }
   }, [flatResults, selectedIdx, onClose]);
 
   if (!open) return null;
 
-  const showRecents = !q.trim();
+  const showRecents = !term;
+  const recentDocs = documentItems.slice(0, 3);
+  const recentPapers = paperItems.slice(0, 3);
+  const quickActions = pageItems.slice(0, 4);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center pt-24 bg-black/30 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-border-subtle overflow-hidden animate-dropdown" onClick={e => e.stopPropagation()}>
         <div className="p-4 border-b border-border-subtle flex items-center gap-3">
           <Icon name="search" className="text-on-surface-variant" />
-          <input ref={inputRef} value={q} onChange={e => { setQ(e.target.value); setSelectedIdx(0); }} onKeyDown={handleKeyDown} placeholder="Search documents, workspaces, pages..." className="w-full border-none focus:ring-0 text-body-main outline-none bg-transparent" />
+          <input ref={inputRef} value={q} onChange={e => { setQ(e.target.value); setSelectedIdx(0); }} onKeyDown={handleKeyDown} placeholder="Search your documents, papers, workspaces…" className="w-full border-none focus:ring-0 text-body-main outline-none bg-transparent" />
           <span className="text-[10px] font-bold bg-surface-container px-2 py-1 rounded cursor-pointer hover:bg-surface-container-high" onClick={onClose}>ESC</span>
         </div>
         <div className="max-h-96 overflow-y-auto p-2">
+          {loadError && (
+            <div className="px-3 py-2 text-[11px] text-error">{loadError}</div>
+          )}
           {showRecents ? (
             <>
-              <div className="px-3 py-2 text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Recent Documents</div>
-              {SEARCH_DATA.documents.slice(0, 3).map((r, i) => (
-                <Link key={i} to={r.to} onClick={onClose} className="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low group transition-colors">
-                  <Icon name={r.icon} className="text-on-surface-variant group-hover:text-primary transition-colors" />
-                  <div className="flex-1"><p className="text-xs font-bold text-primary">{r.name}</p><p className="text-[10px] text-on-surface-variant">{r.sub}</p></div>
-                  <span className="text-[10px] text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity">↵</span>
-                </Link>
-              ))}
+              {recentDocs.length > 0 && (
+                <>
+                  <div className="px-3 py-2 text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Recent Documents</div>
+                  {recentDocs.map((r, i) => (
+                    <Link key={`d-${i}`} to={r.to} onClick={onClose} className="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low group transition-colors">
+                      <Icon name={r.icon} className="text-on-surface-variant group-hover:text-primary transition-colors" />
+                      <div className="flex-1"><p className="text-xs font-bold text-primary">{r.name}</p><p className="text-[10px] text-on-surface-variant">{r.sub}</p></div>
+                      <span className="text-[10px] text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity">↵</span>
+                    </Link>
+                  ))}
+                </>
+              )}
+              {recentPapers.length > 0 && (
+                <>
+                  <div className="px-3 py-2 mt-1 text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">My Papers</div>
+                  {recentPapers.map((r, i) => (
+                    <Link key={`p-${i}`} to={r.to} onClick={onClose} className="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low group transition-colors">
+                      <Icon name={r.icon} className="text-on-surface-variant group-hover:text-primary transition-colors" />
+                      <div className="flex-1"><p className="text-xs font-bold text-primary">{r.name}</p><p className="text-[10px] text-on-surface-variant">{r.sub}</p></div>
+                      <span className="text-[10px] text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity">↵</span>
+                    </Link>
+                  ))}
+                </>
+              )}
               <div className="px-3 py-2 mt-1 text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Quick Actions</div>
-              {SEARCH_DATA.pages.slice(0, 4).map((a, i) => (
-                <Link key={i} to={a.to} onClick={onClose} className="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low group transition-colors">
+              {quickActions.map((a, i) => (
+                <Link key={`a-${i}`} to={a.to} onClick={onClose} className="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low group transition-colors">
                   <Icon name={a.icon} className="text-on-surface-variant group-hover:text-primary transition-colors" />
                   <span className="text-xs font-bold text-primary">{a.name}</span>
                   <span className="text-[10px] text-on-surface-variant ml-auto">{a.sub}</span>
@@ -847,7 +948,7 @@ export function CommandPalette({ open, onClose }) {
             <span><kbd className="font-bold border px-1 rounded">↑↓</kbd> navigate</span>
             <span><kbd className="font-bold border px-1 rounded">↵</kbd> select</span>
           </div>
-          <span>{flatResults.length > 0 ? `${flatResults.length} results` : "Paper Trail Search v2.4"}</span>
+          {flatResults.length > 0 && <span>{flatResults.length} results</span>}
         </div>
       </div>
     </div>
