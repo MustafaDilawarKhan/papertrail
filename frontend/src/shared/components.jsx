@@ -166,6 +166,7 @@ export function Sidebar({ active, collapsed, onToggle }) {
   const items = [
     { id: "home", label: "Home", icon: "home", to: "/dashboard" },
     { id: "library", label: "Library", icon: "library_books", to: "/library" },
+    { id: "papers", label: "My Papers", icon: "draft", to: "/papers" },
     { id: "chats", label: "Chats", icon: "forum", to: "/chats" },
     { id: "workspaces", label: "Workspaces", icon: "workspaces", to: "/workspaces" },
     { id: "integrations", label: "Integrations", icon: "extension", to: "/integrations" },
@@ -244,7 +245,7 @@ export function TopNav({ breadcrumbs = [], onSearchOpen, collapsed }) {
       </div>
       <div className="flex items-center gap-3">
         <NotificationDropdown />
-        <Link to="/write" className="hidden md:flex items-center gap-1.5 border border-border-subtle bg-white text-primary px-3 py-1.5 rounded-full text-xs font-bold hover:bg-surface-container-low transition-all active:scale-95">
+        <Link to="/write/new" className="hidden md:flex items-center gap-1.5 border border-border-subtle bg-white text-primary px-3 py-1.5 rounded-full text-xs font-bold hover:bg-surface-container-low transition-all active:scale-95">
           <Icon name="edit_square" className="text-[16px]" /> Write
         </Link>
         <Link to="/upload" className="hidden md:flex items-center gap-1.5 bg-primary text-on-primary px-3 py-1.5 rounded-full text-xs font-bold hover:opacity-90 hover:shadow-md transition-all active:scale-95">

@@ -40,7 +40,6 @@ function Hero({ tweaks }) {
 
         <FadeUp delay={220} className="row center gap-16" style={{ justifyContent: "center", marginTop: 28 }}>
           <a href="#/register" className="btn btn-primary">Start your research <I.arrow /></a>
-          <a href="#" className="btn btn-ghost"><I.play /> Watch demo · 1 min</a>
         </FadeUp>
 
         <FadeUp delay={280}>
@@ -48,8 +47,6 @@ function Hero({ tweaks }) {
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><I.check size={14} style={{ color: "var(--verify)" }} /> No credit card</span>
             <span style={{ width: 1, height: 12, background: "var(--line-2)" }} />
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><I.check size={14} style={{ color: "var(--verify)" }} /> Free 50 queries / mo</span>
-            <span style={{ width: 1, height: 12, background: "var(--line-2)" }} />
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><I.check size={14} style={{ color: "var(--verify)" }} /> SOC2-ready</span>
           </div>
         </FadeUp>
 
@@ -138,7 +135,10 @@ function ProductWindow({ step, accent }) {
           <div style={{ width: 320, padding: "18px 18px", display: "flex", flexDirection: "column", position: "relative" }}>
             <div className="mono" style={{ fontSize: 10, color: "var(--ink-4)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>Conversation</div>
 
-            <div style={{ alignSelf: "flex-end", background: "var(--ink)", color: "#f5efde", padding: "8px 12px", borderRadius: "12px 12px 4px 12px", fontSize: 12.5, maxWidth: 240 }}>
+            {/* Hardcoded background so the user bubble stays a dark chat
+                message in BOTH themes. `var(--ink)` flips to cream in dark
+                mode, which made the (cream) text invisible against it. */}
+            <div style={{ alignSelf: "flex-end", background: "#15130f", color: "#f5efde", padding: "8px 12px", borderRadius: "12px 12px 4px 12px", fontSize: 12.5, maxWidth: 240 }}>
               What does the study say about verifiability?
             </div>
 
@@ -186,7 +186,7 @@ function ProductWindow({ step, accent }) {
 
       {/* Tag below window */}
       <div className="row center gap-12 mono" style={{ justifyContent: "center", marginTop: 18, fontSize: 11, color: "var(--ink-4)" }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 6, height: 6, borderRadius: 3, background: "var(--verify)", boxShadow: "0 0 0 3px color-mix(in oklab, var(--verify) 25%, transparent)" }} /> 3 SOURCES VERIFIED</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 6, height: 6, borderRadius: 3, background: "var(--verify)", boxShadow: "0 0 0 3px color-mix(in oklab, var(--verify) 25%, transparent)" }} /> 2 SOURCES VERIFIED</span>
         <span>·</span>
         <span>0.4S RESPONSE</span>
         <span>·</span>

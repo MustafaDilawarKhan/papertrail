@@ -8,8 +8,11 @@ function CTA() {
         <FadeUp>
           <div style={{
             position: "relative",
-            background: "var(--ink)",
-            color: "var(--paper)",
+            // Hard-coded so the card stays dark in BOTH themes. The original
+            // `var(--ink)` flips to a cream colour in dark mode, which made
+            // the (hard-coded white) headings + body text invisible.
+            background: "#15130f",
+            color: "#faf6ec",
             borderRadius: 24,
             overflow: "hidden",
             padding: "72px 56px"
@@ -34,7 +37,7 @@ function CTA() {
                 <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: 3, background: "var(--verify)", marginRight: 8, verticalAlign: "middle", boxShadow: "0 0 0 3px color-mix(in oklab, var(--verify) 25%, transparent)" }} />
                 LIMITED ACCESS — RESEARCHERS &amp; STUDENTS
               </div>
-              <h2 className="h-section" style={{ color: "var(--paper)", fontSize: "clamp(38px, 5vw, 64px)" }}>
+              <h2 className="h-section" style={{ color: "#faf6ec", fontSize: "clamp(38px, 5vw, 64px)" }}>
                 Stop second-guessing your AI.<br />
                 <em>Start citing it.</em>
               </h2>
@@ -42,10 +45,10 @@ function CTA() {
                 Free for 50 queries / month. Pro plans unlock unlimited queries, 1,000-doc libraries, and team workspaces.
               </p>
               <div className="row center gap-12" style={{ justifyContent: "center", marginTop: 30 }}>
-                <a href="#/register" className="btn" style={{ background: "var(--paper)", color: "var(--ink)", height: 46, padding: "0 22px", fontSize: 15 }}>
+                <a href="#/register" className="btn" style={{ background: "#faf6ec", color: "#15130f", height: 46, padding: "0 22px", fontSize: 15 }}>
                   Get Paper Trail free <I.arrow />
                 </a>
-                <a href="#/login" className="btn" style={{ background: "transparent", color: "var(--paper)", height: 46, padding: "0 22px", fontSize: 15, border: "1px solid rgba(255,255,255,0.25)" }}>
+                <a href="#/login" className="btn" style={{ background: "transparent", color: "#faf6ec", height: 46, padding: "0 22px", fontSize: 15, border: "1px solid rgba(255,255,255,0.25)" }}>
                   Book a demo
                 </a>
               </div>

@@ -155,6 +155,7 @@ function AppRouter() {
     return <AppPages.DocViewerPage params={parts} />;
   }
   if (route.startsWith('/library')) return <AppPages.LibraryPage />;
+  if (route.startsWith('/papers')) return <AppPages.MyPapersPage />;
   if (route.startsWith('/chats')) return <AppPages.ChatsPage />;
   if (route.match(/^\/workspaces\/(.+)/)) {
     const name = route.replace('/workspaces/', '');

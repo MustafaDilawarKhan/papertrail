@@ -20,6 +20,7 @@ from app.routers import (
     subscriptions,
     notifications,
     admin,
+    papers,
 )
 from alter_db import ensure_user_profile_columns
 
@@ -130,6 +131,7 @@ app.include_router(annotations.router, prefix="/api")
 app.include_router(citations.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
+app.include_router(papers.router, prefix="/api")
 
 @app.get("/")
 async def root():

@@ -10,8 +10,16 @@ const useRefP1 = useRef;
 
 // =================== AUTH SHELL ===================
 function AuthShell({ children, side = "right" }) {
+  // Hardcoded background + text colour so the auth pages stay legible when
+  // the user has toggled dark mode on the landing page. Without this, the
+  // form panel inherits `color: #f1ebda` (the dark-mode body colour) which
+  // makes the cream-on-white labels effectively invisible. The marketing
+  // AuthVisual on the side stays dark by design — that's intentional.
   return (
-    <div className="min-h-screen flex bg-background-primary">
+    <div
+      className="auth-shell min-h-screen flex"
+      style={{ background: "#F5F5F7", color: "#1c1b1b" }}
+    >
       {side === "left" && <AuthVisual />}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
@@ -24,20 +32,25 @@ function AuthShell({ children, side = "right" }) {
   );
 }
 function AuthVisual() {
+  // Hardcoded #15130f bg + #faf6ec text so the panel stays a coherent
+  // dark-on-cream regardless of which theme the landing page is in.
   return (
-    <div className="hidden lg:flex flex-1 bg-primary text-on-primary p-12 flex-col justify-between relative overflow-hidden">
+    <div
+      className="auth-visual hidden lg:flex flex-1 p-12 flex-col justify-between relative overflow-hidden"
+      style={{ background: "#15130f", color: "#faf6ec" }}
+    >
       <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "24px 24px" }}></div>
       <div className="relative">
-        <span className="text-[10px] uppercase tracking-widest font-bold opacity-70">For Researchers</span>
+        <span className="text-[10px] uppercase tracking-widest font-bold" style={{ color: "#faf6ec", opacity: 0.7 }}>For Researchers</span>
       </div>
       <div className="relative max-w-md">
-        <h2 className="font-hero-headline text-hero-headline mb-6">Anchor every claim to a verifiable source.</h2>
-        <p className="text-body-main opacity-80 leading-relaxed">Paper Trail is the deliberate research workspace. We don't manufacture answers — we help you reason through them, with citations on every line.</p>
+        <h2 className="font-hero-headline text-hero-headline mb-6" style={{ color: "#faf6ec" }}>Anchor every claim to a verifiable source.</h2>
+        <p className="text-body-main leading-relaxed" style={{ color: "#faf6ec", opacity: 0.8 }}>Paper Trail is the deliberate research workspace. We don't manufacture answers — we help you reason through them, with citations on every line.</p>
         <div className="mt-12 flex items-center gap-3 text-xs">
           <div className="flex -space-x-2">
-            {["RM","SK","AT"].map((i, k) => <div key={k} className="w-7 h-7 rounded-full bg-white/20 border-2 border-primary flex items-center justify-center text-[9px] font-bold">{i}</div>)}
+            {["RM","SK","AT"].map((i, k) => <div key={k} className="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-bold" style={{ background: "rgba(255,255,255,0.2)", border: "2px solid #15130f", color: "#faf6ec" }}>{i}</div>)}
           </div>
-          <span className="opacity-70">Joined by researchers from Stanford, MIT, and 200+ institutions.</span>
+          <span style={{ color: "#faf6ec", opacity: 0.7 }}>Joined by researchers from Stanford, MIT, and 200+ institutions.</span>
         </div>
       </div>
     </div>

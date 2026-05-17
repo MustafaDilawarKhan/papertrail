@@ -6,7 +6,7 @@ function Features() {
     <section id="features" style={{ padding: "120px 0 60px", position: "relative" }}>
       <div className="container">
         <FadeUp className="row center" style={{ justifyContent: "center", marginBottom: 18 }}>
-          <Eyebrow>FEATURES — 01/04</Eyebrow>
+          <Eyebrow>FEATURES</Eyebrow>
         </FadeUp>
         <FadeUp delay={80}>
           <h2 className="h-section" style={{ textAlign: "center", maxWidth: 880, margin: "0 auto" }}>

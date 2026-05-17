@@ -1,6 +1,34 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Icon, ProfileDropdown, navigate, Sidebar } from '../shared/components';
+import { Icon, ProfileDropdown, navigate, Sidebar, useRoute } from '../shared/components';
+import { apiRequest } from '../apiConfig';
+import { exportPaperToDocx } from '../shared/exportDocx';
+
+// sessionStorage backup so an in-progress draft survives a tab crash or a
+// reload that happens between the user's keystroke and the debounced PATCH.
+// Cleared once the server confirms a save with a newer-or-equal timestamp.
+const SESSION_DRAFT_PREFIX = 'pt.draft.';
+const sessionDraftKey = (id) => SESSION_DRAFT_PREFIX + id;
+
+function readSessionDraft(id) {
+  try {
+    const raw = sessionStorage.getItem(sessionDraftKey(id));
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionDraft(id, blocks) {
+  try {
+    sessionStorage.setItem(sessionDraftKey(id), JSON.stringify({ blocks, t: Date.now() }));
+  } catch { /* quota or disabled — ignore */ }
+}
+
+function clearSessionDraft(id) {
+  try { sessionStorage.removeItem(sessionDraftKey(id)); } catch { /* ignore */ }
+}
 
 // ─── IEEE CONSTANTS ────────────────────────────────────────────────────────────
 const IEEE = {
@@ -263,6 +291,17 @@ function getBlockIcon(type) {
 // ─── MAIN EDITOR ──────────────────────────────────────────────────────────────
 export default function EditorPage() {
   const { user } = useAuth();
+  const route = useRoute();
+
+  // `#/write` → blank scratchpad (no autosave)
+  // `#/write/new` → create a fresh Paper row, redirect to `#/write/<id>`
+  // `#/write/<uuid>` → load that paper, autosave on every change
+  const routePaperId = useMemo(() => {
+    const m = route.match(/^\/write\/([^/?#]+)/);
+    return m ? m[1] : null;
+  }, [route]);
+
+  const [paperId, setPaperId] = useState(routePaperId && routePaperId !== 'new' ? routePaperId : null);
   const [blocks, setBlocks] = useState(INITIAL_BLOCKS);
   const [activeBlockId, setActiveBlockId] = useState('b-abstract');
   const [viewMode, setViewMode] = useState('editor');
@@ -270,10 +309,115 @@ export default function EditorPage() {
   const [leftTab, setLeftTab] = useState('elements');
   const [rightTab, setRightTab] = useState('edit');
   const [zoom, setZoom] = useState(100);
-  const [savedAgo, setSavedAgo] = useState('Saved 3s ago');
+  const [savedAgo, setSavedAgo] = useState(paperId ? 'Loading…' : 'Not saved');
   const [showBlockToolbar, setShowBlockToolbar] = useState(null);
   const [navCollapsed, setNavCollapsed] = useState(true);
   const [printMode, setPrintMode] = useState(false);
+
+  // Guards so we don't autosave during the initial GET that populates `blocks`.
+  const initialLoadDoneRef = useRef(!routePaperId || routePaperId === 'new');
+  const saveTimerRef = useRef(null);
+  const lastSavedAtRef = useRef(null);
+
+  // Bootstrap: create-new OR load-existing paper based on the route.
+  useEffect(() => {
+    let cancelled = false;
+    if (!routePaperId) {
+      // Plain `#/write` — keep the demo content, no server persistence.
+      initialLoadDoneRef.current = true;
+      return;
+    }
+    if (routePaperId === 'new') {
+      (async () => {
+        try {
+          const created = await apiRequest('/papers', {
+            method: 'POST',
+            body: JSON.stringify({ title: 'Untitled paper', blocks: INITIAL_BLOCKS }),
+          });
+          if (cancelled) return;
+          setPaperId(created.paper_id);
+          setBlocks(Array.isArray(created.blocks) && created.blocks.length ? created.blocks : INITIAL_BLOCKS);
+          lastSavedAtRef.current = Date.now();
+          setSavedAgo('Saved just now');
+          initialLoadDoneRef.current = true;
+          // Swap the hash to the real id so a refresh resumes correctly.
+          window.history.replaceState(null, '', `#/write/${created.paper_id}`);
+        } catch (err) {
+          if (!cancelled) setSavedAgo('Save failed — ' + (err.message || 'unknown error'));
+        }
+      })();
+      return;
+    }
+    // Existing paper id → load it. Prefer the sessionStorage draft if it's
+    // newer than the server copy (covers crashes mid-debounce).
+    (async () => {
+      try {
+        const paper = await apiRequest(`/papers/${routePaperId}`);
+        if (cancelled) return;
+        setPaperId(paper.paper_id);
+        const serverTs = new Date(paper.updated_at).getTime();
+        const session = readSessionDraft(routePaperId);
+        if (session && session.t > serverTs && Array.isArray(session.blocks) && session.blocks.length) {
+          setBlocks(session.blocks);
+          setSavedAgo('Recovered unsaved draft');
+        } else {
+          setBlocks(Array.isArray(paper.blocks) && paper.blocks.length ? paper.blocks : INITIAL_BLOCKS);
+          setSavedAgo('Saved just now');
+          clearSessionDraft(routePaperId);
+        }
+        lastSavedAtRef.current = serverTs;
+        initialLoadDoneRef.current = true;
+      } catch (err) {
+        if (!cancelled) setSavedAgo('Could not load paper');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [routePaperId]);
+
+  // Debounced autosave — 1.2s after the last change. Only fires once the
+  // bootstrap GET/POST has finished, so we never overwrite the server copy
+  // with the local INITIAL_BLOCKS placeholder. We *also* mirror every change
+  // to sessionStorage synchronously so a crash/reload before the debounce
+  // fires doesn't lose work.
+  useEffect(() => {
+    if (!paperId || !initialLoadDoneRef.current) return;
+    writeSessionDraft(paperId, blocks);
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    setSavedAgo('Saving…');
+    saveTimerRef.current = setTimeout(async () => {
+      saveTimerRef.current = null;
+      try {
+        const front = blocks.find(b => b.type === 'frontmatter');
+        const title = (front?.title || '').trim() || 'Untitled paper';
+        await apiRequest(`/papers/${paperId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ title, blocks }),
+        });
+        lastSavedAtRef.current = Date.now();
+        clearSessionDraft(paperId);
+        setSavedAgo('Saved just now');
+      } catch (err) {
+        setSavedAgo('Save failed — will retry');
+      }
+    }, 1200);
+    return () => { if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; } };
+  }, [blocks, paperId]);
+
+  // Rolling "Saved Ns ago" timer so the indicator stays honest between saves.
+  useEffect(() => {
+    if (!lastSavedAtRef.current) return;
+    const tick = () => {
+      if (!lastSavedAtRef.current) return;
+      // Don't clobber an in-flight "Saving…" / "Save failed" message.
+      if (saveTimerRef.current) return;
+      const secs = Math.max(1, Math.floor((Date.now() - lastSavedAtRef.current) / 1000));
+      if (secs < 5) setSavedAgo('Saved just now');
+      else if (secs < 60) setSavedAgo(`Saved ${secs}s ago`);
+      else setSavedAgo(`Saved ${Math.floor(secs / 60)}m ago`);
+    };
+    const interval = setInterval(tick, 5000);
+    return () => clearInterval(interval);
+  }, [paperId]);
 
   // When printMode flips on, render paper-only DOM, then trigger print, then reset.
   useEffect(() => {
@@ -287,12 +431,6 @@ export default function EditorPage() {
     window.addEventListener('afterprint', reset);
     return () => window.removeEventListener('afterprint', reset);
   }, []);
-
-  // Auto-save simulation
-  useEffect(() => {
-    const t = setTimeout(() => setSavedAgo('Saved just now'), 3000);
-    return () => clearTimeout(t);
-  }, [blocks]);
 
   const baseActiveId = activeBlockId?.replace(/-p\d+$/, '');
   const activeBlock = blocks.find(b => b.id === baseActiveId);
@@ -366,7 +504,7 @@ export default function EditorPage() {
     }}>
 
       {/* ── 1. SHARED APP SIDEBAR (same as dashboard) ───────────────────────── */}
-      <Sidebar active="library" collapsed={navCollapsed} onToggle={() => setNavCollapsed(c => !c)} />
+      <Sidebar active="papers" collapsed={navCollapsed} onToggle={() => setNavCollapsed(c => !c)} />
 
       {/* ── 2. COMPONENTS SIDEBAR (editor mode only) ───────────────────────── */}
       {viewMode === 'editor' && (
@@ -656,27 +794,43 @@ function PrintPaperOnly({ blocks, layoutMode }) {
 // ─── TOP HEADER BAR ──────────────────────────────────────────────────────────
 function TopBar({ layoutMode, setLayoutMode, viewMode, setViewMode, savedAgo, latexSource, blocks, onExportPdf }) {
   const [exportOpen, setExportOpen] = useState(false);
+  const [exportingDocx, setExportingDocx] = useState(false);
   const exportRef = useRef(null);
   useEffect(() => {
     const onDoc = e => { if (exportRef.current && !exportRef.current.contains(e.target)) setExportOpen(false); };
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
+  const filenameBase = (() => {
+    const t = blocks.find(b => b.type === 'frontmatter')?.title || 'paper';
+    return t.replace(/[^a-z0-9-_ ]/gi, '').trim().slice(0, 60) || 'paper';
+  })();
   const exportLatex = () => {
     const blob = new Blob([latexSource], { type: 'text/x-tex' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'paper.tex'; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = `${filenameBase}.tex`; a.click();
     URL.revokeObjectURL(url);
     setExportOpen(false);
   };
   const exportJson = () => {
     const blob = new Blob([JSON.stringify(blocks, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'paper.json'; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = `${filenameBase}.json`; a.click();
     URL.revokeObjectURL(url);
     setExportOpen(false);
   };
   const exportPdf = () => { setExportOpen(false); onExportPdf && onExportPdf(); };
+  const exportDocx = async () => {
+    setExportOpen(false);
+    setExportingDocx(true);
+    try {
+      await exportPaperToDocx(blocks, { filename: `${filenameBase}.docx`, layoutMode });
+    } catch (err) {
+      window.alert('DOCX export failed: ' + (err.message || err));
+    } finally {
+      setExportingDocx(false);
+    }
+  };
   return (
     <header style={{
       height: 48, background: '#fff', borderBottom: '1px solid #eee',
@@ -767,15 +921,17 @@ function TopBar({ layoutMode, setLayoutMode, viewMode, setViewMode, savedAgo, la
               overflow: 'hidden',
             }}>
               {[
-                { icon: 'description', label: 'LaTeX (.tex)', onClick: exportLatex },
                 { icon: 'picture_as_pdf', label: 'PDF (Print)', onClick: exportPdf },
+                { icon: 'article', label: exportingDocx ? 'Generating DOCX…' : 'Word (.docx)', onClick: exportDocx, disabled: exportingDocx },
+                { icon: 'description', label: 'LaTeX (.tex)', onClick: exportLatex },
                 { icon: 'data_object', label: 'JSON', onClick: exportJson },
               ].map(it => (
-                <button key={it.label} onClick={it.onClick} style={{
+                <button key={it.label} onClick={it.onClick} disabled={it.disabled} style={{
                   width: '100%', display: 'flex', alignItems: 'center', gap: 8,
                   padding: '8px 12px', background: '#fff', border: 'none',
-                  fontSize: 11, color: '#333', cursor: 'pointer', textAlign: 'left',
-                }} onMouseEnter={e => e.currentTarget.style.background = '#f5f5f5'}
+                  fontSize: 11, color: it.disabled ? '#aaa' : '#333',
+                  cursor: it.disabled ? 'wait' : 'pointer', textAlign: 'left',
+                }} onMouseEnter={e => { if (!it.disabled) e.currentTarget.style.background = '#f5f5f5'; }}
                    onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
                   <Icon name={it.icon} size={14} style={{ color: '#666' }} />
                   {it.label}
@@ -880,51 +1036,62 @@ function BlockEditorPanel({ blocks, activeBlock, activeBlockId, setActiveBlockId
         )}
       </div>
 
-      {/* Bottom half: structure outline (scrollable) */}
-      <div style={{ flex: '1 1 40%', minHeight: 0, overflowY: 'auto', padding: '12px 10px' }}>
-        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: '#bbb', textTransform: 'uppercase', marginBottom: 10, paddingLeft: 4 }}>
-          Structure
+      {/* Bottom half: structure outline. Section header + block list scroll;
+          the Add New Block button is pinned at the bottom so it's always
+          reachable even with a long structure. */}
+      <div style={{ flex: '1 1 40%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', padding: '12px 10px 4px' }}>
+          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: '#bbb', textTransform: 'uppercase', marginBottom: 10, paddingLeft: 4 }}>
+            Structure
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {blocks.map((b, idx) => (
+              <StructureItem
+                key={b.id}
+                block={b}
+                blocks={blocks}
+                idx={idx}
+                isActive={b.id === activeBlockId}
+                dragIdx={dragIdx}
+                overIdx={overIdx}
+                onDragStart={() => setDragIdx(idx)}
+                onDragOver={(e) => { e.preventDefault(); if (overIdx !== idx) setOverIdx(idx); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dragIdx !== null && dragIdx !== idx) reorderBlocks(dragIdx, idx);
+                  setDragIdx(null); setOverIdx(null);
+                }}
+                onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
+                onClick={() => setActiveBlockId(b.id)}
+                onMoveUp={() => moveBlock(b.id, 'up')}
+                onMoveDown={() => moveBlock(b.id, 'down')}
+                onDelete={() => deleteBlock(b.id)}
+              />
+            ))}
+          </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {blocks.map((b, idx) => (
-            <StructureItem
-              key={b.id}
-              block={b}
-              blocks={blocks}
-              idx={idx}
-              isActive={b.id === activeBlockId}
-              dragIdx={dragIdx}
-              overIdx={overIdx}
-              onDragStart={() => setDragIdx(idx)}
-              onDragOver={(e) => { e.preventDefault(); if (overIdx !== idx) setOverIdx(idx); }}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (dragIdx !== null && dragIdx !== idx) reorderBlocks(dragIdx, idx);
-                setDragIdx(null); setOverIdx(null);
-              }}
-              onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
-              onClick={() => setActiveBlockId(b.id)}
-              onMoveUp={() => moveBlock(b.id, 'up')}
-              onMoveDown={() => moveBlock(b.id, 'down')}
-              onDelete={() => deleteBlock(b.id)}
-            />
-          ))}
+        <div style={{
+          flexShrink: 0,
+          padding: '10px',
+          borderTop: '1px solid #eee',
+          background: '#fff',
+        }}>
+          <button
+            onClick={() => addBlock({ type: 'section', sectionKey: 'new', title: 'New Section' })}
+            style={{
+              width: '100%', padding: '10px 0',
+              border: '1.5px dashed #c4c4c4', borderRadius: 8, background: '#fafafa',
+              fontSize: 12, fontWeight: 800, color: '#444', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#4A7CFF'; e.currentTarget.style.color = '#4A7CFF'; e.currentTarget.style.background = '#f0f5ff'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#c4c4c4'; e.currentTarget.style.color = '#444'; e.currentTarget.style.background = '#fafafa'; }}
+          >
+            <Icon name="add" size={16} style={{ color: 'inherit' }} />
+            Add New Block
+          </button>
         </div>
-        <button
-          onClick={() => addBlock({ type: 'section', sectionKey: 'new', title: 'New Section' })}
-          style={{
-            width: '100%', marginTop: 10, padding: '8px 0',
-            border: '1px dashed #ddd', borderRadius: 8, background: 'transparent',
-            fontSize: 10, fontWeight: 700, color: '#aaa', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-            transition: 'all 0.15s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = '#4A7CFF'; e.currentTarget.style.color = '#4A7CFF'; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = '#ddd'; e.currentTarget.style.color = '#aaa'; }}
-        >
-          <Icon name="add" size={13} style={{ color: 'inherit' }} />
-          Add New Block
-        </button>
       </div>
     </section>
   );

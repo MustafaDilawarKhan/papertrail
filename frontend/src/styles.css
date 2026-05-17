@@ -90,6 +90,56 @@ kbd { font-family: ui-monospace, monospace; }
 /* Integration card connected glow */
 .integration-connected { box-shadow: 0 0 0 2px rgba(34,197,94,0.2); }
 
+/* Paper Trail brand logo — swap the SVG based on the dark-mode body class.
+   The two files are rendered side-by-side; we hide the wrong one. The naming
+   is intentional: the "dark" SVG has dark ink for light backgrounds and
+   vice-versa. */
+.brand-logo--dark { display: none !important; }
+body.theme-dark .brand-logo--light { display: none !important; }
+body.theme-dark .brand-logo--dark  { display: block !important; }
+
+/* Auth pages (Login / Register / Verify / Settings / Upgrade): force a fixed
+   light palette so they remain legible even when the landing page has been
+   toggled to dark mode. The marketing-side panel (`.bg-primary` in JSX) is
+   already dark by design and is unaffected. */
+body.theme-dark .auth-shell,
+body.theme-dark .auth-shell input,
+body.theme-dark .auth-shell label,
+body.theme-dark .auth-shell p,
+body.theme-dark .auth-shell h1,
+body.theme-dark .auth-shell h2,
+body.theme-dark .auth-shell span {
+  color: #1c1b1b;
+}
+body.theme-dark .auth-shell input::placeholder { color: #6b6b6b; }
+/* Keep the dark marketing panel readable in either theme. */
+body.theme-dark .auth-shell .bg-primary,
+body.theme-dark .auth-shell .bg-primary * { color: #ffffff; }
+
+/* AuthVisual side panel: hardcoded dark bg with cream text. Make sure no
+   dark-mode rule above bleeds into the descendants. */
+.auth-shell .auth-visual,
+.auth-shell .auth-visual * { color: #faf6ec !important; }
+
+/* TrustBar logos — grayscale + dim in light mode, inverted-to-light in
+   dark mode so they read against the dark background. */
+.trust-logo {
+  filter: grayscale(1) brightness(0.6) contrast(1.2);
+  opacity: 0.7;
+}
+.trust-logo:hover {
+  filter: grayscale(0) brightness(1);
+  opacity: 1;
+}
+body.theme-dark .trust-logo {
+  filter: grayscale(1) brightness(1.6) contrast(1) invert(1);
+  opacity: 0.85;
+}
+body.theme-dark .trust-logo:hover {
+  filter: grayscale(0) brightness(1.1) invert(1);
+  opacity: 1;
+}
+
 /* react-pdf text-layer overlay highlight (used by the AI source citation).
    The text layer spans are positioned over the canvas-rendered page with
    transparent text — we just paint a translucent yellow background. */

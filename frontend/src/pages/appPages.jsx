@@ -162,7 +162,7 @@ function DashboardPage() {
               <p className="text-on-surface-variant font-body-main">Continue your exploration or start a new project.</p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Link to="/write" className="flex items-center gap-2 border border-border-subtle bg-white text-primary px-5 py-2.5 rounded-full font-bold text-sm hover:bg-surface-container-low transition-all">
+              <Link to="/write/new" className="flex items-center gap-2 border border-border-subtle bg-white text-primary px-5 py-2.5 rounded-full font-bold text-sm hover:bg-surface-container-low transition-all">
                 <Icon name="edit_square" size={20} /> Write paper
               </Link>
               <Link to="/upload" className="flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-full font-bold text-sm shadow-sm hover:opacity-90">
@@ -2702,5 +2702,122 @@ function ChatsPage() {
   );
 }
 
-export { DashboardPage, LibraryPage, DocViewerPage, WorkspacesPage, WorkspaceDetailPage, IntegrationsPage, ChatsPage };
+// ─── MY PAPERS ───────────────────────────────────────────────────────────────
+// Lists every Paper draft the current user has created in the editor. Clicking
+// a row opens `#/write/<paper_id>`; the editor loads the blocks and resumes
+// autosaving on PATCH /api/papers/<id>.
+function MyPapersPage() {
+  const [papers, setPapers] = useStateP1([]);
+  const [loading, setLoading] = useStateP1(true);
+  const [error, setError] = useStateP1("");
+  const [creating, setCreating] = useStateP1(false);
+
+  useEffectP1(() => {
+    let active = true;
+    (async () => {
+      try {
+        const data = await apiRequest("/papers");
+        if (active) setPapers(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if (active) setError(err.message);
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const handleNew = async () => {
+    setCreating(true);
+    try {
+      const created = await apiRequest("/papers", {
+        method: "POST",
+        body: JSON.stringify({ title: "Untitled paper", blocks: [] }),
+      });
+      navigate(`/write/${created.paper_id}`);
+    } catch (err) {
+      window.alert(err.message || "Could not create paper");
+      setCreating(false);
+    }
+  };
+
+  const handleDelete = async (paper) => {
+    if (!window.confirm(`Delete "${paper.title}"? This cannot be undone.`)) return;
+    try {
+      await apiRequest(`/papers/${paper.paper_id}`, { method: "DELETE" });
+      setPapers(prev => prev.filter(p => p.paper_id !== paper.paper_id));
+    } catch (err) {
+      window.alert(err.message || "Could not delete");
+    }
+  };
+
+  return (
+    <AppShell active="papers" breadcrumbs={[{ label: "My Papers" }]}>
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="font-section-heading text-section-heading text-primary mb-1">My Papers</h1>
+          <p className="text-on-surface-variant text-sm">Drafts you're writing in the editor. Autosaved as you type.</p>
+        </div>
+        <button
+          onClick={handleNew}
+          disabled={creating}
+          className="bg-primary text-on-primary px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
+        >
+          <Icon name="add" size={16} />
+          {creating ? "Creating…" : "New paper"}
+        </button>
+      </div>
+
+      {error && (
+        <div className="mb-6 p-3 rounded-lg bg-error-container text-on-error-container text-sm">{error}</div>
+      )}
+
+      {loading ? (
+        <p className="text-sm text-on-surface-variant">Loading…</p>
+      ) : papers.length === 0 ? (
+        <EmptyState
+          icon="draft"
+          title="No papers yet"
+          text="Start writing your first paper — autosave keeps your work safe across sessions."
+          action={
+            <button onClick={handleNew} className="bg-primary text-on-primary px-4 py-2 rounded-full text-xs font-bold">
+              Start a paper
+            </button>
+          }
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {papers.map(p => (
+            <div
+              key={p.paper_id}
+              className="bg-white border border-border-subtle rounded-xl p-5 hover:shadow-md transition-shadow group relative"
+            >
+              <button
+                onClick={() => handleDelete(p)}
+                className="absolute top-3 right-3 p-1.5 rounded-md text-on-surface-variant hover:bg-error-container hover:text-on-error-container opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Delete paper"
+              >
+                <Icon name="delete" size={16} />
+              </button>
+              <div className="w-10 h-10 rounded-lg bg-secondary-container flex items-center justify-center text-primary mb-4">
+                <Icon name="draft" filled />
+              </div>
+              <h3 className="font-card-title text-card-title mb-1 line-clamp-2 pr-8">{p.title || "Untitled paper"}</h3>
+              <p className="text-[11px] text-on-surface-variant mb-1">{(p.format || "").replace(/_/g, " ")}</p>
+              <p className="text-[10px] text-on-surface-variant mb-3">Last edited {formatRelativeTime(p.updated_at)}</p>
+              <button
+                onClick={() => navigate(`/write/${p.paper_id}`)}
+                className="w-full bg-surface-container-low hover:bg-surface-container text-primary text-xs font-bold py-2 rounded-lg transition-colors"
+              >
+                Continue writing
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </AppShell>
+  );
+}
+
+export { DashboardPage, LibraryPage, DocViewerPage, WorkspacesPage, WorkspaceDetailPage, IntegrationsPage, ChatsPage, MyPapersPage };
 

@@ -1,4 +1,5 @@
 import React from 'react'
+import BrandLogo from './BrandLogo'
 
 function Footer() {
   return (
@@ -7,11 +8,7 @@ function Footer() {
         <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr 1fr", gap: 32, paddingBottom: 56 }}>
           <div>
             <div className="row center gap-8" style={{ marginBottom: 14 }}>
-              <div style={{
-                display: "inline-flex", alignItems: "center", justifyContent: "center",
-                width: 28, height: 28, borderRadius: 6, background: "var(--ink)", color: "var(--paper)",
-                fontFamily: "var(--mono)", fontSize: 13, fontWeight: 600
-              }}>P</div>
+              <BrandLogo size={44} />
               <span style={{ fontFamily: "var(--serif)", fontSize: 22 }}>Paper Trail</span>
             </div>
             <p style={{ fontSize: 14, color: "var(--ink-3)", maxWidth: 280, marginBottom: 22 }}>

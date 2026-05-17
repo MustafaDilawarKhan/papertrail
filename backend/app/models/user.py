@@ -51,6 +51,7 @@ class User(Base):
     annotations = relationship("Annotation", back_populates="user", lazy="selectin")
     citations = relationship("Citation", back_populates="user", lazy="selectin")
     notifications = relationship("Notification", back_populates="user", lazy="selectin")
+    papers = relationship("Paper", back_populates="user", lazy="selectin", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<User {self.email}>"

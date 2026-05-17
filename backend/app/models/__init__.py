@@ -13,6 +13,7 @@ from app.models.source_highlight import SourceHighlight
 from app.models.annotation import Annotation
 from app.models.citation import Citation
 from app.models.notification import Notification
+from app.models.paper import Paper
 
 __all__ = [
     "User",
@@ -28,4 +29,5 @@ __all__ = [
     "Annotation",
     "Citation",
     "Notification",
+    "Paper",
 ]
