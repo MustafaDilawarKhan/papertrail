@@ -1222,9 +1222,16 @@ function BlockEditFields({ block, updateBlock }) {
   if (block.type === 'table') {
     const rows = block.rows || [['']];
     const cols = rows[0]?.length || 1;
-    const addRow = () => updateBlock(block.id, { rows: [...rows, Array(cols).fill('')] });
+    // New cells get visible placeholder text ("Cell" for body, "Header N" for
+    // the header row) so the user can see the structure they just added,
+    // rather than a row of invisible empty strings.
+    const addRow = () => updateBlock(block.id, {
+      rows: [...rows, Array.from({ length: cols }, (_, c) => `Cell ${rows.length}-${c + 1}`)],
+    });
     const removeRow = () => rows.length > 1 && updateBlock(block.id, { rows: rows.slice(0, -1) });
-    const addCol = () => updateBlock(block.id, { rows: rows.map(r => [...r, '']) });
+    const addCol = () => updateBlock(block.id, {
+      rows: rows.map((r, rIdx) => [...r, rIdx === 0 ? `Header ${cols + 1}` : `Cell ${rIdx}-${cols + 1}`]),
+    });
     const removeCol = () => cols > 1 && updateBlock(block.id, { rows: rows.map(r => r.slice(0, -1)) });
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1245,7 +1252,15 @@ function BlockEditFields({ block, updateBlock }) {
             <button onClick={removeCol} style={tableEditBtn}>− Column</button>
           </div>
         </div>
-        <div style={{ fontSize: 9, color: '#aaa', fontStyle: 'italic' }}>Click any cell on the paper to edit inline.</div>
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', gap: 6,
+          padding: '8px 10px', borderRadius: 6,
+          background: '#eef4ff', border: '1px solid #cfdcff',
+          color: '#1d4ed8', fontSize: 11, fontWeight: 600, lineHeight: 1.4,
+        }}>
+          <Icon name="lightbulb" size={14} style={{ color: '#1d4ed8', marginTop: 1 }} />
+          <span>Tip: click any cell on the paper to edit it inline.</span>
+        </div>
       </div>
     );
   }
