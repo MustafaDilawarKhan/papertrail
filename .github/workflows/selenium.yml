@@ -1,0 +1,204 @@
+name: Selenium E2E
+
+# Runs the full Selenium end-to-end suite on every push to `main` and every
+# pull request targeting `main`. The job spins up its own Postgres service,
+# starts the FastAPI backend and the Vite frontend dev server in the
+# background, and drives Chromium headless to exercise the user-facing
+# flows that gate every commit:
+#   - Auth (register / bad-login / dashboard redirect)
+#   - Landing page rendering at 5 viewport widths
+#   - Sidebar navigation
+#   - Responsive layouts on Dashboard + My Papers
+#
+# Build artefacts (screenshots + full pytest log) are uploaded on failure
+# so the failing run is debuggable without re-running locally.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # Cancel any in-flight run for the same ref when a new commit lands.
+  group: selenium-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  selenium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # A throwaway Postgres for the job. The backend's `Base.metadata.create_all`
+    # in main.py:lifespan will create every table on first boot, so we don't
+    # need to ship a migration here.
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: paper_trail_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      # Backend reads this — see backend/app/config.py + database.py.
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/paper_trail_test
+      DATABASE_URL_SYNC: postgresql://postgres:postgres@localhost:5432/paper_trail_test
+      # JWT signing key — disposable per-run. NOT the production secret.
+      SECRET_KEY: ci-only-throwaway-key-do-not-use-in-prod
+      ACCESS_TOKEN_EXPIRE_MINUTES: "1440"
+      # Supabase + OpenRouter are optional for the auth / nav / responsive
+      # tests we run here. Set to empty so config validation is happy.
+      SUPABASE_URL: ""
+      SUPABASE_SERVICE_ROLE_KEY: ""
+      SUPABASE_STORAGE_BUCKET: ci-bucket
+      OPENROUTER_API_KEY: ""
+      DEBUG: "false"
+
+    steps:
+      # ──────────────────── checkout + toolchain ────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Set up Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # ──────────────────── install dependencies ────────────────────
+      - name: Install backend deps
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install selenium
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      # ──────────────────── wait for postgres ────────────────────
+      - name: Wait for Postgres
+        run: |
+          for i in {1..30}; do
+            if pg_isready -h localhost -p 5432 -U postgres; then
+              echo "postgres ready"; exit 0
+            fi
+            echo "waiting for postgres ($i)…"; sleep 1
+          done
+          echo "postgres never became ready" >&2; exit 1
+
+      # ──────────────────── start backend ────────────────────
+      - name: Start backend (uvicorn)
+        working-directory: backend
+        run: |
+          # Run in background; redirect logs so we can attach them on failure.
+          nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 \
+            > "$GITHUB_WORKSPACE/backend.log" 2>&1 &
+          echo $! > "$GITHUB_WORKSPACE/backend.pid"
+          # Wait until the backend's `/` returns 200.
+          for i in {1..40}; do
+            if curl -sf http://localhost:8000/ > /dev/null; then
+              echo "backend ready"; exit 0
+            fi
+            echo "waiting for backend ($i)…"; sleep 1
+          done
+          echo "backend never came up — last 100 lines of log:" >&2
+          tail -n 100 "$GITHUB_WORKSPACE/backend.log" >&2
+          exit 1
+
+      # ──────────────────── start frontend ────────────────────
+      - name: Start frontend (Vite dev server)
+        working-directory: frontend
+        env:
+          # Vite reads this at build/dev time to point the SPA at the
+          # backend we just started.
+          VITE_API_BASE_URL: http://localhost:8000
+        run: |
+          nohup npm run dev -- --host 0.0.0.0 --port 5173 \
+            > "$GITHUB_WORKSPACE/frontend.log" 2>&1 &
+          echo $! > "$GITHUB_WORKSPACE/frontend.pid"
+          for i in {1..60}; do
+            if curl -sf http://localhost:5173/ > /dev/null; then
+              echo "frontend ready"; exit 0
+            fi
+            echo "waiting for frontend ($i)…"; sleep 1
+          done
+          echo "frontend never came up — last 100 lines of log:" >&2
+          tail -n 100 "$GITHUB_WORKSPACE/frontend.log" >&2
+          exit 1
+
+      # ──────────────────── run the suite ────────────────────
+      - name: Run Selenium suite (headless)
+        env:
+          SELENIUM_HEADLESS: "1"
+          SELENIUM_BASE_URL: http://localhost:5173
+        run: |
+          mkdir -p report/screenshots
+          python -m pytest report/test-cases/selenium/ -v --tb=short \
+            | tee report/test-cases/04-selenium-ci-run.txt
+
+      # ──────────────────── teardown ────────────────────
+      - name: Stop background services
+        if: always()
+        run: |
+          if [ -f "$GITHUB_WORKSPACE/backend.pid" ]; then
+            kill $(cat "$GITHUB_WORKSPACE/backend.pid") 2>/dev/null || true
+          fi
+          if [ -f "$GITHUB_WORKSPACE/frontend.pid" ]; then
+            kill $(cat "$GITHUB_WORKSPACE/frontend.pid") 2>/dev/null || true
+          fi
+
+      # ──────────────────── always upload artefacts ────────────────────
+      - name: Upload pytest run log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selenium-run-log
+          path: report/test-cases/04-selenium-ci-run.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selenium-screenshots
+          path: report/screenshots/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload backend log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-log
+          path: backend.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload frontend log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-log
+          path: frontend.log
+          if-no-files-found: warn
+          retention-days: 7
