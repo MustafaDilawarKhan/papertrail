@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Icon, ProfileDropdown, navigate, Sidebar, useRoute } from '../shared/components';
 import { apiRequest } from '../apiConfig';
 import { exportPaperToDocx } from '../shared/exportDocx';
+import { parseLatex } from '../shared/importLatex';
 
 // sessionStorage backup so an in-progress draft survives a tab crash or a
 // reload that happens between the user's keystroke and the debounced PATCH.
@@ -31,17 +32,43 @@ function clearSessionDraft(id) {
 }
 
 // ─── IEEE CONSTANTS ────────────────────────────────────────────────────────────
+// IEEE conference-template metrics. Sizes use `pt` rather than `px` so the
+// on-screen render matches what `window.print()` produces in print mode
+// (browsers honour pt at 1:1 against the page CSS). Spec sources: IEEE
+// Manuscript Template for Conferences and IEEEtran v1.8b documentation.
 const IEEE = {
   fonts: {
     body: '"Times New Roman", Times, serif',
     mono: '"Courier New", Courier, monospace',
   },
   sizes: {
-    title: '22px', authorName: '13px', affiliation: '11px',
-    email: '10px', abstract: '11px', body: '12px',
-    heading1: '12px', caption: '9px', reference: '9px',
+    title:       '24pt',  // 24-pt Times, bold, centred
+    authorName:  '11pt',  // 11-pt Times
+    affiliation: '10pt',  // 10-pt Times, italic
+    email:        '9pt',  // 9-pt mono / Times
+    abstract:     '9pt',  // 9-pt Times bold (label + body)
+    body:        '10pt',  // 10-pt Times
+    heading1:    '10pt',  // 10-pt Times small-caps (section heading)
+    caption:      '8pt',  // 8-pt Times (table / figure captions)
+    reference:    '8pt',  // 8-pt Times (bibliography)
   },
-  leading: { body: '15px', abstract: '14px', reference: '12px' },
+  leading: {
+    body:      '12pt',    // single line spacing
+    abstract:  '11pt',
+    reference: '10pt',
+  },
+  spacing: {
+    // Vertical rhythm between blocks. Numbers chosen to match the
+    // IEEEtran defaults so a printed page reads identically to the
+    // canonical template.
+    sectionMarginTop:    '12pt',
+    sectionMarginBottom:  '3pt',
+    paragraphIndent:   '3.5mm',
+    abstractMarginBot:   '10pt',
+    figureMarginVert:    '12pt',
+    tableMarginVert:     '12pt',
+    referenceItemGap:     '2pt',
+  },
 };
 
 // ─── INITIAL PAPER BLOCKS ──────────────────────────────────────────────────────
@@ -489,6 +516,35 @@ export default function EditorPage() {
 
   const latexSource = useMemo(() => generateLaTeX(blocks, layoutMode), [blocks, layoutMode]);
 
+  // Import a .tex file → replace `blocks` with the parsed equivalent. Asks
+  // for confirmation first because it's destructive (autosave will pick
+  // up the new blocks ~1.2s later, which means the prior paper state
+  // would be overwritten on the server too).
+  const handleImportLatex = useCallback(async (file) => {
+    if (!file) return;
+    const okToOverwrite = blocks.length === 0 || blocks.every(b => b.type === 'frontmatter' && !b.title)
+      || window.confirm(
+          `Importing "${file.name}" will replace the current paper. ` +
+          `Your existing content will be overwritten on the next autosave. Continue?`
+        );
+    if (!okToOverwrite) return;
+    try {
+      const source = await file.text();
+      const { blocks: parsed, warnings } = parseLatex(source);
+      if (parsed.length === 0) {
+        window.alert('Could not parse any blocks from the LaTeX file.');
+        return;
+      }
+      setBlocks(parsed);
+      setActiveBlockId(parsed[0]?.id || null);
+      if (warnings.length) {
+        window.alert(`Imported with ${warnings.length} warning(s):\n\n• ` + warnings.join('\n• '));
+      }
+    } catch (err) {
+      window.alert('Import failed: ' + (err.message || err));
+    }
+  }, [blocks]);
+
   // ── Print mode: render only the paper pages so window.print() captures
   //    ONLY the document, not the editor chrome.
   if (printMode) {
@@ -528,6 +584,7 @@ export default function EditorPage() {
           latexSource={latexSource}
           blocks={blocks}
           onExportPdf={() => setPrintMode(true)}
+          onImportLatex={handleImportLatex}
         />
 
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -792,10 +849,15 @@ function PrintPaperOnly({ blocks, layoutMode }) {
 }
 
 // ─── TOP HEADER BAR ──────────────────────────────────────────────────────────
-function TopBar({ layoutMode, setLayoutMode, viewMode, setViewMode, savedAgo, latexSource, blocks, onExportPdf }) {
+function TopBar({ layoutMode, setLayoutMode, viewMode, setViewMode, savedAgo, latexSource, blocks, onExportPdf, onImportLatex }) {
   const [exportOpen, setExportOpen] = useState(false);
   const [exportingDocx, setExportingDocx] = useState(false);
   const exportRef = useRef(null);
+  // Hidden <input type=file> we click programmatically when the user
+  // presses the Import button. Keeping it out of the DOM-flow with
+  // `display: none` lets us pop the OS file picker without showing the
+  // ugly default button.
+  const importInputRef = useRef(null);
   useEffect(() => {
     const onDoc = e => { if (exportRef.current && !exportRef.current.contains(e.target)) setExportOpen(false); };
     document.addEventListener('mousedown', onDoc);
@@ -906,6 +968,25 @@ function TopBar({ layoutMode, setLayoutMode, viewMode, setViewMode, savedAgo, la
           <Icon name="check_circle" size={12} style={{ color: '#22c55e' }} />
           {savedAgo}
         </span>
+        {/* Hidden file picker for LaTeX import */}
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".tex,text/x-tex,text/plain"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f && onImportLatex) onImportLatex(f);
+            // Reset so the same file can be picked twice in a row.
+            e.target.value = '';
+          }}
+        />
+        <TopBarTextBtn
+          icon="upload_file"
+          label="Import .tex"
+          bordered
+          onClick={() => importInputRef.current?.click()}
+        />
         <TopBarTextBtn icon="share" label="Share" onClick={() => {
           const url = window.location.href;
           navigator.clipboard?.writeText(url);
@@ -1266,13 +1347,60 @@ function BlockEditFields({ block, updateBlock }) {
   }
 
   if (block.type === 'figure') {
+    // Width / height: blank = auto-fit (default behaviour); explicit
+    // numbers honoured in CSS. Units are CSS-percent for width and CSS-px
+    // for height, mirroring how IEEE figures are typically specified
+    // ("\includegraphics[width=\columnwidth]{...}" → width 100%; "height=
+    // 6cm" → fixed pixel height).
+    const w = block.width ?? '';
+    const h = block.height ?? '';
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <EditField label="Caption">
           <input value={block.caption || ''} onChange={e => updateBlock(block.id, { caption: e.target.value })} style={inputStyle} />
         </EditField>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <EditField label="Width (% of column)">
+            <input
+              type="number" min="10" max="200" step="5"
+              placeholder="auto"
+              value={w}
+              onChange={e => {
+                const v = e.target.value;
+                updateBlock(block.id, { width: v === '' ? null : Math.max(10, Math.min(200, Number(v))) });
+              }}
+              style={inputStyle}
+            />
+          </EditField>
+          <EditField label="Height (px)">
+            <input
+              type="number" min="40" max="800" step="10"
+              placeholder="auto"
+              value={h}
+              onChange={e => {
+                const v = e.target.value;
+                updateBlock(block.id, { height: v === '' ? null : Math.max(40, Math.min(800, Number(v))) });
+              }}
+              style={inputStyle}
+            />
+          </EditField>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+          <button
+            type="button"
+            onClick={() => updateBlock(block.id, { width: 100, height: null })}
+            style={tableEditBtn}
+          >Fit column</button>
+          <button
+            type="button"
+            onClick={() => updateBlock(block.id, { width: null, height: null })}
+            style={tableEditBtn}
+          >Reset</button>
+        </div>
         <div style={{ fontSize: 9, color: '#aaa', fontStyle: 'italic' }}>
           Click the figure on the paper to upload an image (or drag/paste one in).
+          Leave width/height blank to auto-fit. Use “Fit column” for the
+          standard IEEE single-column figure size.
         </div>
       </div>
     );
@@ -1825,26 +1953,32 @@ function CanvasFrontmatter({ block, isActive, onClick, onDelete, onMoveUp, onMov
   const emailsFromAuthors = authors.filter(a => a.email).map(a => a.email).join(', ');
   return (
     <CanvasBlockShell isActive={isActive} onClick={onClick} onDelete={onDelete} onMoveUp={onMoveUp} onMoveDown={onMoveDown} fullWidth>
-      <div style={{ textAlign: 'center', padding: '24px 40px 16px', fontFamily: IEEE.fonts.body }}>
+      <div style={{ textAlign: 'center', padding: '18pt 40px 12pt', fontFamily: IEEE.fonts.body }}>
         <h1 style={{
-          fontSize: IEEE.sizes.title, fontWeight: 700, lineHeight: 1.25,
-          marginBottom: 14, fontFamily: IEEE.fonts.body, textTransform: 'none',
+          fontSize: IEEE.sizes.title, fontWeight: 700, lineHeight: 1.15,
+          marginBottom: '12pt', fontFamily: IEEE.fonts.body, textTransform: 'none',
           color: '#111',
         }}>{block.title}</h1>
-        <div style={{ fontSize: 13, marginBottom: 8, fontFamily: IEEE.fonts.body, lineHeight: 1.5 }}>
+        <div style={{
+          fontSize: IEEE.sizes.authorName,
+          marginBottom: '8pt', fontFamily: IEEE.fonts.body, lineHeight: 1.4, color: '#111',
+        }}>
           {authors.map((a, i) => (
             <span key={i}>
-              {a.name}<sup style={{ fontSize: 8 }}>{a.sup}</sup>
+              {a.name}<sup style={{ fontSize: '60%' }}>{a.sup}</sup>
               {i < authors.length - 1 ? ', ' : ''}
             </span>
           ))}
         </div>
-        <div style={{ fontSize: 10, fontStyle: 'italic', color: '#555', lineHeight: 1.6, marginBottom: 4 }}>
+        <div style={{
+          fontSize: IEEE.sizes.affiliation, fontStyle: 'italic',
+          color: '#333', lineHeight: 1.45, marginBottom: '4pt',
+        }}>
           {perAuthorAffil
-            ? authors.map((a, i) => a.affiliation ? <div key={i}><sup style={{ fontSize: 7 }}>{a.sup}</sup>{a.affiliation}</div> : null)
+            ? authors.map((a, i) => a.affiliation ? <div key={i}><sup style={{ fontSize: '60%' }}>{a.sup}</sup>{a.affiliation}</div> : null)
             : block.affiliations?.map((a, i) => <div key={i}>{a}</div>)}
         </div>
-        <div style={{ fontFamily: IEEE.fonts.mono, fontSize: 9, color: '#555' }}>
+        <div style={{ fontFamily: IEEE.fonts.mono, fontSize: IEEE.sizes.email, color: '#333' }}>
           Email: {emailsFromAuthors || block.emails}
         </div>
       </div>
@@ -1855,18 +1989,36 @@ function CanvasFrontmatter({ block, isActive, onClick, onDelete, onMoveUp, onMov
 // ─── ABSTRACT BLOCK ────────────────────────────────────────────────────────
 function CanvasAbstract({ block, isActive, onClick, onDelete, onMoveUp, onMoveDown }) {
   const isCont = block.fragmentPart > 1;
+  // Render the abstract body with the same inline-math + markdown
+  // pipeline the section blocks use. The label prefix ("Abstract—") is
+  // glued in by including its HTML inline so it stays on the same line
+  // as the first sentence — same behaviour as before.
+  const labelHtml = !isCont
+    ? '<span style="font-style: italic; font-weight: 700;">Abstract—</span>'
+    : '';
+  const bodyHtml = labelHtml + formatParagraph(block.content || '');
+  const kwHtml = block.keywords
+    ? '<span style="font-style: italic; font-weight: 700;">Index Terms—</span>' +
+      formatParagraph(block.keywords)
+    : '';
   return (
     <CanvasBlockShell isActive={isActive} onClick={onClick} onDelete={onDelete} onMoveUp={onMoveUp} onMoveDown={onMoveDown}>
-      <div style={{ padding: '2px 0 10px', fontFamily: IEEE.fonts.body }}>
-        <p style={{ fontSize: 11, lineHeight: 1.5, textAlign: 'justify', margin: 0, fontWeight: 700 }}>
-          {!isCont && <span style={{ fontStyle: 'italic', fontWeight: 700 }}>Abstract—</span>}
-          {block.content}
-        </p>
+      <div style={{ padding: '2pt 0 ' + IEEE.spacing.abstractMarginBot, fontFamily: IEEE.fonts.body }}>
+        <p
+          style={{
+            fontSize: IEEE.sizes.abstract, lineHeight: IEEE.leading.abstract,
+            textAlign: 'justify', margin: 0, fontWeight: 700,
+          }}
+          dangerouslySetInnerHTML={{ __html: bodyHtml }}
+        />
         {block.keywords && (
-          <p style={{ fontSize: 11, lineHeight: 1.5, marginTop: 4, margin: '4px 0 0', fontWeight: 700 }}>
-            <span style={{ fontStyle: 'italic', fontWeight: 700 }}>Index Terms—</span>
-            {block.keywords}
-          </p>
+          <p
+            style={{
+              fontSize: IEEE.sizes.abstract, lineHeight: IEEE.leading.abstract,
+              margin: '4pt 0 0', fontWeight: 700,
+            }}
+            dangerouslySetInnerHTML={{ __html: kwHtml }}
+          />
         )}
       </div>
     </CanvasBlockShell>
@@ -1894,6 +2046,56 @@ function CanvasBlock({ block, blocks, isActive, onClick, onDelete, onMoveUp, onM
   );
 }
 
+// Minimal HTML escape so `formatParagraph()` can pass safely into
+// dangerouslySetInnerHTML.
+function escapeHtmlPara(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Render one paragraph string into safe HTML, handling:
+ *   - `$math$` inline math via KaTeX (loaded globally in index.html)
+ *   - `**bold**` runs from the LaTeX importer's `\subsection` → bold rule
+ *   - HTML-escaping of everything else
+ *
+ * Used by CanvasSection for paragraphs of imported papers where the
+ * editor's rich-text formatting (which writes `contentHtml`) doesn't
+ * apply.
+ */
+function formatParagraph(text) {
+  if (!text) return '';
+  // Split on $...$ math chunks (the regex captures the delimiters so
+  // we can detect math runs in the resulting array).
+  const parts = text.split(/(\$[^$\n]+\$)/g);
+  return parts.map(part => {
+    if (part.length > 2 && part.startsWith('$') && part.endsWith('$')) {
+      const math = part.slice(1, -1);
+      if (typeof window !== 'undefined' && window.katex) {
+        try {
+          return window.katex.renderToString(math, {
+            throwOnError: false,
+            displayMode: false,
+          });
+        } catch {
+          return escapeHtmlPara(part);
+        }
+      }
+      // KaTeX not loaded yet — strip the dollar signs at minimum so
+      // the user doesn't see raw `$k$` literals.
+      return escapeHtmlPara(math);
+    }
+    // Plain text run — escape, then apply tiny markdown subset.
+    return escapeHtmlPara(part)
+      .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/(?<![*\w])\*([^*\n]+)\*(?![*\w])/g, '<em>$1</em>');
+  }).join('');
+}
+
 function CanvasSection({ block, blocks }) {
   const num = getSectionNumber(blocks, block.id);
   const isCont = block.fragmentPart > 1;
@@ -1905,7 +2107,9 @@ function CanvasSection({ block, blocks }) {
         <div style={{
           fontSize: IEEE.sizes.heading1, fontVariant: 'small-caps',
           fontWeight: 400, textAlign: 'center',
-          marginBottom: 5, marginTop: 8, letterSpacing: '0.03em',
+          marginTop: IEEE.spacing.sectionMarginTop,
+          marginBottom: IEEE.spacing.sectionMarginBottom,
+          letterSpacing: '0.03em',
           color: '#111',
         }}>
           {heading}
@@ -1921,13 +2125,20 @@ function CanvasSection({ block, blocks }) {
           dangerouslySetInnerHTML={{ __html: block.contentHtml }}
         />
       ) : (
-        block.content?.split('\n').filter(Boolean).map((para, i) => (
+        // Split on one-or-more newlines. The LaTeX importer collapses
+        // soft line-wraps to spaces, so what remains here is real
+        // paragraph boundaries; hand-authored content (INITIAL_BLOCKS
+        // etc.) often uses a single \n between paragraphs which we
+        // also honour.
+        block.content?.split(/\n+/).filter(p => p.trim()).map((para, i) => (
           <p key={i} style={{
             fontSize: IEEE.sizes.body, lineHeight: IEEE.leading.body,
             textAlign: 'justify', margin: 0,
-            textIndent: (i === 0 && !isCont) ? 0 : '3.5mm',
+            textIndent: (i === 0 && !isCont) ? 0 : IEEE.spacing.paragraphIndent,
             hyphens: 'auto', color: '#111',
-          }}>{para}</p>
+          }}
+            dangerouslySetInnerHTML={{ __html: formatParagraph(para) }}
+          />
         ))
       )}
     </div>
@@ -1946,7 +2157,7 @@ function CanvasTable({ block, blocks, updateBlock, previewOnly }) {
     updateBlock(block.id, { rows: next });
   };
   return (
-    <div style={{ fontFamily: IEEE.fonts.body, margin: '8px 0' }}>
+    <div style={{ fontFamily: IEEE.fonts.body, margin: `${IEEE.spacing.tableMarginVert} 0` }}>
       <div style={{
         fontSize: IEEE.sizes.caption, fontVariant: 'small-caps',
         fontWeight: 700, textAlign: 'center', marginBottom: 4, color: '#111',
@@ -2020,8 +2231,19 @@ function CanvasFigure({ block, blocks, updateBlock, previewOnly }) {
     if (item) handleFile(item.getAsFile());
   };
 
+  // Honour `block.width` (percent of column) and `block.height` (px) when
+  // set; fall back to auto-fit behaviour matching the previous default.
+  const userWidth  = typeof block.width  === 'number' ? `${block.width}%` : '100%';
+  const userHeight = typeof block.height === 'number' ? `${block.height}px` : 'auto';
+  const figureMaxHeight = typeof block.height === 'number' ? `${block.height}px` : '320px';
   return (
-    <div style={{ fontFamily: IEEE.fonts.body, margin: '8px 0', textAlign: 'center' }}>
+    <div style={{
+      fontFamily: IEEE.fonts.body,
+      margin: `${IEEE.spacing.figureMarginVert} auto`,
+      textAlign: 'center',
+      width: userWidth,
+      maxWidth: '100%',
+    }}>
       <div
         onClick={(e) => { if (editable) { e.stopPropagation(); fileInputRef.current?.click(); } }}
         onDragOver={editable ? (e) => { e.preventDefault(); setDragOver(true); } : undefined}
@@ -2030,14 +2252,27 @@ function CanvasFigure({ block, blocks, updateBlock, previewOnly }) {
         onPaste={editable ? onPaste : undefined}
         tabIndex={editable ? 0 : -1}
         style={{
-          width: '100%', minHeight: 100, background: dragOver ? '#eff6ff' : '#f8f8f8',
+          width: '100%',
+          minHeight: typeof block.height === 'number' ? `${block.height}px` : 100,
+          background: dragOver ? '#eff6ff' : '#f8f8f8',
           border: `${dragOver ? 2 : 1}px ${block.url ? 'solid' : 'dashed'} ${dragOver ? '#4A7CFF' : '#ddd'}`,
           borderRadius: 4, display: 'flex',
           alignItems: 'center', justifyContent: 'center', marginBottom: 4,
           cursor: editable ? 'pointer' : 'default', position: 'relative', overflow: 'hidden',
         }}>
         {block.url ? (
-          <img src={block.url} alt={block.caption || `Figure ${idx}`} style={{ maxWidth: '100%', maxHeight: 320, display: 'block' }} />
+          <img
+            src={block.url}
+            alt={block.caption || `Figure ${idx}`}
+            style={{
+              maxWidth: '100%',
+              width: typeof block.height === 'number' ? 'auto' : '100%',
+              height: userHeight,
+              maxHeight: figureMaxHeight,
+              display: 'block',
+              objectFit: 'contain',
+            }}
+          />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: '#aaa' }}>
             <Icon name="add_photo_alternate" size={28} style={{ color: '#bbb' }} />
@@ -2058,9 +2293,12 @@ function CanvasFigure({ block, blocks, updateBlock, previewOnly }) {
             onChange={(e) => handleFile(e.target.files?.[0])} />
         )}
       </div>
-      <div style={{ fontSize: IEEE.sizes.caption, textAlign: 'center', color: '#111' }}>
-        <strong>Fig. {idx}.</strong> {block.caption}
-      </div>
+      <div
+        style={{ fontSize: IEEE.sizes.caption, textAlign: 'center', color: '#111' }}
+        dangerouslySetInnerHTML={{
+          __html: `<strong>Fig. ${idx}.</strong> ` + formatParagraph(block.caption || ''),
+        }}
+      />
     </div>
   );
 }
@@ -2104,10 +2342,13 @@ function CanvasReferences({ block }) {
         textAlign: 'center', marginBottom: 6, marginTop: 8, color: '#111',
       }}>References</div>
       {block.entries?.map((entry, i) => (
-        <div key={i} style={{
-          fontSize: IEEE.sizes.reference, lineHeight: IEEE.leading.reference,
-          paddingLeft: '2em', textIndent: '-2em', marginBottom: 3, color: '#111',
-        }}>{entry}</div>
+        <div key={i}
+          style={{
+            fontSize: IEEE.sizes.reference, lineHeight: IEEE.leading.reference,
+            paddingLeft: '2em', textIndent: '-2em', marginBottom: 3, color: '#111',
+          }}
+          dangerouslySetInnerHTML={{ __html: formatParagraph(entry) }}
+        />
       ))}
     </div>
   );
