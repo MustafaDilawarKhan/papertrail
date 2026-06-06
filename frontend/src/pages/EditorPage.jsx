@@ -2002,12 +2002,12 @@ function PaginationManager({ blocks, activeBlockId, setActiveBlockId, deleteBloc
       return Math.round(lines * 15) + 30;
     }
     if (b.type === 'section') {
-      // 10pt text, 12pt (16px) leading, ~50 chars/line; +50 for heading + margins + shell
-      const lines = (b.content?.length || 0) / 50;
-      return Math.round(lines * 16) + 50;
+      // 10pt Times at 332px column, justified + hyphenated ≈ 44 chars/line; 12pt (16px) leading; +52 for heading, margins, shell
+      const lines = (b.content?.length || 0) / 44;
+      return Math.round(lines * 16) + 52;
     }
     if (b.type === 'text') {
-      const lines = (b.content?.length || 0) / 50;
+      const lines = (b.content?.length || 0) / 44;
       return Math.round(lines * 16) + 16;
     }
     if (b.type === 'table') return 220;
