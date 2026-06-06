@@ -142,7 +142,7 @@ const INITIAL_BLOCKS = [
 
 // Section auto-numbering
 const SECTION_KEYS_ORDER = ['introduction', 'related_work', 'methodology', 'system_design', 'results', 'discussion', 'conclusion', 'acknowledgment'];
-const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI', 'XVII', 'XVIII', 'XIX', 'XX'];
 
 function getSectionNumber(blocks, blockId) {
   const baseId = blockId?.replace(/-p\d+$/, '');
@@ -1301,7 +1301,8 @@ function RichTextArea({ html, onChange, placeholder, style }) {
       data-placeholder={placeholder}
       onInput={(e) => onChange(e.currentTarget.innerHTML)}
       style={{
-        minHeight: 140, padding: '8px 10px', border: '1px solid #e8e8e8',
+        minHeight: 140, maxHeight: 320, overflowY: 'auto',
+        padding: '8px 10px', border: '1px solid #e8e8e8',
         borderRadius: 7, fontSize: 11, outline: 'none', background: '#fff',
         color: '#333', lineHeight: 1.6,
         ...style,
@@ -1867,7 +1868,7 @@ function StructureItem({ block, blocks, idx, isActive, dragIdx, overIdx, onDragS
   const [hov, setHov] = useState(false);
   const num = block.type === 'section' ? getSectionNumber(blocks, block.id) : '';
   const label = block.type === 'section'
-    ? `${num}. ${block.title}`
+    ? (num ? `${num}. ${block.title}` : block.title || 'New Section')
     : block.title || block.type.charAt(0).toUpperCase() + block.type.slice(1);
   const isDragging = dragIdx === idx;
   const isOver = overIdx === idx && dragIdx !== null && dragIdx !== idx;
@@ -2417,7 +2418,7 @@ function formatParagraph(text) {
 function CanvasSection({ block, blocks }) {
   const num = getSectionNumber(blocks, block.id);
   const isCont = block.fragmentPart > 1;
-  const heading = `${num}. ${block.title?.toUpperCase()}`;
+  const heading = num ? `${num}. ${block.title?.toUpperCase()}` : block.title?.toUpperCase() || '';
 
   return (
     <div style={{ fontFamily: IEEE.fonts.body }}>
@@ -2833,6 +2834,8 @@ function CanvasList({ block }) {
       lineHeight: IEEE.leading.body, color: '#111', textAlign: 'justify',
       margin: `${IEEE.spacing.sectionMarginBottom} 0`,
       paddingLeft: '5mm',
+      listStyleType: block.type === 'numbered_list' ? 'decimal' : 'disc',
+      listStylePosition: 'outside',
     }}>
       {items.map((it, i) => (
         <li key={i} style={{ marginBottom: '2pt' }}
