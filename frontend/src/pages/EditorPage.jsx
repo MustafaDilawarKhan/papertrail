@@ -308,9 +308,29 @@ function generateLaTeX(blocks, layoutMode = 'two-column') {
 
 function getBlockIcon(type) {
   const map = {
-    frontmatter: 'title', abstract: 'subject', section: 'segment',
-    table: 'grid_on', figure: 'image', equation: 'functions',
-    references: 'format_quote', algorithm: 'reorder', code: 'code',
+    frontmatter:    'title',
+    abstract:       'subject',
+    keywords:       'label',
+    section:        'segment',
+    table:          'grid_on',
+    figure:         'image',
+    chart:          'bar_chart',
+    flowchart:      'account_tree',
+    equation:       'functions',
+    references:     'format_quote',
+    algorithm:      'reorder',
+    code:           'code',
+    theorem:        'verified',
+    lemma:          'rule',
+    proof:          'gavel',
+    callout:        'info',
+    quote:          'format_quote',
+    footnote:       'sticky_note_2',
+    citation:       'format_quote',
+    bullet_list:    'format_list_bulleted',
+    numbered_list:  'format_list_numbered',
+    divider:        'horizontal_rule',
+    text:           'notes',
   };
   return map[type] || 'article';
 }
@@ -475,14 +495,31 @@ export default function EditorPage() {
       sectionKey: template.sectionKey || '',
       title: template.title || 'New Section',
       content: '',
+      // Type-specific defaults so every sidebar click produces a block
+      // that is immediately editable and renders something on the canvas.
       ...(template.type === 'table' ? {
         caption: 'Comparison of Methods',
         label: 'tab:new',
         rows: [['Header 1', 'Header 2', 'Header 3'], ['Cell', 'Cell', 'Cell']],
       } : {}),
-      ...(template.type === 'figure' ? { caption: 'Fig. N. Caption.', url: '' } : {}),
-      ...(template.type === 'equation' ? { content: 'E = mc^2', label: '(1)' } : {}),
-      ...(template.type === 'references' ? { title: 'References', entries: [] } : {}),
+      ...(template.type === 'figure'    ? { caption: 'Fig. N. Caption.', url: '' } : {}),
+      ...(template.type === 'chart'     ? { caption: 'Chart caption.',   url: '', width: 100 } : {}),
+      ...(template.type === 'flowchart' ? { caption: 'Flowchart caption.', url: '', width: 100 } : {}),
+      ...(template.type === 'equation'  ? { content: 'E = mc^2', label: '(1)' } : {}),
+      ...(template.type === 'references'? { title: 'References', entries: [] } : {}),
+      ...(template.type === 'keywords'  ? { keywords: 'Keyword One, Keyword Two, Keyword Three' } : {}),
+      ...(template.type === 'algorithm' ? { title: 'Algorithm', content: '1: Input: …\n2: Output: …\n3: for each step do\n4:   process()\n5: end for' } : {}),
+      ...(template.type === 'theorem'   ? { title: 'Theorem', content: 'Statement of the theorem goes here.' } : {}),
+      ...(template.type === 'lemma'     ? { title: 'Lemma',   content: 'Statement of the lemma goes here.' } : {}),
+      ...(template.type === 'proof'     ? { title: 'Proof',   content: 'Proof argument goes here.' } : {}),
+      ...(template.type === 'callout'   ? { title: 'Note',    content: 'Callout body goes here.', variant: 'info' } : {}),
+      ...(template.type === 'quote'     ? { content: 'Quoted text goes here.', attribution: '' } : {}),
+      ...(template.type === 'footnote'  ? { content: 'Footnote text.' } : {}),
+      ...(template.type === 'citation'  ? { content: 'Author, "Title," Venue, Year.' } : {}),
+      ...(template.type === 'text'      ? { content: '' } : {}),
+      ...(template.type === 'bullet_list'   ? { items: ['First item', 'Second item', 'Third item'] } : {}),
+      ...(template.type === 'numbered_list' ? { items: ['First item', 'Second item', 'Third item'] } : {}),
+      ...(template.type === 'divider'   ? {} : {}),
     };
     setBlocks(prev => [...prev, newBlock]);
     setActiveBlockId(id);
@@ -1426,14 +1463,276 @@ function BlockEditFields({ block, updateBlock }) {
   }
 
   if (block.type === 'references') {
+    const entries = block.entries || [];
+    const updateEntry = (i, val) => updateBlock(block.id, { entries: entries.map((e, idx) => idx === i ? val : e) });
+    const addEntry = () => updateBlock(block.id, { entries: [...entries, `[${entries.length + 1}] Author, "Title," Venue, Year.`] });
+    const removeEntry = (i) => updateBlock(block.id, { entries: entries.filter((_, idx) => idx !== i) });
     return (
-      <div style={{ fontSize: 10, color: '#aaa', fontStyle: 'italic', padding: '8px 0' }}>
-        References are auto-generated from your citations. Add citations using the Citation button in the toolbar.
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#aaa' }}>
+          Entries ({entries.length})
+        </div>
+        {entries.map((e, i) => (
+          <div key={i} style={{ display: 'flex', gap: 4 }}>
+            <input value={e} onChange={ev => updateEntry(i, ev.target.value)} style={{ ...inputStyle, flex: 1, fontSize: 10 }} />
+            <button onClick={() => removeEntry(i)} style={{ ...tableEditBtn, color: '#dc2626', flexShrink: 0 }}>×</button>
+          </div>
+        ))}
+        <button onClick={addEntry} style={tableEditBtn}>+ Add reference</button>
+        <div style={{ fontSize: 9, color: '#aaa', fontStyle: 'italic' }}>
+          References render as a numbered IEEE-style hanging-indent list.
+        </div>
       </div>
     );
   }
 
-  // Default: section, text, etc.
+  // ── Keywords (Index Terms) ────────────────────────────────────────────
+  if (block.type === 'keywords') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <EditField label="Index Terms (comma-separated)">
+          <textarea
+            value={block.keywords || ''}
+            onChange={e => updateBlock(block.id, { keywords: e.target.value })}
+            rows={3}
+            style={textareaStyle}
+            placeholder="Artificial Intelligence, Retrieval-Augmented Generation, …"
+          />
+        </EditField>
+        <div style={{ fontSize: 9, color: '#aaa', fontStyle: 'italic' }}>
+          Renders as the standard <em>Index Terms—</em> italic line below the abstract.
+        </div>
+      </div>
+    );
+  }
+
+  // ── Algorithm ─────────────────────────────────────────────────────────
+  if (block.type === 'algorithm') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <EditField label="Algorithm Title">
+          <input value={block.title || ''} onChange={e => updateBlock(block.id, { title: e.target.value })} style={inputStyle} />
+        </EditField>
+        <EditField label="Pseudo-code">
+          <textarea
+            value={block.content || ''}
+            onChange={e => updateBlock(block.id, { content: e.target.value })}
+            rows={8}
+            style={{ ...textareaStyle, fontFamily: '"JetBrains Mono", monospace', minHeight: 120 }}
+            placeholder="1: Input: x\n2: while not done do\n3:   process(x)\n4: end while"
+          />
+        </EditField>
+      </div>
+    );
+  }
+
+  // ── Code Block ────────────────────────────────────────────────────────
+  if (block.type === 'code') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <EditField label="Title (optional)">
+          <input value={block.title || ''} onChange={e => updateBlock(block.id, { title: e.target.value })} placeholder="e.g. Listing 1" style={inputStyle} />
+        </EditField>
+        <EditField label="Code">
+          <textarea
+            value={block.content || ''}
+            onChange={e => updateBlock(block.id, { content: e.target.value })}
+            rows={8}
+            style={{ ...textareaStyle, fontFamily: '"JetBrains Mono", monospace', minHeight: 140 }}
+            placeholder="def hello():\n    print('world')"
+          />
+        </EditField>
+      </div>
+    );
+  }
+
+  // ── Chart / Flowchart (image-backed figures with different captions) ──
+  if (block.type === 'chart' || block.type === 'flowchart') {
+    const w = block.width ?? '';
+    const h = block.height ?? '';
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <EditField label="Caption">
+          <input value={block.caption || ''} onChange={e => updateBlock(block.id, { caption: e.target.value })} style={inputStyle} />
+        </EditField>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <EditField label="Width (% of column)">
+            <input type="number" min="10" max="200" step="5" placeholder="auto" value={w}
+              onChange={e => updateBlock(block.id, { width: e.target.value === '' ? null : Math.max(10, Math.min(200, Number(e.target.value))) })}
+              style={inputStyle} />
+          </EditField>
+          <EditField label="Height (px)">
+            <input type="number" min="40" max="800" step="10" placeholder="auto" value={h}
+              onChange={e => updateBlock(block.id, { height: e.target.value === '' ? null : Math.max(40, Math.min(800, Number(e.target.value))) })}
+              style={inputStyle} />
+          </EditField>
+        </div>
+        <div style={{ fontSize: 9, color: '#aaa', fontStyle: 'italic' }}>
+          Click the {block.type} on the paper to upload an image. Use a PNG / SVG export of the chart.
+        </div>
+      </div>
+    );
+  }
+
+  // ── Theorem / Lemma / Proof — italic-prefixed boxed text ──────────────
+  if (['theorem', 'lemma', 'proof'].includes(block.type)) {
+    const label = block.type === 'proof' ? 'Proof' : block.type === 'lemma' ? 'Lemma' : 'Theorem';
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <EditField label={`${label} title`}>
+          <input value={block.title || ''} onChange={e => updateBlock(block.id, { title: e.target.value })} style={inputStyle} placeholder={label} />
+        </EditField>
+        <EditField label={block.type === 'proof' ? 'Argument' : 'Statement'}>
+          <textarea
+            value={block.content || ''}
+            onChange={e => updateBlock(block.id, { content: e.target.value })}
+            rows={6}
+            style={{ ...textareaStyle, minHeight: 110 }}
+            placeholder={`State the ${block.type} here. You can use $math$ inline.`}
+          />
+        </EditField>
+        {block.type === 'proof' && (
+          <div style={{ fontSize: 9, color: '#aaa', fontStyle: 'italic' }}>
+            A □ end-of-proof glyph is automatically appended on render.
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Callout — info / warning / success / danger styled box ────────────
+  if (block.type === 'callout') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <EditField label="Title">
+          <input value={block.title || ''} onChange={e => updateBlock(block.id, { title: e.target.value })} style={inputStyle} />
+        </EditField>
+        <EditField label="Variant">
+          <select
+            value={block.variant || 'info'}
+            onChange={e => updateBlock(block.id, { variant: e.target.value })}
+            style={inputStyle}
+          >
+            <option value="info">Info (blue)</option>
+            <option value="success">Success (green)</option>
+            <option value="warning">Warning (amber)</option>
+            <option value="danger">Danger (red)</option>
+          </select>
+        </EditField>
+        <EditField label="Body">
+          <textarea
+            value={block.content || ''}
+            onChange={e => updateBlock(block.id, { content: e.target.value })}
+            rows={4}
+            style={textareaStyle}
+          />
+        </EditField>
+      </div>
+    );
+  }
+
+  // ── Quote — blockquote with optional attribution ──────────────────────
+  if (block.type === 'quote') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <EditField label="Quotation">
+          <textarea
+            value={block.content || ''}
+            onChange={e => updateBlock(block.id, { content: e.target.value })}
+            rows={5}
+            style={textareaStyle}
+          />
+        </EditField>
+        <EditField label="Attribution (optional)">
+          <input value={block.attribution || ''} onChange={e => updateBlock(block.id, { attribution: e.target.value })} style={inputStyle} placeholder="— Author, Source (Year)" />
+        </EditField>
+      </div>
+    );
+  }
+
+  // ── Footnote ──────────────────────────────────────────────────────────
+  if (block.type === 'footnote') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <EditField label="Footnote text">
+          <textarea
+            value={block.content || ''}
+            onChange={e => updateBlock(block.id, { content: e.target.value })}
+            rows={3}
+            style={textareaStyle}
+          />
+        </EditField>
+        <div style={{ fontSize: 9, color: '#aaa', fontStyle: 'italic' }}>
+          Renders as a numbered footnote at the bottom of its column.
+        </div>
+      </div>
+    );
+  }
+
+  // ── Citation — single bibliography entry (renders inline as [N]) ──────
+  if (block.type === 'citation') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <EditField label="Reference text">
+          <textarea
+            value={block.content || ''}
+            onChange={e => updateBlock(block.id, { content: e.target.value })}
+            rows={3}
+            style={textareaStyle}
+            placeholder='Author, "Title," Venue, Year.'
+          />
+        </EditField>
+        <div style={{ fontSize: 9, color: '#aaa', fontStyle: 'italic' }}>
+          On the paper this renders as a small <code>[N]</code> badge that links to the References block.
+        </div>
+      </div>
+    );
+  }
+
+  // ── Bullet / Numbered list — flat string array ────────────────────────
+  if (block.type === 'bullet_list' || block.type === 'numbered_list') {
+    const items = block.items || [];
+    const setItem = (i, val) => updateBlock(block.id, { items: items.map((x, idx) => idx === i ? val : x) });
+    const addItem = () => updateBlock(block.id, { items: [...items, `Item ${items.length + 1}`] });
+    const removeItem = (i) => updateBlock(block.id, { items: items.filter((_, idx) => idx !== i) });
+    const moveItem = (i, dir) => {
+      const j = dir === 'up' ? i - 1 : i + 1;
+      if (j < 0 || j >= items.length) return;
+      const next = [...items];
+      [next[i], next[j]] = [next[j], next[i]];
+      updateBlock(block.id, { items: next });
+    };
+    const ordered = block.type === 'numbered_list';
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#aaa' }}>
+          Items ({items.length})
+        </div>
+        {items.map((it, i) => (
+          <div key={i} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: '#888', width: 18, textAlign: 'right' }}>{ordered ? `${i + 1}.` : '•'}</span>
+            <input value={it} onChange={e => setItem(i, e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+            <button onClick={() => moveItem(i, 'up')} style={tableEditBtn} title="Move up">↑</button>
+            <button onClick={() => moveItem(i, 'down')} style={tableEditBtn} title="Move down">↓</button>
+            <button onClick={() => removeItem(i)} style={{ ...tableEditBtn, color: '#dc2626' }} title="Remove">×</button>
+          </div>
+        ))}
+        <button onClick={addItem} style={tableEditBtn}>+ Add item</button>
+      </div>
+    );
+  }
+
+  // ── Divider — purely visual, no fields ────────────────────────────────
+  if (block.type === 'divider') {
+    return (
+      <div style={{ fontSize: 10, color: '#aaa', fontStyle: 'italic', padding: '8px 0' }}>
+        Visual divider — no editable fields. Drag to reorder it as a section break on the paper.
+      </div>
+    );
+  }
+
+  // Default: section, text, and anything else falls through to the
+  // rich-text editor with an optional section-title input.
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {block.type === 'section' && (
@@ -2027,17 +2326,36 @@ function CanvasAbstract({ block, isActive, onClick, onDelete, onMoveUp, onMoveDo
 
 // ─── GENERIC CANVAS BLOCK ────────────────────────────────────────────────────
 function CanvasBlock({ block, blocks, isActive, onClick, onDelete, onMoveUp, onMoveDown, updateBlock, previewOnly }) {
+  // Comprehensive type → renderer dispatch. Every block type listed in
+  // SECTIONS_LIST / ELEMENTS_CATEGORIES has a render path here; anything
+  // unknown falls back to a small debug placeholder rather than crashing.
+  const KNOWN = new Set([
+    'section', 'table', 'figure', 'equation', 'references', 'algorithm',
+    'code', 'abstract', 'keywords', 'theorem', 'lemma', 'proof', 'callout',
+    'quote', 'footnote', 'citation', 'bullet_list', 'numbered_list',
+    'divider', 'chart', 'flowchart', 'text',
+  ]);
   return (
     <CanvasBlockShell isActive={isActive} onClick={onClick} onDelete={onDelete} onMoveUp={onMoveUp} onMoveDown={onMoveDown} previewOnly={previewOnly}>
-      {block.type === 'abstract' && <CanvasAbstract block={block} isActive={isActive} onClick={onClick} onDelete={onDelete} onMoveUp={onMoveUp} onMoveDown={onMoveDown} previewOnly={previewOnly} />}
-      {block.type === 'section' && <CanvasSection block={block} blocks={blocks} />}
-      {block.type === 'table' && <CanvasTable block={block} blocks={blocks} updateBlock={updateBlock} previewOnly={previewOnly} />}
-      {block.type === 'figure' && <CanvasFigure block={block} blocks={blocks} updateBlock={updateBlock} previewOnly={previewOnly} />}
-      {block.type === 'equation' && <CanvasEquation block={block} blocks={blocks} updateBlock={updateBlock} previewOnly={previewOnly} />}
-      {block.type === 'references' && <CanvasReferences block={block} />}
-      {block.type === 'algorithm' && <CanvasAlgorithm block={block} />}
-      {block.type === 'code' && <CanvasCode block={block} />}
-      {!['section', 'table', 'figure', 'equation', 'references', 'algorithm', 'code', 'abstract'].includes(block.type) && (
+      {block.type === 'abstract'    && <CanvasAbstract block={block} isActive={isActive} onClick={onClick} onDelete={onDelete} onMoveUp={onMoveUp} onMoveDown={onMoveDown} previewOnly={previewOnly} />}
+      {block.type === 'section'     && <CanvasSection block={block} blocks={blocks} />}
+      {block.type === 'table'       && <CanvasTable block={block} blocks={blocks} updateBlock={updateBlock} previewOnly={previewOnly} />}
+      {block.type === 'figure'      && <CanvasFigure block={block} blocks={blocks} updateBlock={updateBlock} previewOnly={previewOnly} />}
+      {block.type === 'equation'    && <CanvasEquation block={block} blocks={blocks} updateBlock={updateBlock} previewOnly={previewOnly} />}
+      {block.type === 'references'  && <CanvasReferences block={block} />}
+      {block.type === 'algorithm'   && <CanvasAlgorithm block={block} />}
+      {block.type === 'code'        && <CanvasCode block={block} />}
+      {block.type === 'keywords'    && <CanvasKeywords block={block} />}
+      {['theorem', 'lemma', 'proof'].includes(block.type) && <CanvasTheorem block={block} blocks={blocks} />}
+      {block.type === 'callout'     && <CanvasCallout block={block} />}
+      {block.type === 'quote'       && <CanvasQuote block={block} />}
+      {block.type === 'footnote'    && <CanvasFootnote block={block} blocks={blocks} />}
+      {block.type === 'citation'    && <CanvasCitation block={block} blocks={blocks} />}
+      {(block.type === 'bullet_list' || block.type === 'numbered_list') && <CanvasList block={block} />}
+      {block.type === 'divider'     && <CanvasDivider />}
+      {(block.type === 'chart' || block.type === 'flowchart') && <CanvasChart block={block} blocks={blocks} updateBlock={updateBlock} previewOnly={previewOnly} />}
+      {block.type === 'text'        && <CanvasText block={block} />}
+      {!KNOWN.has(block.type) && (
         <div style={{ fontSize: 11, color: '#aaa', padding: '8px 0', fontStyle: 'italic', fontFamily: IEEE.fonts.body }}>
           [{block.type}] {block.content || block.title || ''}
         </div>
@@ -2368,9 +2686,262 @@ function CanvasAlgorithm({ block }) {
 function CanvasCode({ block }) {
   return (
     <div style={{ background: '#fafafa', border: '1px solid #eee', borderRadius: 4, padding: '8px 10px', margin: '6px 0', overflowX: 'auto' }}>
+      {block.title && (
+        <div style={{ fontFamily: IEEE.fonts.body, fontSize: IEEE.sizes.caption, fontWeight: 700, marginBottom: 4, color: '#111' }}>
+          {block.title}
+        </div>
+      )}
       <div style={{ fontFamily: IEEE.fonts.mono, fontSize: 10, lineHeight: 1.7, color: '#333', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
         {block.content || '// Code block'}
       </div>
+    </div>
+  );
+}
+
+// ─── INDEX TERMS / KEYWORDS BLOCK ──────────────────────────────────────────
+function CanvasKeywords({ block }) {
+  if (!block.keywords) return null;
+  return (
+    <div style={{
+      fontFamily: IEEE.fonts.body, fontSize: IEEE.sizes.abstract,
+      lineHeight: IEEE.leading.abstract, fontWeight: 700,
+      margin: `4pt 0 ${IEEE.spacing.abstractMarginBot}`, textAlign: 'justify',
+    }}
+      dangerouslySetInnerHTML={{
+        __html: '<span style="font-style: italic; font-weight: 700;">Index Terms—</span>'
+          + formatParagraph(block.keywords),
+      }}
+    />
+  );
+}
+
+// ─── THEOREM / LEMMA / PROOF BLOCK ─────────────────────────────────────────
+// IEEE convention: italic prefix label + number, then body in roman.
+// For "proof" we also append a small □ end-of-proof glyph.
+function CanvasTheorem({ block, blocks }) {
+  const labelCap = block.type.charAt(0).toUpperCase() + block.type.slice(1);
+  const sameTypeBlocks = blocks.filter(b => b.type === block.type);
+  const idx = sameTypeBlocks.findIndex(b => b.id === block.id) + 1;
+  const heading = block.type === 'proof'
+    ? `${block.title || 'Proof'}.`
+    : `${labelCap} ${idx}${block.title && block.title !== labelCap ? ` (${block.title})` : ''}.`;
+  const bodyHtml = formatParagraph(block.content || '') + (block.type === 'proof' ? ' □' : '');
+  return (
+    <div style={{
+      fontFamily: IEEE.fonts.body, fontSize: IEEE.sizes.body,
+      lineHeight: IEEE.leading.body, textAlign: 'justify',
+      margin: `${IEEE.spacing.sectionMarginBottom} 0`,
+      borderLeft: '3px solid #d4d4d8', paddingLeft: '8px',
+    }}>
+      <span style={{ fontStyle: 'italic', fontWeight: 700, marginRight: 6 }}>{heading}</span>
+      <span dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+    </div>
+  );
+}
+
+// ─── CALLOUT BLOCK (info / success / warning / danger) ─────────────────────
+function CanvasCallout({ block }) {
+  const palette = {
+    info:    { bg: '#eff6ff', border: '#bfdbfe', text: '#1e3a8a', icon: 'info' },
+    success: { bg: '#ecfdf5', border: '#a7f3d0', text: '#065f46', icon: 'check_circle' },
+    warning: { bg: '#fffbeb', border: '#fde68a', text: '#92400e', icon: 'warning' },
+    danger:  { bg: '#fef2f2', border: '#fecaca', text: '#991b1b', icon: 'error' },
+  };
+  const p = palette[block.variant] || palette.info;
+  return (
+    <div style={{
+      fontFamily: IEEE.fonts.body, fontSize: IEEE.sizes.body, lineHeight: IEEE.leading.body,
+      background: p.bg, border: `1px solid ${p.border}`,
+      color: p.text, borderRadius: 6, padding: '8pt 10pt',
+      margin: `${IEEE.spacing.sectionMarginBottom} 0`,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        <Icon name={p.icon} size={14} style={{ color: p.text, marginTop: 1, flexShrink: 0 }} />
+        <div style={{ flex: 1 }}>
+          {block.title && (
+            <div style={{ fontWeight: 700, marginBottom: 3 }}>{block.title}</div>
+          )}
+          <div dangerouslySetInnerHTML={{ __html: formatParagraph(block.content || '') }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── QUOTE BLOCK — pull quote / blockquote ─────────────────────────────────
+function CanvasQuote({ block }) {
+  return (
+    <div style={{
+      fontFamily: IEEE.fonts.body, fontStyle: 'italic',
+      borderLeft: '3px solid #c7c7d1', paddingLeft: '10pt',
+      margin: `${IEEE.spacing.sectionMarginBottom} 0`,
+      fontSize: IEEE.sizes.body, lineHeight: IEEE.leading.body,
+      color: '#333',
+    }}>
+      <div dangerouslySetInnerHTML={{ __html: formatParagraph(block.content || '') }} />
+      {block.attribution && (
+        <div style={{ marginTop: 4, fontStyle: 'normal', fontSize: IEEE.sizes.caption, color: '#666', textAlign: 'right' }}>
+          — {block.attribution}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── FOOTNOTE BLOCK ────────────────────────────────────────────────────────
+function CanvasFootnote({ block, blocks }) {
+  const fns = blocks.filter(b => b.type === 'footnote');
+  const idx = fns.findIndex(b => b.id === block.id) + 1;
+  return (
+    <div style={{
+      fontFamily: IEEE.fonts.body, fontSize: IEEE.sizes.caption,
+      lineHeight: IEEE.leading.reference, color: '#333',
+      margin: '6pt 0 0', borderTop: '0.5px solid #ccc', paddingTop: '4pt',
+    }}>
+      <sup style={{ fontSize: '70%', marginRight: 2 }}>{idx}</sup>
+      <span dangerouslySetInnerHTML={{ __html: formatParagraph(block.content || '') }} />
+    </div>
+  );
+}
+
+// ─── CITATION BLOCK — inline numbered marker linking to References ─────────
+function CanvasCitation({ block, blocks }) {
+  const cites = blocks.filter(b => b.type === 'citation');
+  const idx = cites.findIndex(b => b.id === block.id) + 1;
+  return (
+    <div style={{
+      fontFamily: IEEE.fonts.body, fontSize: IEEE.sizes.body,
+      lineHeight: IEEE.leading.body, color: '#111',
+      margin: '4pt 0', display: 'flex', alignItems: 'flex-start', gap: 6,
+    }}>
+      <span style={{
+        fontSize: '10pt', fontWeight: 700, color: '#1d4ed8',
+        flexShrink: 0,
+      }}>[{idx}]</span>
+      <span dangerouslySetInnerHTML={{ __html: formatParagraph(block.content || '') }} />
+    </div>
+  );
+}
+
+// ─── BULLET / NUMBERED LIST ────────────────────────────────────────────────
+function CanvasList({ block }) {
+  const Tag = block.type === 'numbered_list' ? 'ol' : 'ul';
+  const items = block.items || [];
+  return (
+    <Tag style={{
+      fontFamily: IEEE.fonts.body, fontSize: IEEE.sizes.body,
+      lineHeight: IEEE.leading.body, color: '#111', textAlign: 'justify',
+      margin: `${IEEE.spacing.sectionMarginBottom} 0`,
+      paddingLeft: '5mm',
+    }}>
+      {items.map((it, i) => (
+        <li key={i} style={{ marginBottom: '2pt' }}
+          dangerouslySetInnerHTML={{ __html: formatParagraph(it) }}
+        />
+      ))}
+    </Tag>
+  );
+}
+
+// ─── DIVIDER ───────────────────────────────────────────────────────────────
+function CanvasDivider() {
+  return (
+    <hr style={{
+      border: 'none', borderTop: '0.5px solid #c7c7d1',
+      margin: `${IEEE.spacing.sectionMarginTop} 0`,
+    }} />
+  );
+}
+
+// ─── CHART / FLOWCHART — image block with own caption numbering ────────────
+function CanvasChart({ block, blocks, updateBlock, previewOnly }) {
+  const sameType = blocks.filter(b => b.type === block.type);
+  const idx = sameType.findIndex(b => b.id === block.id) + 1;
+  const fileInputRef = useRef(null);
+  const editable = !previewOnly && updateBlock;
+
+  const handleFile = (file) => {
+    if (!file || !file.type?.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = (e) => updateBlock(block.id, { url: e.target.result });
+    reader.readAsDataURL(file);
+  };
+
+  const userWidth  = typeof block.width  === 'number' ? `${block.width}%` : '100%';
+  const userHeight = typeof block.height === 'number' ? `${block.height}px` : 'auto';
+  const figureMaxHeight = typeof block.height === 'number' ? `${block.height}px` : '320px';
+  const label = block.type === 'flowchart' ? `Flowchart ${idx}` : `Chart ${idx}`;
+
+  return (
+    <div style={{
+      fontFamily: IEEE.fonts.body,
+      margin: `${IEEE.spacing.figureMarginVert} auto`,
+      textAlign: 'center', width: userWidth, maxWidth: '100%',
+    }}>
+      <div
+        onClick={(e) => { if (editable) { e.stopPropagation(); fileInputRef.current?.click(); } }}
+        style={{
+          width: '100%',
+          minHeight: typeof block.height === 'number' ? `${block.height}px` : 100,
+          background: '#f8f8f8',
+          border: `1px ${block.url ? 'solid' : 'dashed'} #ddd`,
+          borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          marginBottom: 4, cursor: editable ? 'pointer' : 'default', overflow: 'hidden',
+        }}>
+        {block.url ? (
+          <img src={block.url} alt={block.caption || label}
+            style={{
+              maxWidth: '100%', width: typeof block.height === 'number' ? 'auto' : '100%',
+              height: userHeight, maxHeight: figureMaxHeight,
+              display: 'block', objectFit: 'contain',
+            }} />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: '#aaa' }}>
+            <Icon name={block.type === 'flowchart' ? 'account_tree' : 'bar_chart'} size={28} style={{ color: '#bbb' }} />
+            <span style={{ fontSize: 10, fontWeight: 600 }}>{editable ? `Click to upload ${block.type}` : 'No image'}</span>
+          </div>
+        )}
+        {editable && (
+          <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }}
+            onChange={(e) => handleFile(e.target.files?.[0])} />
+        )}
+      </div>
+      <div
+        style={{ fontSize: IEEE.sizes.caption, textAlign: 'center', color: '#111' }}
+        dangerouslySetInnerHTML={{
+          __html: `<strong>${label}.</strong> ` + formatParagraph(block.caption || ''),
+        }}
+      />
+    </div>
+  );
+}
+
+// ─── TEXT BLOCK — plain paragraph(s), no heading ───────────────────────────
+function CanvasText({ block }) {
+  return (
+    <div style={{ fontFamily: IEEE.fonts.body }}>
+      {block.contentHtml ? (
+        <div
+          className="ieee-section-body"
+          style={{
+            fontSize: IEEE.sizes.body, lineHeight: IEEE.leading.body,
+            textAlign: 'justify', color: '#111', hyphens: 'auto',
+          }}
+          dangerouslySetInnerHTML={{ __html: block.contentHtml }}
+        />
+      ) : (
+        (block.content || '').split(/\n+/).filter(p => p.trim()).map((para, i) => (
+          <p key={i}
+            style={{
+              fontSize: IEEE.sizes.body, lineHeight: IEEE.leading.body,
+              textAlign: 'justify', margin: 0,
+              textIndent: i === 0 ? 0 : IEEE.spacing.paragraphIndent,
+              hyphens: 'auto', color: '#111',
+            }}
+            dangerouslySetInnerHTML={{ __html: formatParagraph(para) }}
+          />
+        ))
+      )}
     </div>
   );
 }
