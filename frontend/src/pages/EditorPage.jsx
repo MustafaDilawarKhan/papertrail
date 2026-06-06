@@ -1931,9 +1931,12 @@ function PaperCanvas({ blocks, activeBlockId, setActiveBlockId, layoutMode, setL
   return (
     <main style={{
       flex: 1,
+      minWidth: 0,
+      minHeight: 0,
       background: '#eaeaea',
       overflowY: 'auto',
       overflowX: 'auto',
+      overscrollBehavior: 'contain',
       position: 'relative',
       display: 'flex',
       flexDirection: 'column',
