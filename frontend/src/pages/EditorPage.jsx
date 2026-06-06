@@ -2253,15 +2253,15 @@ function CanvasFrontmatter({ block, isActive, onClick, onDelete, onMoveUp, onMov
   const emailsFromAuthors = authors.filter(a => a.email).map(a => a.email).join(', ');
   return (
     <CanvasBlockShell isActive={isActive} onClick={onClick} onDelete={onDelete} onMoveUp={onMoveUp} onMoveDown={onMoveDown} fullWidth>
-      <div style={{ textAlign: 'center', padding: '18pt 40px 12pt', fontFamily: IEEE.fonts.body }}>
+      <div style={{ textAlign: 'center', padding: '8pt 40px 4pt', fontFamily: IEEE.fonts.body }}>
         <h1 style={{
           fontSize: IEEE.sizes.title, fontWeight: 700, lineHeight: 1.15,
-          marginBottom: '12pt', fontFamily: IEEE.fonts.body, textTransform: 'none',
+          marginBottom: '6pt', fontFamily: IEEE.fonts.body, textTransform: 'none',
           color: '#111',
         }}>{block.title}</h1>
         <div style={{
           fontSize: IEEE.sizes.authorName,
-          marginBottom: '8pt', fontFamily: IEEE.fonts.body, lineHeight: 1.4, color: '#111',
+          marginBottom: '4pt', fontFamily: IEEE.fonts.body, lineHeight: 1.4, color: '#111',
         }}>
           {authors.map((a, i) => (
             <span key={i}>
@@ -2272,7 +2272,7 @@ function CanvasFrontmatter({ block, isActive, onClick, onDelete, onMoveUp, onMov
         </div>
         <div style={{
           fontSize: IEEE.sizes.affiliation, fontStyle: 'italic',
-          color: '#333', lineHeight: 1.45, marginBottom: '4pt',
+          color: '#333', lineHeight: 1.45, marginBottom: '3pt',
         }}>
           {perAuthorAffil
             ? authors.map((a, i) => a.affiliation ? <div key={i}><sup style={{ fontSize: '60%' }}>{a.sup}</sup>{a.affiliation}</div> : null)
