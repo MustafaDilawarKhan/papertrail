@@ -1997,12 +1997,18 @@ function PaginationManager({ blocks, activeBlockId, setActiveBlockId, deleteBloc
   const getWeight = (b) => {
     if (b.type === 'frontmatter') return 0;
     if (b.type === 'abstract') {
+      // 9pt text, 11pt (14.7px) leading, ~45 chars/line; +30 for shell overhead
       const lines = (b.content?.length || 0) / 45;
-      return (lines * 13.5) + 40; // Tighter line height
+      return Math.round(lines * 15) + 30;
     }
     if (b.type === 'section') {
-      const lines = (b.content?.length || 0) / 54;
-      return (lines * 13.5) + 40; // Tighter line height
+      // 10pt text, 12pt (16px) leading, ~50 chars/line; +50 for heading + margins + shell
+      const lines = (b.content?.length || 0) / 50;
+      return Math.round(lines * 16) + 50;
+    }
+    if (b.type === 'text') {
+      const lines = (b.content?.length || 0) / 50;
+      return Math.round(lines * 16) + 16;
     }
     if (b.type === 'table') return 220;
     if (b.type === 'figure') return 260;
